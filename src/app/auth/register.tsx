@@ -4,18 +4,17 @@ import { ThemedView } from '@/components/themed-view';
 import Back from '@/components/ui/back-button';
 import { EmailField, PasswordField } from '@/components/ui/text-input-field';
 import { BottomTabInset, BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { signUp } from '@/services/Firebase/authService';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
 import { useState } from 'react';
 import {
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableWithoutFeedback,
   View
 } from 'react-native';
 
@@ -25,6 +24,39 @@ export default function signUpScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isAgreed, setIsAgreed] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSignUp = async () => {
+    setError('');
+
+    if (!email.trim() || !password || !confirmPassword) {
+      setError('Please fill in all fields.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    if (!isAgreed) {
+      setError('You must agree to the Terms and Conditions.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await signUp(email.trim(), password);
+      router.replace('/account-setup');
+    } catch (err: any) {
+      console.error('Error during sign up:', err);
+      setError(mapFirebaseError(err?.code));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -32,81 +64,99 @@ export default function signUpScreen() {
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView 
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.contentWrapper}>
-              <View style={styles.backButtonContainer}>
-                <Back onPress={() => router.back()} /> 
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.contentWrapper}>
+            <View style={styles.backButtonContainer}>
+              <Back onPress={() => router.back()} /> 
+            </View>
+
+            <View style={styles.sectionContainer}>
+              <Logo />
+              <View style={styles.headerTextContainer}>
+              <Text style={styles.subtitle}>Please enter your email & password to sign up</Text>
               </View>
+              
+              {!!error && <Text style={styles.errorText}>{error}</Text>}
 
-              <View style={styles.sectionContainer}>
-                <Logo />
-                <Text style={styles.subtitle}>Create an account to get started</Text>
-                
-                <EmailField 
-                  title="Email" 
-                  placeholder="Enter your email" 
-                  value={email} 
-                  onChangeText={(text) => setEmail(text)} 
-                  keyboardType="email-address"
-                />
-                
-                <PasswordField 
-                  title="Password" 
-                  placeholder="Enter your password" 
-                  value={password} 
-                  onChangeText={(text) => setPassword(text)} 
-                  secureTextEntry={true}
-                />
+              <EmailField 
+                title="Email" 
+                placeholder="Enter your email" 
+                value={email} 
+                onChangeText={(text) => setEmail(text)} 
+                keyboardType="email-address"
+              />
+              
+              <PasswordField 
+                title="Password" 
+                placeholder="Enter your password" 
+                value={password} 
+                onChangeText={(text) => setPassword(text)} 
+                secureTextEntry={true}
+              />
 
-                <PasswordField 
-                  title="Confirm Password" 
-                  placeholder="Confirm your password" 
-                  value={confirmPassword} 
-                  onChangeText={(text) => setConfirmPassword(text)} 
-                  secureTextEntry={true}
-                />
+              <PasswordField 
+                title="Confirm Password" 
+                placeholder="Confirm your password" 
+                value={confirmPassword} 
+                onChangeText={(text) => setConfirmPassword(text)} 
+                secureTextEntry={true}
+              />
 
-                <View style={styles.termsContainer}>
-                  <Pressable 
-                    style={[styles.checkbox, isAgreed && styles.checkboxChecked]} 
-                    onPress={() => setIsAgreed(!isAgreed)}
-                    hitSlop={8}
-                  >
-                    {isAgreed && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
-                  </Pressable>
+              <View style={styles.termsContainer}>
+                <Pressable 
+                  style={[styles.checkbox, isAgreed && styles.checkboxChecked]} 
+                  onPress={() => setIsAgreed(!isAgreed)}
+                  hitSlop={8}
+                >
+                  {isAgreed && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
+                </Pressable>
 
-                  <Text style={styles.termsText}>
-                    I Agree to TripSplit{' '}
-                    <Text 
-                      style={styles.termsLink} 
-                    >
-                      Terms and Conditions
-                    </Text>
+                <Text style={styles.termsText}>
+                  I Agree to TripSplit{' '}
+                  <Text style={styles.termsLink}>
+                    Terms and Conditions
                   </Text>
-                </View>
-              </View>
-
-              <View style={styles.buttonContainer}>
-                <PrimaryButton 
-                  onPress={() => console.log('Create Account', { email, isAgreed })} 
-                  title="Create Account" 
-                  buttonColor={BrandColors.base50} 
-                  textColor={BrandColors.primary} 
-                  borderColor={BrandColors.base50} 
-                  borderWidth={0} 
-                />
+                </Text>
               </View>
             </View>
-          </ScrollView>
-        </TouchableWithoutFeedback>
+
+            <View style={styles.buttonContainer}>
+              <PrimaryButton 
+                onPress={handleSignUp} 
+                title={loading ? "Creating Account..." : "Create Account"} 
+                buttonColor={BrandColors.base50} 
+                textColor={BrandColors.primary} 
+                borderColor={BrandColors.base50} 
+                borderWidth={0}
+                disabled={loading}
+              />
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </ThemedView>
   );
+}
+
+function mapFirebaseError(code?: string): string {
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return 'That email is already registered.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/weak-password':
+      return 'Password should be at least 6 characters.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your connection.';
+    case 'auth/configuration-not-found':
+      return 'Firebase Authentication is not configured. Enable Email/Password sign-in in the Firebase Console.';
+    default:
+      return 'Failed to create an account. Please try again.';
+  }
 }
 
 const styles = StyleSheet.create({
@@ -126,7 +176,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
     paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.six,
     justifyContent: 'space-between',
     paddingBottom: BottomTabInset + Spacing.three,
   },
@@ -139,9 +189,20 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
     width: '100%',
   },
+  headerTextContainer: {
+    width: '100%',
+    alignItems: 'flex-start',
+  },
   subtitle: {
     color: BrandColors.secondary,
+    textAlign: 'left',
+    fontSize: 14,
+  },
+  errorText: {
+    color: '#FF4D4D',
+    fontSize: 14,
     textAlign: 'center',
+    width: '100%',
   },
   termsContainer: {
     flexDirection: 'row',

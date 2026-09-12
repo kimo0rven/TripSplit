@@ -6,13 +6,11 @@ import { EmailField, PasswordField } from '@/components/ui/text-input-field';
 import { BottomTabInset, BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useState } from 'react';
 import {
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableWithoutFeedback,
   View
 } from 'react-native';
 
@@ -29,51 +27,52 @@ export default function loginScreen() {
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView 
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.contentWrapper}>
-              <View style={styles.backButtonContainer}>
-                <Back onPress={() => router.back()} /> 
-              </View>
-
-              <View style={styles.sectionContainer}>
-                <Logo />
-                <Text style={styles.subtitle}>Please enter your email & password to log in</Text>
-                
-                <EmailField 
-                  title="Email" 
-                  placeholder="Enter your email" 
-                  value={email} 
-                  onChangeText={(text) => setEmail(text)} 
-                  keyboardType="email-address"
-                />
-                
-                <PasswordField 
-                  title="Password" 
-                  placeholder="Enter your password" 
-                  value={password} 
-                  onChangeText={(text) => setPassword(text)} 
-                  secureTextEntry={true}
-                />
-              </View>
-
-              <View style={styles.buttonContainer}>
-                <PrimaryButton 
-                  onPress={() => console.log(1)} 
-                  title="Log In" 
-                  buttonColor={BrandColors.base50} 
-                  textColor={BrandColors.primary} 
-                  borderColor={BrandColors.base50} 
-                  borderWidth={0} 
-                />
-              </View>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.contentWrapper}>
+            <View style={styles.backButtonContainer}>
+              <Back onPress={() => router.back()} /> 
             </View>
-          </ScrollView>
-        </TouchableWithoutFeedback>
+
+            <View style={styles.sectionContainer}>
+              <Logo />
+              
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.subtitle}>Please enter your email & password to log in</Text>
+              </View>
+              
+              <EmailField 
+                title="Email" 
+                placeholder="Enter your email" 
+                value={email} 
+                onChangeText={(text) => setEmail(text)} 
+                keyboardType="email-address"
+              />
+              
+              <PasswordField 
+                title="Password" 
+                placeholder="Enter your password" 
+                value={password} 
+                onChangeText={(text) => setPassword(text)} 
+                secureTextEntry={true}
+              />
+            </View>
+
+            <View style={styles.buttonContainer}>
+              <PrimaryButton 
+                onPress={() => console.log('Login pressed')} 
+                title="Log In" 
+                buttonColor={BrandColors.base50} 
+                textColor={BrandColors.primary} 
+                borderColor={BrandColors.base50} 
+                borderWidth={0} 
+              />
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </ThemedView>
   );
@@ -96,7 +95,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
     paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.six,
     justifyContent: 'space-between',
     paddingBottom: BottomTabInset + Spacing.three,
   },
@@ -109,9 +108,14 @@ const styles = StyleSheet.create({
     gap: Spacing.five,
     width: '100%',
   },
+  headerTextContainer: {
+    width: '100%',
+    alignItems: 'flex-start',
+  },
   subtitle: {
     color: BrandColors.secondary,
-    textAlign: 'center',
+    textAlign: 'left',
+    fontSize: 14,
   },
   buttonContainer: {
     width: '100%',

@@ -8,6 +8,7 @@ interface PrimaryButtonProps {
   textColor: string;
   borderColor: string;
   borderWidth: number;
+  disabled?: boolean;
 }
 
 export default function PrimaryButton({ 
@@ -16,10 +17,11 @@ export default function PrimaryButton({
   buttonColor, 
   textColor, 
   borderColor, 
-  borderWidth }
+  borderWidth,
+  disabled = false }
   : PrimaryButtonProps) {
   return (
-    <Pressable style={[styles.button, { backgroundColor: buttonColor }, { borderColor: borderColor }, { borderWidth: borderWidth }]} onPress={onPress}>
+    <Pressable disabled={disabled} style={[styles.button, { backgroundColor: buttonColor }, { borderColor: borderColor }, { borderWidth: borderWidth }, disabled && styles.disabled]} onPress={onPress}>
       <Text style={[styles.buttonText, { color: textColor }]}>{title}</Text>
     </Pressable>
   );
@@ -37,5 +39,8 @@ const styles = StyleSheet.create({
     color: BrandColors.background,
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  disabled: {
+    opacity: 0.6,
   },
 });

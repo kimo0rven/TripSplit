@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "804601751496",
+    "firebase_url": "https://tripsplit-14f93-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "tripsplit-14f93",
+    "storage_bucket": "tripsplit-14f93.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:804601751496:android:b6ad01827c8dac8c41c2fd",
+        "android_client_info": {
+          "package_name": "com.kim.tripsplit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4bm5UNXNLj0c2oQvwxjT9Rb1Vqz9iPHA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
