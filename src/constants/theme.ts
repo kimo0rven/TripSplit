@@ -88,3 +88,21 @@ export const Spacing = {
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
+
+
+export const FontAssets = {
+    'PlusJakartaSans-Bold': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-Bold.ttf'),
+    'PlusJakartaSans-Bold-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-BoldItalic.ttf'),
+    'PlusJakartaSans-ExtraBold': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-ExtraBold.ttf'),
+    'PlusJakartaSans-ExtraBold-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-ExtraBoldItalic.ttf'),
+    'PlusJakartaSans-ExtraLight': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-ExtraLight.ttf'),
+    'PlusJakartaSans-ExtraLight-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-ExtraLightItalic.ttf'),
+    'PlusJakartaSans-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-Italic.ttf'),
+    'PlusJakartaSans-Light': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-Light.ttf'),
+    'PlusJakartaSans-Light-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-LightItalic.ttf'),
+    'PlusJakartaSans-Medium': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-Medium.ttf'),
+    'PlusJakartaSans-Medium-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-MediumItalic.ttf'),
+    'PlusJakartaSans-Regular': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-Regular.ttf'),
+    'PlusJakartaSans-SemiBold': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-SemiBold.ttf'),
+    'PlusJakartaSans-SemiBold-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-SemiBoldItalic.ttf'),
+  }

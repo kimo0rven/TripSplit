@@ -1,9 +1,10 @@
+import Back from '@/components/Button/back-button';
 import PrimaryButton from '@/components/Button/primary-button';
 import Logo from '@/components/Logo/whitemode';
 import { ThemedView } from '@/components/themed-view';
-import Back from '@/components/ui/back-button';
 import { EmailField, PasswordField } from '@/components/ui/text-input-field';
 import { BottomTabInset, BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { signIn } from '@/services/Firebase/authService';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -20,6 +21,28 @@ export default function loginScreen() {
   const router = useRouter(); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    setError('');
+
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await signIn(email, password);
+      router.replace('/homescreen');
+    } catch (err: any) {
+      setError(mapFirebaseError(err?.code));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -43,12 +66,17 @@ export default function loginScreen() {
               <View style={styles.headerTextContainer}>
                 <Text style={styles.subtitle}>Please enter your email & password to log in</Text>
               </View>
+
+              {!!error && <Text style={styles.errorText}>{error}</Text>}
               
               <EmailField 
                 title="Email" 
                 placeholder="Enter your email" 
                 value={email} 
-                onChangeText={(text) => setEmail(text)} 
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (error) setError('');
+                }}
                 keyboardType="email-address"
               />
               
@@ -56,19 +84,23 @@ export default function loginScreen() {
                 title="Password" 
                 placeholder="Enter your password" 
                 value={password} 
-                onChangeText={(text) => setPassword(text)} 
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (error) setError('');
+                }}
                 secureTextEntry={true}
               />
             </View>
 
             <View style={styles.buttonContainer}>
               <PrimaryButton 
-                onPress={() => console.log('Login pressed')} 
-                title="Log In" 
+                onPress={handleLogin}
+                title={loading ? 'Logging In...' : 'Log In'}
                 buttonColor={BrandColors.base50} 
                 textColor={BrandColors.primary} 
                 borderColor={BrandColors.base50} 
-                borderWidth={0} 
+                borderWidth={0}
+                disabled={loading}
               />
             </View>
           </View>
@@ -117,8 +149,40 @@ const styles = StyleSheet.create({
     textAlign: 'left',
     fontSize: 14,
   },
+  errorText: {
+    color: '#FF4D4D',
+    fontSize: 14,
+    textAlign: 'center',
+    width: '100%',
+  },
   buttonContainer: {
     width: '100%',
     marginTop: Spacing.four,
   },
 });
+
+function mapFirebaseError(code?: string): string {
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+      return 'Incorrect email or password.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your connection.';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Please wait and try again later.';
+    case 'auth/operation-not-allowed':
+    case 'auth/configuration-not-found':
+      return 'Email and password sign-in is not enabled for this Firebase project.';
+    case 'auth/invalid-api-key':
+      return 'Firebase is not configured correctly. Please contact support.';
+    case 'auth/app-not-authorized':
+      return 'This app is not authorized for the Firebase project.';
+    default:
+      return 'Unable to log in. Please try again.';
+  }
+}

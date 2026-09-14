@@ -85,9 +85,33 @@ export function EmailField({ title, placeholder, value, onChangeText }: UserInpu
   );
 }
 
+export function TextField({ title, placeholder, value, onChangeText, keyboardType = 'default' }: UserInputFieldProps) {
+  return (
+    <UserInputField
+      title={title}
+      placeholder={placeholder} 
+      value={value}
+      onChangeText={onChangeText}
+      keyboardType={keyboardType}
+    />
+  );
+}
+
+export function TextfieldLeftIcon({ title, placeholder, value, leftIcon, onChangeText }: UserInputFieldProps) {
+  return (
+    <UserInputField
+      title={title}
+      placeholder={placeholder}
+      value={value}
+      onChangeText={onChangeText}
+      leftIcon={leftIcon}
+    />
+  );
+}
+
 export function PasswordField({ title, placeholder, value, onChangeText }: UserInputFieldProps) {
   return (
-    <UserInputField 
+    <UserInputField
       title={title}
       placeholder={placeholder}
       value={value}
@@ -107,11 +131,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: BrandColors.primary,
     marginBottom: 6,
+    fontFamily: "PlusJakartaSans-Bold",
   },
   inputContainer: {
     position: 'relative',
     width: '100%',
     justifyContent: 'center',
+  },
+  fieldText: {
+    fontFamily: "PlusJakartaSans-Regular",
   },
   leftIconContainer: {
     position: 'absolute',

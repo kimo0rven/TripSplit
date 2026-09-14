@@ -29,13 +29,13 @@ export default function PrimaryButton({
 
 const styles = StyleSheet.create({
   button: {
-    fontFamily: 'PlusJakartaSans-Regular',
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.four,
     alignItems: 'center',
     borderRadius: 15,
   },
   buttonText: {
+    fontFamily: 'PlusJakartaSans-Bold',
     color: BrandColors.background,
     fontSize: 14,
     fontWeight: 'bold',

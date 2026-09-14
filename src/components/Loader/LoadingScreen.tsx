@@ -1,12 +1,12 @@
-import logo from '@/assets/images/logo_whitemode.png';
-import { Image, StyleSheet, View } from 'react-native';
-
 import { BrandColors } from '@/constants/theme';
+import { StyleSheet, Text, View } from 'react-native';
 
 export default function LoadingScreen() {
   return (
     <View style={styles.container}>
-      <Image source={logo} style={styles.logo} accessibilityLabel="Trip Split" />
+      <Text style={styles.logo}>
+        Trip<Text style={styles.logo2}>Split</Text>
+      </Text>
     </View>
   );
 }
@@ -19,7 +19,12 @@ const styles = StyleSheet.create({
     backgroundColor: BrandColors.base50,
   },
   logo: {
-    width: 184,
-    height: 54,
+    fontSize: 64,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+
+    color: BrandColors.primary,
+  },
+  logo2: {
+    color: BrandColors.background,
   },
 });

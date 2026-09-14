@@ -1,7 +1,7 @@
+import Back from '@/components/Button/back-button';
 import PrimaryButton from '@/components/Button/primary-button';
 import Logo from '@/components/Logo/whitemode';
 import { ThemedView } from '@/components/themed-view';
-import Back from '@/components/ui/back-button';
 import { EmailField, PasswordField } from '@/components/ui/text-input-field';
 import { BottomTabInset, BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { signUp } from '@/services/Firebase/authService';

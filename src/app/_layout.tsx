@@ -1,57 +1,81 @@
-// import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-// import * as SplashScreen from 'expo-splash-screen';
-// import { useColorScheme } from 'react-native';
-
-// import { AnimatedSplashOverlay } from '@/components/animated-icon';
-// import AppTabs from '@/components/app-tabs';
-
-// SplashScreen.preventAutoHideAsync();
-
-// export default function TabLayout() {
-//   const colorScheme = useColorScheme();
-//   return (
-//     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-//       <AnimatedSplashOverlay />
-//       <AppTabs />
-//     </ThemeProvider>
-//   );
-// }
-
 import LoadingScreen from '@/components/Loader/LoadingScreen';
+import { FontAssets } from '@/constants/theme';
+import { AuthProvider, useAuth } from '@/services/Firebase/useAuth';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    'PlusJakartaSans-Bold': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-Bold.ttf'),
-    'PlusJakartaSans-Bold-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-BoldItalic.ttf'),
-    'PlusJakartaSans-ExtraBold': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-ExtraBold.ttf'),
-    'PlusJakartaSans-ExtraBold-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-ExtraBoldItalic.ttf'),
-    'PlusJakartaSans-ExtraLight': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-ExtraLight.ttf'),
-    'PlusJakartaSans-ExtraLight-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-ExtraLightItalic.ttf'),
-    'PlusJakartaSans-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-Italic.ttf'),
-    'PlusJakartaSans-Light': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-Light.ttf'),
-    'PlusJakartaSans-Light-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-LightItalic.ttf'),
-    'PlusJakartaSans-Medium': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-Medium.ttf'),
-    'PlusJakartaSans-Medium-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-MediumItalic.ttf'),
-    'PlusJakartaSans-Regular': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-Regular.ttf'),
-    'PlusJakartaSans-SemiBold': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-SemiBold.ttf'),
-    'PlusJakartaSans-SemiBold-Italic': require('@/assets/fonts/Plus_Jakarta_Sans/static/PlusJakartaSans-SemiBoldItalic.ttf'),
-  });
- 
+const MIN_LOADING_TIME = 1500;
+const FORCE_LOADING_SCREEN = false;
+
+function RootLayoutNav({ fontsLoaded, fontError }: { fontsLoaded: boolean; fontError: Error | null }) {
+  const router = useRouter();
+  const segments = useSegments();
+  
+  const { currentUser, loading } = useAuth();
+  const authInitialized = !loading;
+
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+
   useEffect(() => {
-    if (loaded || error) {
+    const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, MIN_LOADING_TIME);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const isReady =
+    !FORCE_LOADING_SCREEN &&
+    (fontsLoaded || !!fontError) &&
+    minTimeElapsed &&
+    authInitialized;
+
+  useEffect(() => {
+    if (isReady) {
       SplashScreen.hideAsync();
     }
-  }, [loaded, error]);
+  }, [isReady]);
 
-  if (!loaded && !error) {
+  useEffect(() => {
+    if (!isReady) return;
+
+    const inAuthGroup = segments[0] === 'auth' || !segments[0];
+    const isAccountSetup = segments[0] === 'account-setup';
+
+    if (currentUser) {
+      if (!currentUser.displayName) {
+        if (!isAccountSetup) {
+          router.replace('/account-setup');
+        }
+      } else {
+        if (inAuthGroup || isAccountSetup) {
+          router.replace('/homescreen');
+        }
+      }
+    } else {
+      if (!inAuthGroup) {
+        router.replace('/');
+      }
+    }
+  }, [isReady, currentUser, segments]);
+
+  if (!isReady) {
     return <LoadingScreen />;
   }
 
-  return <Stack />;
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+
+export default function RootLayout() {
+  const [loaded, error] = useFonts(FontAssets);
+
+  return (
+    <AuthProvider>
+      <RootLayoutNav fontsLoaded={loaded} fontError={error} />
+    </AuthProvider>
+  );
 }
