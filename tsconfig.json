@@ -3,18 +3,18 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@/assets/*": [
-        "./src/assets/*"
-      ]
+      "@/*": ["./src/*"],
+      "@/assets/*": ["./src/assets/*"]
     }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-, "src/utils/AuthContext.1ts", "src/config/firebase.ts", "src/config/supabase.js"  ]
+    "expo-env.d.ts",
+    "src/utils/AuthContext.1ts",
+    "src/config/firebase.ts",
+    "src/config/supabase.js"
+  ],
+  "exclude": ["node_modules", "tests"]
 }

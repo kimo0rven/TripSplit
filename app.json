@@ -1,38 +1,73 @@
 {
   "expo": {
-    "name": "Trip_Split",
+    "name": "TripSplit",
     "slug": "Trip_Split",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "",
+    "icon": "./assets/images/icon.png",
     "scheme": "tripsplit",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#FEBB1B",
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "imageWidth": 184
+    },
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/tripsplit.icon",
+      "bundleIdentifier": "com.keons.Trip-Split"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "monochromeImage": "./assets/images/monochrome-icon.png",
+        "backgroundColor": "#FEBB1B"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.keons.Trip_Split"
     },
     "web": {
       "output": "static",
-      "favicon": ""
+      "favicon": "./assets/images/favicon.png",
+      "backgroundColor": "#FEBB1B"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#FEBB1B",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 184,
+          "dark": {
+            "backgroundColor": "#FEBB1B"
+          }
         }
       ],
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-image",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TripSplit uses your photos so you can attach a receipt picture or choose a profile photo.",
+          "cameraPermission": "TripSplit uses your camera so you can photograph a receipt."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "TripSplit uses your camera to scan a trip's QR code."
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "color": "#FEBB1B"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

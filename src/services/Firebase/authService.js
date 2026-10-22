@@ -6,7 +6,8 @@ import { ref, set } from 'firebase/database';
 export async function signIn(email, password) {
   const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
   const token = await userCredential.user.getIdToken();
-  await saveToken(token);
+  // The sign-in already worked; a failure to cache the token must not block it.
+  await saveToken(token).catch((error) => console.warn('Could not store the login token:', error));
   return userCredential.user;
 }
 

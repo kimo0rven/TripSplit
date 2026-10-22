@@ -32,10 +32,7 @@ export default function BigButtonOptions({
         return (
           <Pressable
             key={choice.value}
-            style={[
-              styles.optionButton,
-              isSelected && styles.selectedOptionButton,
-            ]}
+            style={[styles.optionButton, isSelected && styles.selectedOptionButton]}
             onPress={() => onSelect(choice)}
           >
             <Text style={[styles.optionText, isSelected && styles.selectedOptionText]}>
@@ -67,12 +64,12 @@ const styles = StyleSheet.create({
     backgroundColor: BrandColors.base50,
   },
   optionText: {
-    fontFamily: "PlusJakartaSans-Regular",
+    fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 16,
     color: BrandColors.primary,
   },
   selectedOptionText: {
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontFamily: 'PlusJakartaSans-Bold',
   },
 });

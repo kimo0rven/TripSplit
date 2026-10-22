@@ -27,7 +27,6 @@ export default function AccountSetup() {
 
   const hasFullname = fullname.trim().length > 0;
   const pickImage = async () => {
-
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permissionResult.granted) {
@@ -36,7 +35,7 @@ export default function AccountSetup() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'], 
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -59,31 +58,49 @@ export default function AccountSetup() {
     setSaveError('');
 
     try {
-        const uid = auth.currentUser?.uid;
-        if (!uid) throw new Error('No user is signed in.');
+      const uid = auth.currentUser?.uid;
+      if (!uid) throw new Error('No user is signed in.');
 
-        let photoURL: string | undefined;
-        if (avatarUri) {
-            photoURL = await uploadAvatar(avatarUri, uid);
+      // The photo is a nice-to-have: if the upload fails, keep going so
+      // the profile still saves and setup can finish.
+      let photoURL: string | undefined;
+      if (avatarUri) {
+        try {
+          photoURL = await uploadAvatar(avatarUri, uid);
+        } catch (uploadErr) {
+          console.warn('Avatar upload failed, continuing without a photo:', uploadErr);
+          photoURL = undefined;
         }
+      }
 
-        await Promise.all([
-        updateAuthProfile({
-            displayName: fullname.trim(),
-            ...(photoURL && { photoURL }),
-        }),
-        updateUserData({
-            currency: selectedCurrency,
-        }),
-    ]);
+      // Saving the name is what lets the app leave the setup screen, so it
+      // must not fail because of the photo or the currency.
+      try {
+        await updateAuthProfile({
+          displayName: fullname.trim(),
+          ...(photoURL ? { photoURL } : {}),
+        });
+      } catch (profileErr) {
+        if (!photoURL) throw profileErr;
+        await updateAuthProfile({ displayName: fullname.trim() });
+      }
 
-    router.replace('/homescreen');
-  } catch (err) {
-    console.error('Failed to save account setup:', err);
-    setSaveError('Something went wrong saving your profile. Please try again.');
-  } finally {
-    setSaving(false);
-  }
+      // The default currency and the name are optional extras; a failure here
+      // should not stop the user from finishing setup. The name still has to be
+      // written to the database, otherwise friends see "Friend" instead of it.
+      try {
+        await updateUserData({ fullname: fullname.trim(), currency: selectedCurrency });
+      } catch (profileErr) {
+        console.warn('Could not save your name and default currency:', profileErr);
+      }
+
+      router.replace('/homescreen');
+    } catch (err) {
+      console.error('Failed to save account setup:', err);
+      setSaveError('Something went wrong saving your profile. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSkip = () => {
@@ -109,19 +126,19 @@ export default function AccountSetup() {
               This is how friends will recognize you when you split expenses together.
             </Text>
             <Pressable
-                accessibilityLabel="Upload profile picture"
-                accessibilityRole="button"
-                onPress={pickImage}
-                style={styles.avatarButton}
-                >
-                {avatarUri ? (
-                    <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
-                ) : (
-                    <Camera color={BrandColors.secondary} size={32} strokeWidth={1.75} />
-                )}
-                <View style={styles.addAvatarButton}>
-                    <Plus color={BrandColors.primary} size={18} strokeWidth={2.5} />
-                </View>
+              accessibilityLabel="Upload profile picture"
+              accessibilityRole="button"
+              onPress={pickImage}
+              style={styles.avatarButton}
+            >
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+              ) : (
+                <Camera color={BrandColors.secondary} size={32} strokeWidth={1.75} />
+              )}
+              <View style={styles.addAvatarButton}>
+                <Plus color={BrandColors.primary} size={18} strokeWidth={2.5} />
+              </View>
             </Pressable>
 
             <TextField
@@ -137,7 +154,8 @@ export default function AccountSetup() {
           <>
             <Text style={styles.title}>Default Currency</Text>
             <Text style={styles.subtitle}>
-              We'll use this for new trips and your spending totals. You can change it per trip anytime.
+              We'll use this for new trips and your spending totals. You can change it per trip
+              anytime.
             </Text>
             <BigButtonOptions
               choices={CURRENCIES}
@@ -179,14 +197,14 @@ export default function AccountSetup() {
       default:
         return (
           <>
-          <View style={styles.allSetContainer}>
-            <View style={styles.allSetIconContainer}>
+            <View style={styles.allSetContainer}>
+              <View style={styles.allSetIconContainer}>
                 <Check size={32} color={BrandColors.success} />
-                </View>
-            <View>
+              </View>
+              <View>
                 <Text style={styles.allSet}>You're all set!</Text>
+              </View>
             </View>
-          </View>
           </>
         );
     }
@@ -229,15 +247,17 @@ export default function AccountSetup() {
         </View>
 
         <View style={styles.continueSection}>
+          {!!saveError && <Text style={styles.saveErrorText}>{saveError}</Text>}
           <PrimaryButton
             onPress={handleContinue}
             title={
-            saving ? 'Saving...' :
-              currentStep === 3
-                ? 'Enable Notification'
-                : currentStep === TOTAL_STEPS
-                ? 'Finish'
-                : 'Continue'
+              saving
+                ? 'Saving...'
+                : currentStep === 3
+                  ? 'Enable Notification'
+                  : currentStep === TOTAL_STEPS
+                    ? 'Finish'
+                    : 'Continue'
             }
             buttonColor={BrandColors.base50}
             textColor={BrandColors.primary}
@@ -343,20 +363,26 @@ const styles = StyleSheet.create({
     borderColor: BrandColors.background,
     overflow: 'visible',
   },
-    avatarImage: {
+  avatarImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    },
+  },
   continueSection: {
     width: '100%',
     alignItems: 'stretch',
+  },
+  saveErrorText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 13,
+    color: '#FF4D4D',
+    textAlign: 'center',
+    marginBottom: Spacing.two,
   },
   title: {
     fontFamily: 'PlusJakartaSans-Bold',
     color: BrandColors.primary,
     fontSize: 24,
-    fontWeight: '700',
     textAlign: 'center',
   },
   subtitle: {
@@ -369,7 +395,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Medium',
     color: BrandColors.secondary,
     fontSize: 14,
-    fontWeight: '600',
   },
   topLayer: {
     flexDirection: 'row',
@@ -409,7 +434,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Medium',
     color: BrandColors.secondary,
     fontSize: 14,
-    fontWeight: '600',
   },
   allSetContainer: {
     paddingTop: 150,
@@ -431,5 +455,5 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 32,
     color: BrandColors.primary,
-  }
+  },
 });

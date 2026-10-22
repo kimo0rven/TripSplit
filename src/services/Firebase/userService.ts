@@ -1,7 +1,16 @@
-import { auth, db } from '@/config/firebase';
+import { auth } from '@/config/firebase';
+import { fetchUserTrips, leaveTrip } from '@/services/Firebase/tripService';
+import { readPath, writeUpdates } from '@/services/offline/offlineStore';
 import UserProfileUpdate, { AuthProfileUpdate } from '@/types/userService';
-import { updateEmail, updateProfile } from 'firebase/auth';
-import { get, ref, update } from 'firebase/database';
+import { uploadAvatar } from '@/services/Supabase/storageService';
+import {
+  EmailAuthProvider,
+  deleteUser,
+  reauthenticateWithCredential,
+  updateEmail,
+  updatePassword,
+  updateProfile,
+} from 'firebase/auth';
 
 export interface UserSearchResult {
   id: string;
@@ -9,7 +18,6 @@ export interface UserSearchResult {
   email: string;
   exists: boolean;
 }
-
 
 export async function getUserData<T = Record<string, any>>(uid?: string): Promise<T | null> {
   const targetUid = uid ?? auth.currentUser?.uid;
@@ -19,8 +27,8 @@ export async function getUserData<T = Record<string, any>>(uid?: string): Promis
   }
 
   try {
-    const snapshot = await get(ref(db, `users/${targetUid}`));
-    return snapshot.exists() ? (snapshot.val() as T) : null;
+    const record = (await readPath(`users/${targetUid}`)) as T | null;
+    return record;
   } catch (error) {
     console.error('Failed to fetch database record:', error);
     throw error;
@@ -39,9 +47,12 @@ export async function updateUserData(data: UserProfileUpdate, uid?: string): Pro
   }
 
   try {
-    await update(ref(db, `users/${targetUid}`), {
-      ...data,
-      updatedAt: new Date().toISOString(),
+    await writeUpdates({
+      [`users/${targetUid}`]: {
+        ...((await readPath(`users/${targetUid}`)) as Record<string, unknown> | null),
+        ...data,
+        updatedAt: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error('Failed to update user data:', error);
@@ -85,3 +96,87 @@ export async function updateAuthProfile(data: AuthProfileUpdate): Promise<void> 
   }
 }
 
+/**
+ * Saves the signed-in user's name and (optionally) a new photo.
+ *
+ * The name lives in three places: the sign-in profile, the user's record, and
+ * the copy kept on each trip's member list. The first two must succeed; the
+ * trip copies are best effort so one unreachable trip cannot block the save.
+ */
+export async function saveProfile(input: {
+  fullname: string;
+  photoUri?: string | null;
+  removePhoto?: boolean;
+}): Promise<{ photoURL?: string }> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('No user is signed in.');
+
+  const fullname = input.fullname.trim();
+  if (!fullname) throw new Error('Please enter your name.');
+
+  let photoURL: string | undefined;
+  if (input.photoUri) {
+    photoURL = await uploadAvatar(input.photoUri, user.uid);
+  }
+
+  const removing = !photoURL && !!input.removePhoto;
+
+  await updateAuthProfile({ displayName: fullname, ...(photoURL ? { photoURL } : {}) });
+  if (removing) await updateProfile(user, { photoURL: '' });
+  await updateUserData({ fullname, ...(photoURL ? { photoURL } : {}) });
+  if (removing) await writeUpdates({ ['users/' + user.uid + '/photoURL']: null });
+
+  try {
+    const index = (await readPath('userTrips/' + user.uid)) as Record<string, unknown> | null;
+    const updates: Record<string, unknown> = {};
+    await Promise.all(
+      Object.keys(index ?? {}).map(async (tripId) => {
+        const memberPath = 'trips/' + tripId + '/members/' + user.uid;
+        const member = await readPath(memberPath);
+        if (!member) return;
+        updates[memberPath + '/fullname'] = fullname;
+        if (photoURL) updates[memberPath + '/photoURL'] = photoURL;
+        if (removing) updates[memberPath + '/photoURL'] = null;
+      }),
+    );
+    if (Object.keys(updates).length > 0) await writeUpdates(updates);
+  } catch (error) {
+    console.warn('Could not refresh your name on your trips:', error);
+  }
+
+  return { photoURL };
+}
+
+/** Saves the currency new trips start with. */
+export async function saveDefaultCurrency(currency: string): Promise<void> {
+  await updateUserData({ currency });
+}
+
+/** Checks the current password first, as Firebase requires a recent sign-in. */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user?.email) throw new Error('No user is signed in.');
+
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, newPassword);
+}
+
+/**
+ * Permanently deletes the account. Every trip is left first, which refuses if
+ * money is still owed, so nobody is left with a hidden balance.
+ */
+export async function deleteAccount(password: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user?.email) throw new Error('No user is signed in.');
+
+  await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+
+  const trips = await fetchUserTrips(user.uid);
+  for (const trip of trips) {
+    await leaveTrip(trip.id, user.uid);
+  }
+
+  await writeUpdates({ [`users/${user.uid}`]: null, [`userTrips/${user.uid}`]: null });
+  await deleteUser(user);
+}

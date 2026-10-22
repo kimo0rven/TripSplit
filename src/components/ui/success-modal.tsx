@@ -49,18 +49,20 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   title: {
+    fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 22,
-    fontWeight: '700',
     color: BrandColors.primary,
     textAlign: 'center',
   },
   waitText: {
+    fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 15,
     color: BrandColors.secondary,
     textAlign: 'center',
     marginTop: Spacing.one,
   },
   message: {
+    fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 14,
     color: BrandColors.secondary,
     textAlign: 'center',

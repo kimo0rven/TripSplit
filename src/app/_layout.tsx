@@ -4,6 +4,9 @@ import { AuthProvider, useAuth } from '@/services/Firebase/useAuth';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { registerPushToken, tripIdFromNotification } from '@/services/reminders/push';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 import { useEffect, useState } from 'react';
 
 SplashScreen.preventAutoHideAsync();
@@ -63,11 +66,34 @@ function RootLayoutNav({ fontsLoaded, fontError }: { fontsLoaded: boolean; fontE
     }
   }, [isReady, currentUser, segments]);
 
+  const uid = currentUser?.uid;
+  useEffect(() => {
+    if (uid) registerPushToken(uid);
+  }, [uid]);
+
+  // Tapping a reminder opens the trip it is about.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !uid) return;
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const tripId = tripIdFromNotification(response);
+      if (tripId) router.push(`/trips/${tripId}` as any);
+    });
+    return () => subscription.remove();
+  }, [uid, router]);
+
   if (!isReady) {
     return <LoadingScreen />;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack screenOptions={{ headerShown: false, animation: 'fade', animationDuration: 150 }}>
+      {/* Joining slides up as a full page, like a sheet that covers the screen. */}
+      <Stack.Screen
+        name="trips/join"
+        options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
+      />
+    </Stack>
+  );
 }
 
 export default function RootLayout() {

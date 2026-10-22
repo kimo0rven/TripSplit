@@ -6,19 +6,12 @@ import { EmailField, PasswordField } from '@/components/ui/text-input-field';
 import { BottomTabInset, BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { signIn } from '@/services/Firebase/authService';
 import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useRouter } from 'expo-router';
 
 export default function loginScreen() {
-  const router = useRouter(); 
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -38,6 +31,7 @@ export default function loginScreen() {
       await signIn(email, password);
       router.replace('/homescreen');
     } catch (err: any) {
+      console.warn('Login failed:', err?.code ?? err);
       setError(mapFirebaseError(err?.code));
     } finally {
       setLoading(false);
@@ -46,44 +40,44 @@ export default function loginScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.contentWrapper}>
             <View style={styles.backButtonContainer}>
-              <Back onPress={() => router.back()} /> 
+              <Back onPress={() => router.back()} />
             </View>
 
             <View style={styles.sectionContainer}>
               <Logo />
-              
+
               <View style={styles.headerTextContainer}>
                 <Text style={styles.subtitle}>Please enter your email & password to log in</Text>
               </View>
 
               {!!error && <Text style={styles.errorText}>{error}</Text>}
-              
-              <EmailField 
-                title="Email" 
-                placeholder="Enter your email" 
-                value={email} 
+
+              <EmailField
+                title="Email"
+                placeholder="Enter your email"
+                value={email}
                 onChangeText={(text) => {
                   setEmail(text);
                   if (error) setError('');
                 }}
                 keyboardType="email-address"
               />
-              
-              <PasswordField 
-                title="Password" 
-                placeholder="Enter your password" 
-                value={password} 
+
+              <PasswordField
+                title="Password"
+                placeholder="Enter your password"
+                value={password}
                 onChangeText={(text) => {
                   setPassword(text);
                   if (error) setError('');
@@ -93,12 +87,12 @@ export default function loginScreen() {
             </View>
 
             <View style={styles.buttonContainer}>
-              <PrimaryButton 
+              <PrimaryButton
                 onPress={handleLogin}
                 title={loading ? 'Logging In...' : 'Log In'}
-                buttonColor={BrandColors.base50} 
-                textColor={BrandColors.primary} 
-                borderColor={BrandColors.base50} 
+                buttonColor={BrandColors.base50}
+                textColor={BrandColors.primary}
+                borderColor={BrandColors.base50}
                 borderWidth={0}
                 disabled={loading}
               />
@@ -145,11 +139,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   subtitle: {
+    fontFamily: 'PlusJakartaSans-Regular',
     color: BrandColors.secondary,
     textAlign: 'left',
     fontSize: 14,
   },
   errorText: {
+    fontFamily: 'PlusJakartaSans-Regular',
     color: '#FF4D4D',
     fontSize: 14,
     textAlign: 'center',

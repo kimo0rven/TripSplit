@@ -9,7 +9,6 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.contentWrapper}>
-        
         <View style={styles.sectionContainer}>
           <Text style={styles.logo}>
             Trip<Text style={styles.logo2}>Split</Text>
@@ -24,10 +23,23 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.buttonContainer}>
-          <PrimaryButton onPress={() => router.push('/auth/register')} title="Sign Up" buttonColor={BrandColors.base50} textColor={BrandColors.primary} borderColor='none' borderWidth={0}/>
-          <PrimaryButton onPress={() => router.push('/auth/login')} title="Log In" buttonColor={BrandColors.background} textColor={BrandColors.primary} borderColor={BrandColors.base50} borderWidth={1} />
+          <PrimaryButton
+            onPress={() => router.push('/auth/register')}
+            title="Sign Up"
+            buttonColor={BrandColors.base50}
+            textColor={BrandColors.primary}
+            borderColor="none"
+            borderWidth={0}
+          />
+          <PrimaryButton
+            onPress={() => router.push('/auth/login')}
+            title="Log In"
+            buttonColor={BrandColors.background}
+            textColor={BrandColors.primary}
+            borderColor={BrandColors.base50}
+            borderWidth={1}
+          />
         </View>
-
       </View>
     </ThemedView>
   );
@@ -58,13 +70,13 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   logo: {
-    fontWeight: 'bold',
+    fontFamily: 'PlusJakartaSans-Bold',
     color: BrandColors.primary,
     textAlign: 'center',
     fontSize: 45,
   },
   logo2: {
-    fontWeight: 'bold',
+    fontFamily: 'PlusJakartaSans-Bold',
     color: BrandColors.base500,
     textAlign: 'center',
     fontSize: 45,
@@ -72,9 +84,10 @@ const styles = StyleSheet.create({
   title: {
     textAlign: 'center',
     fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: 'PlusJakartaSans-Bold',
   },
   description: {
+    fontFamily: 'PlusJakartaSans-Regular',
     textAlign: 'center',
     fontSize: 16,
     color: BrandColors.secondary,
@@ -97,7 +110,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#000000',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: 'PlusJakartaSans-Bold',
   },
   secondaryButton: {
     backgroundColor: 'transparent',
@@ -107,6 +120,6 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: BrandColors.primary,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: 'PlusJakartaSans-Bold',
   },
 });

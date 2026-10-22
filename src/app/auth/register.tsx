@@ -15,11 +15,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View
+  View,
 } from 'react-native';
 
 export default function signUpScreen() {
-  const router = useRouter(); 
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -60,55 +60,55 @@ export default function signUpScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.contentWrapper}>
             <View style={styles.backButtonContainer}>
-              <Back onPress={() => router.back()} /> 
+              <Back onPress={() => router.back()} />
             </View>
 
             <View style={styles.sectionContainer}>
               <Logo />
               <View style={styles.headerTextContainer}>
-              <Text style={styles.subtitle}>Please enter your email & password to sign up</Text>
+                <Text style={styles.subtitle}>Please enter your email & password to sign up</Text>
               </View>
-              
+
               {!!error && <Text style={styles.errorText}>{error}</Text>}
 
-              <EmailField 
-                title="Email" 
-                placeholder="Enter your email" 
-                value={email} 
-                onChangeText={(text) => setEmail(text)} 
+              <EmailField
+                title="Email"
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={(text) => setEmail(text)}
                 keyboardType="email-address"
               />
-              
-              <PasswordField 
-                title="Password" 
-                placeholder="Enter your password" 
-                value={password} 
-                onChangeText={(text) => setPassword(text)} 
+
+              <PasswordField
+                title="Password"
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={(text) => setPassword(text)}
                 secureTextEntry={true}
               />
 
-              <PasswordField 
-                title="Confirm Password" 
-                placeholder="Confirm your password" 
-                value={confirmPassword} 
-                onChangeText={(text) => setConfirmPassword(text)} 
+              <PasswordField
+                title="Confirm Password"
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChangeText={(text) => setConfirmPassword(text)}
                 secureTextEntry={true}
               />
 
               <View style={styles.termsContainer}>
-                <Pressable 
-                  style={[styles.checkbox, isAgreed && styles.checkboxChecked]} 
+                <Pressable
+                  style={[styles.checkbox, isAgreed && styles.checkboxChecked]}
                   onPress={() => setIsAgreed(!isAgreed)}
                   hitSlop={8}
                 >
@@ -116,21 +116,18 @@ export default function signUpScreen() {
                 </Pressable>
 
                 <Text style={styles.termsText}>
-                  I Agree to TripSplit{' '}
-                  <Text style={styles.termsLink}>
-                    Terms and Conditions
-                  </Text>
+                  I Agree to TripSplit <Text style={styles.termsLink}>Terms and Conditions</Text>
                 </Text>
               </View>
             </View>
 
             <View style={styles.buttonContainer}>
-              <PrimaryButton 
-                onPress={handleSignUp} 
-                title={loading ? "Creating Account..." : "Create Account"} 
-                buttonColor={BrandColors.base50} 
-                textColor={BrandColors.primary} 
-                borderColor={BrandColors.base50} 
+              <PrimaryButton
+                onPress={handleSignUp}
+                title={loading ? 'Creating Account...' : 'Create Account'}
+                buttonColor={BrandColors.base50}
+                textColor={BrandColors.primary}
+                borderColor={BrandColors.base50}
                 borderWidth={0}
                 disabled={loading}
               />
@@ -194,11 +191,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   subtitle: {
+    fontFamily: 'PlusJakartaSans-Regular',
     color: BrandColors.secondary,
     textAlign: 'left',
     fontSize: 14,
   },
   errorText: {
+    fontFamily: 'PlusJakartaSans-Regular',
     color: '#FF4D4D',
     fontSize: 14,
     textAlign: 'center',
@@ -226,13 +225,14 @@ const styles = StyleSheet.create({
     borderColor: BrandColors.base50,
   },
   termsText: {
+    fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 13,
     color: BrandColors.secondary,
     flexShrink: 1,
   },
   termsLink: {
     color: BrandColors.base50,
-    fontWeight: '600',
+    fontFamily: 'PlusJakartaSans-Bold',
     textDecorationLine: 'underline',
   },
   buttonContainer: {

@@ -1,32 +1,32 @@
 :root {
   --font-display:
-    'Plus Jakarta Sans', 'SF Pro Display', 'Hiragino Kaku Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
+    'Plus Jakarta Sans', 'SF Pro Display', 'Hiragino Kaku Gothic ProN', Meiryo, 'MS PGothic',
+    sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
-  --base-color-50: #FEBB1B;
-  --base-color-200: #FFE099;
-  --base-color-400: #FED766;
-  --base-color-500: #FEBB1B;
-  --base-color-600: #FEBB1B;
-  --base-color-700: #C4900D;
+  --base-color-50: #febb1b;
+  --base-color-200: #ffe099;
+  --base-color-400: #fed766;
+  --base-color-500: #febb1b;
+  --base-color-600: #febb1b;
+  --base-color-700: #c4900d;
 
-  --heading-color: #1A1A1A;
+  --heading-color: #1a1a1a;
   --primary-color: #333333;
   --secondary-color: #909090;
-  --disabled-color: #C4C4C4;
-  --background-color: #FFFFFF;
-  --surface-alt-color:#FAFAFA;
-  --input-field-color: #F0F0F0;
-  --border-color: #E0E0E0;
-  --success-color: #27AE60;
-  --success-bg-color: #E9F9EF;
-  --error-color: #EB5757;
-  --error-bg-color: #FDEDED;
-  --warning-color: #F2994A;
-  --warning-bg-color: #FEF3E7;
-  --info-color: #2F80ED;
-  --info-bg-color: #EAF2FE;
-
+  --disabled-color: #c4c4c4;
+  --background-color: #ffffff;
+  --surface-alt-color: #fafafa;
+  --input-field-color: #f0f0f0;
+  --border-color: #e0e0e0;
+  --success-color: #27ae60;
+  --success-bg-color: #e9f9ef;
+  --error-color: #eb5757;
+  --error-bg-color: #fdeded;
+  --warning-color: #f2994a;
+  --warning-bg-color: #fef3e7;
+  --info-color: #2f80ed;
+  --info-bg-color: #eaf2fe;
 }

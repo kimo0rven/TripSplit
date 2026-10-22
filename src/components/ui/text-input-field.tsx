@@ -11,16 +11,22 @@ interface UserInputFieldProps {
   secureTextEntry?: boolean;
   keyboardType?: 'default' | 'email-address' | 'numeric';
   leftIcon?: LucideIcon;
+  /** Turns the box into a taller one that wraps, for notes and longer text. */
+  multiline?: boolean;
+  /** How tall that taller box starts, in pixels. */
+  minHeight?: number;
 }
 
-export default function UserInputField({ 
-  title, 
-  placeholder, 
-  value, 
-  onChangeText, 
-  secureTextEntry = false, 
+export default function UserInputField({
+  title,
+  placeholder,
+  value,
+  onChangeText,
+  secureTextEntry = false,
   keyboardType,
-  leftIcon: LeftIconComponent 
+  leftIcon: LeftIconComponent,
+  multiline = false,
+  minHeight,
 }: UserInputFieldProps) {
   const [isPasswordHidden, setIsPasswordHidden] = useState(secureTextEntry);
   const [isFocused, setIsFocused] = useState(false);
@@ -28,7 +34,7 @@ export default function UserInputField({
   return (
     <View style={styles.contentWrapper}>
       <Text style={styles.label}>{title}</Text>
-      
+
       <View style={styles.inputContainer}>
         {LeftIconComponent && (
           <View style={styles.leftIconContainer}>
@@ -36,13 +42,17 @@ export default function UserInputField({
           </View>
         )}
 
-        <TextInput 
+        <TextInput
           style={[
-            styles.fieldStyle, 
+            styles.fieldStyle,
             isFocused && styles.fieldStyleFocused,
-            LeftIconComponent ? styles.fieldWithLeftIcon : null, 
-            secureTextEntry ? styles.fieldWithRightIcon : null
+            LeftIconComponent ? styles.fieldWithLeftIcon : null,
+            secureTextEntry ? styles.fieldWithRightIcon : null,
+            multiline ? styles.fieldStyleMultiline : null,
+            multiline && minHeight ? { minHeight } : null,
           ]}
+          multiline={multiline}
+          textAlignVertical={multiline ? 'top' : 'center'}
           editable={true}
           placeholder={placeholder}
           placeholderTextColor={BrandColors.secondary}
@@ -55,8 +65,8 @@ export default function UserInputField({
         />
 
         {secureTextEntry && (
-          <Pressable 
-            onPress={() => setIsPasswordHidden(!isPasswordHidden)} 
+          <Pressable
+            onPress={() => setIsPasswordHidden(!isPasswordHidden)}
             style={styles.rightIconContainer}
             hitSlop={8}
           >
@@ -74,7 +84,7 @@ export default function UserInputField({
 
 export function EmailField({ title, placeholder, value, onChangeText }: UserInputFieldProps) {
   return (
-    <UserInputField 
+    <UserInputField
       title={title}
       placeholder={placeholder}
       value={value}
@@ -85,19 +95,36 @@ export function EmailField({ title, placeholder, value, onChangeText }: UserInpu
   );
 }
 
-export function TextField({ title, placeholder, value, onChangeText, keyboardType = 'default' }: UserInputFieldProps) {
+export function TextField({
+  title,
+  placeholder,
+  value,
+  onChangeText,
+  keyboardType = 'default',
+  multiline,
+  minHeight,
+}: UserInputFieldProps) {
   return (
     <UserInputField
       title={title}
-      placeholder={placeholder} 
+      placeholder={placeholder}
       value={value}
       onChangeText={onChangeText}
       keyboardType={keyboardType}
+      multiline={multiline}
+      minHeight={minHeight}
     />
   );
 }
 
-export function TextfieldLeftIcon({ title, placeholder, value, leftIcon, onChangeText }: UserInputFieldProps) {
+export function TextfieldLeftIcon({
+  title,
+  placeholder,
+  value,
+  leftIcon,
+  onChangeText,
+  keyboardType,
+}: UserInputFieldProps) {
   return (
     <UserInputField
       title={title}
@@ -105,6 +132,7 @@ export function TextfieldLeftIcon({ title, placeholder, value, leftIcon, onChang
       value={value}
       onChangeText={onChangeText}
       leftIcon={leftIcon}
+      keyboardType={keyboardType}
     />
   );
 }
@@ -128,10 +156,9 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
     color: BrandColors.primary,
     marginBottom: 6,
-    fontFamily: "PlusJakartaSans-Bold",
+    fontFamily: 'PlusJakartaSans-Bold',
   },
   inputContainer: {
     position: 'relative',
@@ -139,7 +166,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   fieldText: {
-    fontFamily: "PlusJakartaSans-Regular",
+    fontFamily: 'PlusJakartaSans-Regular',
   },
   leftIconContainer: {
     position: 'absolute',
@@ -159,6 +186,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
+    fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 14,
     color: BrandColors.primary,
     borderWidth: 1,
@@ -172,5 +200,9 @@ const styles = StyleSheet.create({
   },
   fieldWithRightIcon: {
     paddingRight: 40,
+  },
+  fieldStyleMultiline: {
+    paddingTop: 12,
+    minHeight: 96,
   },
 });

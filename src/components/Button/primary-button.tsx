@@ -11,17 +11,27 @@ interface PrimaryButtonProps {
   disabled?: boolean;
 }
 
-export default function PrimaryButton({ 
-  onPress, 
-  title, 
-  buttonColor, 
-  textColor, 
-  borderColor, 
+export default function PrimaryButton({
+  onPress,
+  title,
+  buttonColor,
+  textColor,
+  borderColor,
   borderWidth,
-  disabled = false }
-  : PrimaryButtonProps) {
+  disabled = false,
+}: PrimaryButtonProps) {
   return (
-    <Pressable disabled={disabled} style={[styles.button, { backgroundColor: buttonColor }, { borderColor: borderColor }, { borderWidth: borderWidth }, disabled && styles.disabled]} onPress={onPress}>
+    <Pressable
+      disabled={disabled}
+      style={[
+        styles.button,
+        { backgroundColor: buttonColor },
+        { borderColor: borderColor },
+        { borderWidth: borderWidth },
+        disabled && styles.disabled,
+      ]}
+      onPress={onPress}
+    >
       <Text style={[styles.buttonText, { color: textColor }]}>{title}</Text>
     </Pressable>
   );
@@ -38,7 +48,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Bold',
     color: BrandColors.background,
     fontSize: 14,
-    fontWeight: 'bold',
   },
   disabled: {
     opacity: 0.6,

@@ -1,12 +1,12 @@
+import logo from '@/assets/images/logo_on_yellow.png';
+import { Image, StyleSheet, View } from 'react-native';
+
 import { BrandColors } from '@/constants/theme';
-import { StyleSheet, Text, View } from 'react-native';
 
 export default function LoadingScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>
-        Trip<Text style={styles.logo2}>Split</Text>
-      </Text>
+      <Image source={logo} style={styles.logo} accessibilityLabel="Trip Split" />
     </View>
   );
 }
@@ -19,12 +19,7 @@ const styles = StyleSheet.create({
     backgroundColor: BrandColors.base50,
   },
   logo: {
-    fontSize: 64,
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-
-    color: BrandColors.primary,
-  },
-  logo2: {
-    color: BrandColors.background,
+    width: 200,
+    height: 54,
   },
 });
