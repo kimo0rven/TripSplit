@@ -11,7 +11,7 @@ import { fetchUserTrips } from '@/services/Firebase/tripService';
 import { auth } from '@/config/firebase';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { BarChart3, ChevronRight, Pencil, Receipt, Settings } from 'lucide-react-native';
+import { BarChart3, Bell, ChevronRight, Pencil, Receipt, Settings } from 'lucide-react-native';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function ProfileScreen() {
@@ -112,7 +112,7 @@ export default function ProfileScreen() {
             )}
             <Pressable
               style={styles.summaryItem}
-              onPress={() => router.push('/statistics' as any)}
+              onPress={() => router.push('/profile/statistics' as any)}
               accessibilityRole="button"
               accessibilityLabel="Statistics"
             >
@@ -123,7 +123,18 @@ export default function ProfileScreen() {
 
           <Pressable
             style={styles.menuRow}
-            onPress={() => router.push('/payments' as any)}
+            onPress={() => router.push('/notifications' as any)}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+          >
+            <Bell size={20} color={BrandColors.primary} />
+            <Text style={styles.menuText}>Notifications</Text>
+            <ChevronRight size={18} color={BrandColors.secondary} />
+          </Pressable>
+
+          <Pressable
+            style={styles.menuRow}
+            onPress={() => router.push('/profile/payments' as any)}
             accessibilityRole="button"
             accessibilityLabel="Payment history"
           >

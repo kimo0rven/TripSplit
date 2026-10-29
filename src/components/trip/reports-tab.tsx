@@ -23,7 +23,7 @@ interface ReportsTabProps {
 
 type Range = 'trip' | 'today' | 'week';
 
-const RANGES: Array<{ value: Range; label: string }> = [
+const RANGES: { value: Range; label: string }[] = [
   { value: 'trip', label: 'Whole trip' },
   { value: 'today', label: 'Today' },
   { value: 'week', label: 'Last 7 days' },

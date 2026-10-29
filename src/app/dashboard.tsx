@@ -15,6 +15,7 @@ import SpendingGlance from '@/components/dashboard/spending-glance';
 import SyncChip from '@/components/dashboard/sync-chip';
 import TripChips from '@/components/dashboard/trip-chips';
 import { fetchTripBudget, respondToSettlement } from '@/services/Firebase/settlementService';
+import { deleteExpense } from '@/services/Firebase/expenseService';
 import ExpenseDetailSheet from '@/components/trip/expense-detail-sheet';
 import SettleSheet from '@/components/trip/settle-sheet';
 import ExpenseForm from '@/components/trip/expense-form';
@@ -37,7 +38,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } 
 /** What the receipt button is asking, when it is asking anything. */
 type ReceiptStep = 'source' | null;
 
-export default function HomeScreen() {
+export default function DashboardScreen() {
   const { currentUser } = useAuth();
   const router = useRouter();
   const unread = useUnreadCount();
@@ -46,7 +47,6 @@ export default function HomeScreen() {
   const {
     trips,
     activeTrip,
-    activeTripIsOver,
     loading: tripsLoading,
     error: tripsError,
     selectTrip,
@@ -76,6 +76,9 @@ export default function HomeScreen() {
   const [detailExpenseId, setDetailExpenseId] = useState<string | null>(null);
   /** The expense the form is changing, when it is changing one. */
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  /** The expense waiting on a yes/no before it is removed. */
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const userName = currentUser?.displayName || 'User';
 
@@ -154,6 +157,34 @@ export default function HomeScreen() {
     setExpenseFormOpen(true);
   };
 
+  /**
+   * Removes the expense the dialog is asking about.
+   *
+   * The list updates first so the row disappears at once, then the server write
+   * happens behind it. A refused delete puts the expense back: showing an
+   * expense as gone when the server kept it would be a lie.
+   */
+  const runDelete = async () => {
+    if (!pendingDelete || !activeTrip) return;
+
+    const { id } = pendingDelete;
+    const before = expenses;
+
+    setDeleting(true);
+    setPendingDelete(null);
+    setExpenses((previous) => previous.filter((entry) => entry.id !== id));
+
+    try {
+      await deleteExpense(activeTrip.id, id);
+    } catch (err) {
+      console.error('Could not delete the expense:', err);
+      setExpenses(before);
+      setNoTripNotice('That expense could not be deleted. Check your connection and try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleSettleUp = () => {
     if (!requireTrip('settle up')) return;
     setPreselect(undefined);
@@ -204,9 +235,15 @@ export default function HomeScreen() {
     setShareOpen(true);
   };
 
+  /** Opens the chat-like notes feed for the active trip. */
+  const handleNotes = () => {
+    if (!requireTrip('open the notes') || !activeTrip) return;
+    router.push(`/trips/${activeTrip.id}/notes` as any);
+  };
+
   const openTrip = () => {
     if (!activeTrip) {
-      router.push('/groups' as any);
+      router.push('/trips' as any);
       return;
     }
     router.push(`/trips/${activeTrip.id}` as any);
@@ -215,7 +252,7 @@ export default function HomeScreen() {
   /** Opens the page holding every expense of the active trip. */
   const openAllExpenses = () => {
     if (!activeTrip) {
-      router.push('/groups' as any);
+      router.push('/trips' as any);
       return;
     }
     router.push(`/trips/${activeTrip.id}/expenses` as any);
@@ -225,6 +262,7 @@ export default function HomeScreen() {
     'add-expense': handleAddExpense,
     'settle-up': handleSettleUp,
     receipt: handleReceipt,
+    note: handleNotes,
     invite: handleInvite,
   };
 
@@ -236,30 +274,35 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View style={styles.container}>
-          <View style={styles.settingsContainer}>
-            <TouchableOpacity
-              onPress={() => router.push('/notifications' as any)}
-              accessibilityRole="button"
-              accessibilityLabel={unread ? 'Notifications, ' + unread + ' unread' : 'Notifications'}
-            >
-              <Bell color={BrandColors.primary} size={24} />
-              {unread > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.push('/settings' as any)}
-              accessibilityRole="button"
-              accessibilityLabel="Settings"
-            >
-              <Settings color={BrandColors.primary} size={24} />
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.header}>
-            <Text style={styles.dateText}>{dateToday()}</Text>
+            {/* The date and the two icon buttons share one line, so the top of
+                the screen reads as a single row. */}
+            <View style={styles.headerTopRow}>
+              <Text style={styles.dateText}>{dateToday()}</Text>
+              <View style={styles.settingsContainer}>
+                <TouchableOpacity
+                  onPress={() => router.push('/notifications' as any)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    unread ? 'Notifications, ' + unread + ' unread' : 'Notifications'
+                  }
+                >
+                  <Bell color={BrandColors.primary} size={24} />
+                  {unread > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push('/settings' as any)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Settings"
+                >
+                  <Settings color={BrandColors.primary} size={24} />
+                </TouchableOpacity>
+              </View>
+            </View>
             <Text style={styles.title}>
               {timeOfTheDay()}, <Text style={styles.titleBold}>{userName}</Text>!
             </Text>
@@ -282,9 +325,9 @@ export default function HomeScreen() {
 
               <ActiveTripCard
                 activeTrip={activeTrip}
-                isOver={activeTripIsOver}
+                tripCount={trips.length}
                 onOpen={openTrip}
-                onManageTrips={() => router.push('/groups' as any)}
+                onManageTrips={() => router.push('/trips' as any)}
                 onShowQr={handleInvite}
               />
 
@@ -295,7 +338,7 @@ export default function HomeScreen() {
                 members={members}
                 currency={currency}
                 onRespond={respond}
-                onViewAll={() => router.push('/payments' as any)}
+                onViewAll={() => router.push('/profile/payments' as any)}
               />
 
               {activeTrip && (
@@ -369,12 +412,13 @@ export default function HomeScreen() {
                 onOpenExpense={(expense) => setDetailExpenseId(expense.id)}
                 onViewAll={openAllExpenses}
                 onAddExpense={handleAddExpense}
-                onGoToTrips={() => router.push('/groups' as any)}
+                onGoToTrips={() => router.push('/trips' as any)}
               />
-              {trips.length > 1 && (
+              {trips.length > 0 && (
                 <RecentActivity
                   userId={userId}
                   refreshKey={`${trips.length}-${expenses.length}-${settlements.length}`}
+                  onViewAll={() => router.push('/profile/payments' as any)}
                 />
               )}
 
@@ -454,9 +498,24 @@ export default function HomeScreen() {
               setEditingExpense(expense);
               setExpenseFormOpen(true);
             }}
+            onDelete={(id, title) => setPendingDelete({ id, title })}
           />
         </>
       )}
+
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title={pendingDelete ? `Delete "${pendingDelete.title}"?` : 'Delete?'}
+        message="This expense will be removed for everyone in the trip."
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        destructive
+        busy={deleting}
+        onConfirm={runDelete}
+        onCancel={() => {
+          if (!deleting) setPendingDelete(null);
+        }}
+      />
 
       <ConfirmDialog
         visible={!!noTripNotice}
@@ -481,7 +540,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-start',
     backgroundColor: BrandColors.background,
-    paddingTop: 40,
+    paddingTop: 56,
     paddingHorizontal: 25,
     gap: Spacing.four,
     width: '100%',
@@ -517,7 +576,14 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'flex-start',
-    gap: Spacing.half,
+    gap: Spacing.two,
+  },
+  /* Date on the left, the bell and settings on the right, on one line. */
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    alignSelf: 'stretch',
   },
   dateText: {
     fontFamily: 'PlusJakartaSans-Light',

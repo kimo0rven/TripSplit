@@ -3,20 +3,23 @@ import { useCombinedTotal } from '@/services/currency/useCombinedTotal';
 import BackButton from '@/components/Button/back-button';
 import Avatar from '@/components/ui/avatar';
 import BottomSheet from '@/components/ui/bottom-sheet';
-import { Card } from '@/components/ui/card';
-import { HelperText } from '@/components/ui/card';
+import { Card, HelperText } from '@/components/ui/card';
+import DayDivider from '@/components/ui/day-divider';
 import EmptyState from '@/components/ui/empty-state';
+import FilterChips, { FilterOption } from '@/components/ui/filter-chips';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { fetchSettlements } from '@/services/Firebase/settlementService';
 import { fetchUserTrips } from '@/services/Firebase/tripService';
 import { useAuth } from '@/services/Firebase/useAuth';
 import { Settlement } from '@/types/expenses';
-import { formatDay, formatMoney } from '@/utils/money';
+import { groupByDay } from '@/utils/listGrouping';
+import { dayHeading, formatDay, formatMoney } from '@/utils/money';
+import { shortName } from '@/utils/format';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { ArrowRight, Receipt } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Filter = 'all' | 'made' | 'received';
@@ -48,64 +51,111 @@ export default function PaymentsScreen() {
 
   const [rows, setRows] = useState<Row[] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
+  const [tripFilter, setTripFilter] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  /**
+   * Every payment this person is on, newest first.
+   *
+   * Pulled out of the effect so the same read answers both the first load and
+   * a pull to refresh: one code path, so the two can never drift apart.
+   */
+  const load = useCallback(async (): Promise<Row[]> => {
+    if (!uid) return [];
+    const trips = await fetchUserTrips(uid);
+    const lists = await Promise.all(
+      trips.map(async (trip) => {
+        const settlements = await fetchSettlements(trip.id);
+        return settlements
+          .filter((item) => item.from === uid || item.to === uid)
+          .map((settlement): Row => {
+            const otherId = settlement.from === uid ? settlement.to : settlement.from;
+            const other = trip.members?.[otherId];
+            return {
+              settlement,
+              tripId: trip.id,
+              tripName: trip.name,
+              currency: trip.currency,
+              otherName: other?.fullname ?? 'Someone who left',
+              otherPhoto: other?.photoURL,
+              fromName: trip.members?.[settlement.from]?.fullname ?? 'Someone who left',
+              fromPhoto: trip.members?.[settlement.from]?.photoURL,
+              toName: trip.members?.[settlement.to]?.fullname ?? 'Someone who left',
+              toPhoto: trip.members?.[settlement.to]?.photoURL,
+            };
+          });
+      }),
+    );
+    const all = lists.flat().sort((a, b) => {
+      const dayA = a.settlement.settledOn ?? '';
+      const dayB = b.settlement.settledOn ?? '';
+      // Undated last, so they cannot sit above this week's payments.
+      if (dayA !== dayB) {
+        if (!dayA) return 1;
+        if (!dayB) return -1;
+        return dayA < dayB ? 1 : -1;
+      }
+      const left = a.settlement.createdAt ?? '';
+      const right = b.settlement.createdAt ?? '';
+      return left < right ? 1 : -1;
+    });
+    return all;
+  }, [uid]);
 
   useEffect(() => {
     if (!uid) return;
     let active = true;
-    (async () => {
-      const trips = await fetchUserTrips(uid);
-      const lists = await Promise.all(
-        trips.map(async (trip) => {
-          const settlements = await fetchSettlements(trip.id);
-          return settlements
-            .filter((item) => item.from === uid || item.to === uid)
-            .map((settlement): Row => {
-              const otherId = settlement.from === uid ? settlement.to : settlement.from;
-              const other = trip.members?.[otherId];
-              return {
-                settlement,
-                tripId: trip.id,
-                tripName: trip.name,
-                currency: trip.currency,
-                otherName: other?.fullname ?? 'Someone who left',
-                otherPhoto: other?.photoURL,
-                fromName: trip.members?.[settlement.from]?.fullname ?? 'Someone who left',
-                fromPhoto: trip.members?.[settlement.from]?.photoURL,
-                toName: trip.members?.[settlement.to]?.fullname ?? 'Someone who left',
-                toPhoto: trip.members?.[settlement.to]?.photoURL,
-              };
-            });
-        }),
-      );
-      const all = lists.flat().sort((a, b) => {
-        const left = a.settlement.settledOn + (a.settlement.createdAt ?? '');
-        const right = b.settlement.settledOn + (b.settlement.createdAt ?? '');
-        return left < right ? 1 : -1;
+    load()
+      .then((all) => {
+        if (active) setRows(all);
+      })
+      .catch((err) => {
+        console.error('Failed to load payments:', err);
+        if (active) setFailed(true);
       });
-      if (active) setRows(all);
-    })().catch((err) => {
-      console.error('Failed to load payments:', err);
-      if (active) setFailed(true);
-    });
     return () => {
       active = false;
     };
-  }, [uid]);
+  }, [uid, load]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      setRows(await load());
+    } catch (err) {
+      console.error('Failed to load payments:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
 
   const shown = useMemo(
     () =>
-      (rows ?? []).filter(({ settlement }) =>
-        filter === 'made'
+      (rows ?? []).filter(({ settlement, tripId }) => {
+        if (tripFilter && tripId !== tripFilter) return false;
+        return filter === 'made'
           ? settlement.from === uid
           : filter === 'received'
             ? settlement.to === uid
-            : true,
-      ),
-    [rows, filter, uid],
+            : true;
+      }),
+    [rows, filter, tripFilter, uid],
   );
+
+  /** Each trip you have a payment on, so one can be picked out of the pile. */
+  const tripOptions: FilterOption[] = useMemo(() => {
+    const seen = new Map<string, string>();
+    (rows ?? []).forEach((row) => seen.set(row.tripId, row.tripName));
+    return Array.from(seen, ([value, label]) => ({ value, label }));
+  }, [rows]);
+
+  // One section per day, because a long run of payments reads as a wall of
+  // cards otherwise. No day total here: this list mixes currencies from
+  // different trips, so a single figure would not mean anything.
+  const dayGroups = useMemo(() => groupByDay(shown, (row) => row.settlement.settledOn), [shown]);
 
   // Only confirmed payments count towards the totals.
   const detail = (rows ?? []).find((row) => `${row.tripId}-${row.settlement.id}` === openKey);
@@ -143,7 +193,11 @@ export default function PaymentsScreen() {
         <Text style={styles.headerTitle}>Payments</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <View style={styles.container}>
           {rows === null && !failed && <ListSkeleton rows={5} rowHeight={72} />}
           {failed && <HelperText tone="error">Could not load your payments.</HelperText>}
@@ -166,7 +220,9 @@ export default function PaymentsScreen() {
                 <View style={[styles.totalRow, styles.combined]}>
                   <View style={styles.totalCell}>
                     <Text style={styles.label}>Paid in total (approx.)</Text>
-                    <Text style={styles.total}>{formatMoney(madeTotal.total, madeTotal.currency)}</Text>
+                    <Text style={styles.total}>
+                      {formatMoney(madeTotal.total, madeTotal.currency)}
+                    </Text>
                   </View>
                   <View style={styles.totalCell}>
                     <Text style={styles.label}>Received in total (approx.)</Text>
@@ -195,54 +251,94 @@ export default function PaymentsScreen() {
             </View>
           )}
 
-          {rows !== null && shown.length === 0 && (
-            <EmptyState
-              icon={Receipt}
-              title="No payments yet"
-              message="Payments you make or receive on any trip show up here."
+          {/* This page mixes every trip together, so a trip filter is the
+              quickest way to pull one trip's payments out of the pile. */}
+          {rows !== null && tripOptions.length > 1 && (
+            <FilterChips
+              options={tripOptions}
+              value={tripFilter}
+              onChange={setTripFilter}
+              allLabel="All trips"
+              label="Filter by trip"
             />
           )}
 
-          {shown.map(({ settlement, tripId, tripName, currency, otherName, otherPhoto }) => {
-            const made = settlement.from === uid;
-            const declined = settlement.status === 'declined';
-            return (
-              <Pressable
-                key={`${tripId}-${settlement.id}`}
-                style={[styles.card, declined && styles.declined]}
-                onPress={() => setOpenKey(`${tripId}-${settlement.id}`)}
-              >
-                <Avatar name={otherName} size={40} photoURL={otherPhoto} />
-                <View style={styles.info}>
-                  <Text style={styles.title} numberOfLines={1}>
-                    {made ? 'You paid ' : ''}
-                    {otherName.split(' ')[0]}
-                    {made ? '' : ' paid you'}
-                  </Text>
-                  <Text style={styles.meta} numberOfLines={1}>
-                    {formatDay(settlement.settledOn)} · {tripName}
-                    {settlement.isCash === true
-                      ? ' · cash'
-                      : settlement.method
-                        ? ' · ' + settlement.method
-                        : ''}
-                    {settlement.status === 'pending' ? ' · pending' : ''}
-                    {declined ? ' · declined' : ''}
-                  </Text>
-                </View>
-                <Text style={[styles.amount, { color: made ? BrandColors.error : BrandColors.success }]}>
-                  {made ? '-' : '+'}
-                  {formatMoney(settlement.amount, currency)}
-                </Text>
-              </Pressable>
-            );
-          })}
+          {rows !== null && shown.length === 0 && (
+            <EmptyState
+              icon={Receipt}
+              title={(rows ?? []).length === 0 ? 'No payments yet' : 'Nothing matches'}
+              message={
+                (rows ?? []).length === 0
+                  ? 'Payments you make or receive on any trip show up here.'
+                  : 'No payment fits these filters. Try a different trip or filter.'
+              }
+              actionLabel={(rows ?? []).length === 0 ? undefined : 'Clear filters'}
+              onAction={
+                (rows ?? []).length === 0
+                  ? undefined
+                  : () => {
+                      setFilter('all');
+                      setTripFilter(null);
+                    }
+              }
+            />
+          )}
+
+          {dayGroups.map((group) => (
+            <View key={group.day || 'unknown'} style={styles.dayGroup}>
+              <DayDivider label={dayHeading(group.day)} count={group.items.length} />
+              {group.items.map(
+                ({ settlement, tripId, tripName, currency, otherName, otherPhoto }) => {
+                  const made = settlement.from === uid;
+                  const declined = settlement.status === 'declined';
+                  return (
+                    <Pressable
+                      key={`${tripId}-${settlement.id}`}
+                      style={[styles.card, declined && styles.declined]}
+                      onPress={() => setOpenKey(`${tripId}-${settlement.id}`)}
+                    >
+                      <Avatar name={otherName} size={40} photoURL={otherPhoto} />
+                      <View style={styles.info}>
+                        <Text style={styles.title} numberOfLines={1}>
+                          {made ? 'You paid ' : ''}
+                          {otherName.split(' ')[0]}
+                          {made ? '' : ' paid you'}
+                        </Text>
+                        <Text style={styles.meta} numberOfLines={1}>
+                          {shortName(tripName)}
+                          {settlement.isCash === true
+                            ? ' · cash'
+                            : settlement.method
+                              ? ' · ' + settlement.method
+                              : ''}
+                          {settlement.status === 'pending' ? ' · pending' : ''}
+                          {declined ? ' · declined' : ''}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.amount,
+                          { color: made ? BrandColors.error : BrandColors.success },
+                        ]}
+                      >
+                        {made ? '-' : '+'}
+                        {formatMoney(settlement.amount, currency)}
+                      </Text>
+                    </Pressable>
+                  );
+                },
+              )}
+            </View>
+          ))}
         </View>
       </ScrollView>
 
       <BottomSheet visible={!!detail} title="Payment details" onClose={() => setOpenKey(null)}>
         {detail && (
-          <ScrollView contentContainerStyle={styles.detailBody} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.detailBody}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.hero}>
               <Text style={styles.heroAmount}>
                 {formatMoney(detail.settlement.amount, detail.currency)}
@@ -250,8 +346,12 @@ export default function PaymentsScreen() {
               <View
                 style={[
                   styles.pill,
-                  detail.settlement.status === 'pending' && { backgroundColor: BrandColors.warningBg },
-                  detail.settlement.status === 'declined' && { backgroundColor: BrandColors.errorBg },
+                  detail.settlement.status === 'pending' && {
+                    backgroundColor: BrandColors.warningBg,
+                  },
+                  detail.settlement.status === 'declined' && {
+                    backgroundColor: BrandColors.errorBg,
+                  },
                 ]}
               >
                 <Text
@@ -289,7 +389,7 @@ export default function PaymentsScreen() {
             </View>
 
             <Card style={styles.detailCard}>
-              <Line label="Trip" value={detail.tripName} />
+              <Line label="Trip" value={shortName(detail.tripName)} />
               <Line label="Date" value={formatDay(detail.settlement.settledOn)} />
               {!!timeOf(detail.settlement.createdAt) && (
                 <Line label="Time" value={timeOf(detail.settlement.createdAt)} />
@@ -308,7 +408,11 @@ export default function PaymentsScreen() {
             {!!detail.settlement.proofUrls?.length && (
               <>
                 <Text style={styles.label}>Proof of payment</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.proofRow}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.proofRow}
+                >
                   {detail.settlement.proofUrls.map((uri) => (
                     <Pressable key={uri} onPress={() => setViewerUri(uri)}>
                       <Image source={{ uri }} style={styles.proofImage} contentFit="cover" />
@@ -326,15 +430,22 @@ export default function PaymentsScreen() {
                 router.push(`/trips/${id}` as any);
               }}
             >
-              <Text style={styles.openTripText}>Open {detail.tripName}</Text>
+              <Text style={styles.openTripText}>Open {shortName(detail.tripName)}</Text>
             </Pressable>
           </ScrollView>
         )}
       </BottomSheet>
 
-      <Modal visible={!!viewerUri} transparent animationType="fade" onRequestClose={() => setViewerUri(null)}>
+      <Modal
+        visible={!!viewerUri}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewerUri(null)}
+      >
         <Pressable style={styles.viewer} onPress={() => setViewerUri(null)}>
-          {viewerUri && <Image source={{ uri: viewerUri }} style={styles.viewerImage} contentFit="contain" />}
+          {viewerUri && (
+            <Image source={{ uri: viewerUri }} style={styles.viewerImage} contentFit="contain" />
+          )}
         </Pressable>
       </Modal>
     </SafeAreaView>
@@ -381,6 +492,7 @@ const styles = StyleSheet.create({
   label: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
   total: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 18, color: BrandColors.primary },
   filters: { flexDirection: 'row', gap: Spacing.two },
+  dayGroup: { gap: Spacing.two },
   chip: {
     borderWidth: 1,
     borderColor: BrandColors.border,
@@ -415,7 +527,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.one,
   },
   pillText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.success },
-  people: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.five },
+  people: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.five,
+  },
   person: { alignItems: 'center', gap: Spacing.half, maxWidth: 110 },
   personName: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
   detailCard: { gap: Spacing.two },

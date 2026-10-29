@@ -1,4 +1,5 @@
 import ErrorState from '@/components/ui/error-state';
+import FilterChips, { FilterOption } from '@/components/ui/filter-chips';
 import ListSkeleton from '@/components/ui/list-skeleton';
 import BackButton from '@/components/Button/back-button';
 import ExpenseCards from '@/components/trip/expense-cards';
@@ -7,19 +8,23 @@ import ExpenseForm from '@/components/trip/expense-form';
 import ConfirmSheet from '@/components/ui/confirm-sheet';
 import EmptyState from '@/components/ui/empty-state';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { categoryLook } from '@/constants/expense-categories';
+import { EXPENSE_CATEGORIES } from '@/utils/balance';
 import { deleteExpense, fetchExpenses } from '@/services/Firebase/expenseService';
+import { saveReactions } from '@/services/Firebase/funService';
 import { fetchTrip } from '@/services/Firebase/tripService';
 import { useAuth } from '@/services/Firebase/useAuth';
 import { Expense } from '@/types/expenses';
 import { Trip, TripMember } from '@/types/trips';
 import { formatMoney } from '@/utils/money';
+import { shortName } from '@/utils/format';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Plus, Receipt } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 /**
- * Every expense of one trip.
+ * Every expense of one trip, broken up by day.
  *
  * The trip's own Expenses tab shows only the newest few; this is where the
  * whole history lives. The dashboard's "View all" opens this same page.
@@ -38,10 +43,15 @@ export default function AllExpensesScreen() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [category, setCategory] = useState<string | null>(null);
+  const [payerId, setPayerId] = useState<string | null>(null);
 
   // The spinner belongs to the first load only; afterwards the saved copy is
   // already on screen and blanking it would just flicker.
   const loadedOnce = useRef(false);
+
+  // Pull to refresh: its own spinner, so the list never drops back to a skeleton.
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!tripId) {
@@ -70,6 +80,15 @@ export default function AllExpensesScreen() {
     load();
   }, [load]);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
   const members: TripMember[] = useMemo(() => {
     const list = Object.values(trip?.members ?? {});
     return [...list].sort((a, b) => {
@@ -80,7 +99,42 @@ export default function AllExpensesScreen() {
 
   const currentUserId = currentUser?.uid ?? '';
   const currency = trip?.currency || 'PHP';
-  const total = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
+
+  /** Only the categories this trip actually used, so the row stays short. */
+  const categoryFilters: FilterOption[] = useMemo(
+    () =>
+      EXPENSE_CATEGORIES.filter((entry) =>
+        expenses.some((row) => row.category === entry.value),
+      ).map((entry) => {
+        const look = categoryLook(entry.value);
+        return { value: entry.value, label: entry.label, icon: look.icon, iconColor: look.tint };
+      }),
+    [expenses],
+  );
+
+  /** Only the people who actually paid for something in this trip. */
+  const payerFilters: FilterOption[] = useMemo(
+    () =>
+      members
+        .filter((member) =>
+          expenses.some((row) => Object.keys(row.paidBy ?? {}).includes(member.id)),
+        )
+        .map((member) => ({ value: member.id, label: member.fullname.split(' ')[0] })),
+    [members, expenses],
+  );
+
+  const visible = useMemo(
+    () =>
+      expenses.filter((row) => {
+        if (category && row.category !== category) return false;
+        if (payerId && !Object.keys(row.paidBy ?? {}).includes(payerId)) return false;
+        return true;
+      }),
+    [expenses, category, payerId],
+  );
+
+  const total = visible.reduce((sum, expense) => sum + (expense.amount || 0), 0);
+  const filtering = !!category || !!payerId;
 
   const runDelete = async () => {
     if (!pendingDelete || !tripId || deleting) return;
@@ -106,13 +160,17 @@ export default function AllExpensesScreen() {
         <Text style={styles.headerTitle}>All expenses</Text>
         {!!trip && (
           <Text style={styles.headerSub} numberOfLines={1}>
-            {trip.name} · {expenses.length} {expenses.length === 1 ? 'entry' : 'entries'} ·{' '}
+            {shortName(trip.name)} · {visible.length} {visible.length === 1 ? 'entry' : 'entries'} ·{' '}
             {formatMoney(total, currency)}
           </Text>
         )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <View style={styles.container}>
           {loading ? (
             <ListSkeleton rows={5} rowHeight={72} />
@@ -128,23 +186,73 @@ export default function AllExpensesScreen() {
             />
           ) : (
             <>
-              <ExpenseCards
-                expenses={expenses}
-                members={members}
-                currency={currency}
-                currentUserId={currentUserId}
-                canChange={() => true}
-                onPress={(expense) => setDetailId(expense.id)}
-                onDelete={(id, title) => setPendingDelete({ id, title })}
-                onEdit={(expense) => {
-                  setEditingExpense(expense);
-                  setFormOpen(true);
-                }}
-              />
-              <Text style={styles.footNote}>
-                Anyone in this trip can edit or delete an expense. Every change is kept in the
-                expense's edit log.
-              </Text>
+              {/* Filters sit above the list, not inside the scroll area, so they
+                  stay reachable however far down the history you are. */}
+              {categoryFilters.length > 1 && (
+                <FilterChips
+                  options={categoryFilters}
+                  value={category}
+                  onChange={setCategory}
+                  label="Filter by category"
+                />
+              )}
+              {payerFilters.length > 1 && (
+                <FilterChips
+                  options={payerFilters}
+                  value={payerId}
+                  onChange={setPayerId}
+                  allLabel="Anyone"
+                  label="Filter by who paid"
+                />
+              )}
+
+              {visible.length === 0 ? (
+                <EmptyState
+                  icon={Receipt}
+                  title="Nothing matches"
+                  message="No expense fits these filters. Try a different category or person."
+                  actionLabel="Clear filters"
+                  onAction={() => {
+                    setCategory(null);
+                    setPayerId(null);
+                  }}
+                />
+              ) : (
+                <>
+                  <ExpenseCards
+                    expenses={visible}
+                    members={members}
+                    currency={currency}
+                    currentUserId={currentUserId}
+                    canChange={() => true}
+                    grouped
+                    onPress={(expense) => setDetailId(expense.id)}
+                    onReact={async (expenseId, next) => {
+                      const before = expenses.find((entry) => entry.id === expenseId)?.reactions;
+                      setExpenses((previous) =>
+                        previous.map((entry) =>
+                          entry.id === expenseId ? { ...entry, reactions: next } : entry,
+                        ),
+                      );
+                      try {
+                        await saveReactions(tripId, expenseId, next);
+                      } catch (err) {
+                        console.error('Could not save the reaction:', err);
+                        setExpenses((previous) =>
+                          previous.map((entry) =>
+                            entry.id === expenseId ? { ...entry, reactions: before } : entry,
+                          ),
+                        );
+                      }
+                    }}
+                  />
+                  <Text style={styles.footNote}>
+                    {filtering
+                      ? `${visible.length} of ${expenses.length} entries shown.`
+                      : "Anyone in this trip can edit or delete an expense. Every change is kept in the expense's edit log."}
+                  </Text>
+                </>
+              )}
             </>
           )}
         </View>
@@ -197,6 +305,7 @@ export default function AllExpensesScreen() {
           setEditingExpense(expense);
           setFormOpen(true);
         }}
+        onDelete={(id, title) => setPendingDelete({ id, title })}
       />
 
       <ConfirmSheet

@@ -20,12 +20,14 @@ import {
 import { leaveTrip } from '@/services/Firebase/tripService';
 import { fetchDelivery, setTripMuted } from '@/services/notifications/inbox';
 import { Trip } from '@/types/trips';
+import { shortName } from '@/utils/format';
 import { formatDay, todayKey } from '@/utils/money';
 import {
   TripFilter,
   TripSort,
   TripSummary,
   filterTrips,
+  pinActiveTrip,
   sortTrips,
   tripIsOver,
   tripStatus,
@@ -41,6 +43,7 @@ import {
   MoreHorizontal,
   Search,
   Star,
+  StarOff,
   Ticket,
   Users,
 } from 'lucide-react-native';
@@ -70,6 +73,15 @@ function formatTripDate(value?: string) {
 
 const STATUS_LABEL = { upcoming: 'Upcoming', ongoing: 'Ongoing', past: 'Finished' } as const;
 
+/** The filter chips above the list, in the order they are shown. */
+const CHIPS: { value: TripFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'upcoming', label: 'Upcoming' },
+  { value: 'past', label: 'Past' },
+  { value: 'created', label: 'Created' },
+  { value: 'joined', label: 'Joined' },
+];
+
 const SORTS = [
   { value: 'recent', label: 'Recent' },
   { value: 'date', label: 'Trip date' },
@@ -93,7 +105,7 @@ export default function TripsScreen() {
 
   // The same hook the dashboard uses, so "active" here is exactly the trip the
   // dashboard and the quick actions work on.
-  const { trips, activeTrip, loading, error, selectTrip, reload } = useActiveTrip(uid);
+  const { trips, activeTrip, loading, error, selectTrip, clearTrip, reload } = useActiveTrip(uid);
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<TripFilter>('all');
@@ -125,11 +137,20 @@ export default function TripsScreen() {
   }, [uid, trips]);
 
   const today = todayKey();
+  const activeId = activeTrip?.id ?? '';
   const visible = useMemo(
     () =>
-      sortTrips(filterTrips(trips, { filter, query, archived, summaries, today }), sort, summaries),
+      // The active trip is pinned to the top, above whatever the sort chose.
+      pinActiveTrip(
+        sortTrips(
+          filterTrips(trips, { filter, query, archived, summaries, today, uid }),
+          sort,
+          summaries,
+        ),
+        activeId,
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [trips, filter, query, archived, summaries, sort],
+    [trips, filter, query, archived, summaries, sort, activeId],
   );
   const archivedCount = trips.filter((trip) => archived[trip.id]).length;
 
@@ -199,6 +220,18 @@ export default function TripsScreen() {
               },
             ]
           : []),
+        // The way out for a trip that is still months away: the dashboard can
+        // be left empty, and that answer is remembered across reloads.
+        ...(menuTrip.id === activeTrip?.id
+          ? [
+              {
+                key: 'undash',
+                label: 'Remove from dashboard',
+                icon: StarOff,
+                run: () => clearTrip(),
+              },
+            ]
+          : []),
         {
           key: 'mute',
           label: muted[menuTrip.id] ? 'Unmute notifications' : 'Mute notifications',
@@ -251,6 +284,27 @@ export default function TripsScreen() {
               <Text style={styles.joinText}>Join</Text>
             </Pressable>
           </View>
+
+          {trips.length > 0 && (
+            <View style={styles.chipRow}>
+              {CHIPS.map((chip) => {
+                const isOn = chip.value === filter;
+                return (
+                  <Pressable
+                    key={chip.value}
+                    style={[styles.chip, isOn && styles.chipOn]}
+                    onPress={() => setFilter(chip.value)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isOn }}
+                  >
+                    <Text style={[styles.chipText, isOn && styles.chipTextOn]} numberOfLines={1}>
+                      {chip.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
 
           {trips.length > 1 && (
             <View style={styles.controls}>
@@ -308,7 +362,17 @@ export default function TripsScreen() {
             <EmptyState
               icon={Search}
               title="No trips found"
-              message="Nothing matches your search and filter. Try a different one."
+              message={
+                filter === 'created'
+                  ? 'You have not created a trip yet.'
+                  : filter === 'joined'
+                    ? 'You have not joined anyone else\u2019s trip yet.'
+                    : filter === 'past'
+                      ? 'No trips have finished yet.'
+                      : filter === 'upcoming'
+                        ? 'No trips are coming up yet.'
+                        : 'Nothing matches your search and filter. Try a different one.'
+              }
             />
           ) : (
             <View style={styles.tripList}>
@@ -336,7 +400,7 @@ export default function TripsScreen() {
 
                       <View style={styles.tripInfo}>
                         <Text style={styles.tripName} numberOfLines={1}>
-                          {trip.name}
+                          {shortName(trip.name)}
                         </Text>
                         <View style={styles.badgeRow}>
                           {isActive && (
@@ -353,8 +417,17 @@ export default function TripsScreen() {
                             </View>
                           )}
                           {!!status && (
-                            <View style={styles.badge}>
-                              <Text style={styles.badgeText}>{STATUS_LABEL[status]}</Text>
+                            <View
+                              style={[styles.badge, status === 'ongoing' && styles.ongoingBadge]}
+                            >
+                              <Text
+                                style={[
+                                  styles.badgeText,
+                                  status === 'ongoing' && styles.ongoingBadgeText,
+                                ]}
+                              >
+                                {STATUS_LABEL[status]}
+                              </Text>
                             </View>
                           )}
                           {!!archived[trip.id] && (
@@ -392,7 +465,7 @@ export default function TripsScreen() {
                         <MemberFaces
                           members={members}
                           size={24}
-                          ringColor={isActive ? BrandColors.base200 : BrandColors.background}
+                          ringColor={BrandColors.background}
                         />
                       </View>
                     </View>
@@ -502,6 +575,32 @@ const styles = StyleSheet.create({
   controls: {
     gap: Spacing.two,
   },
+  chipRow: {
+    flexDirection: 'row',
+    gap: Spacing.one,
+  },
+  chip: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.two,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: BrandColors.border,
+  },
+  chipOn: {
+    backgroundColor: BrandColors.base200,
+    borderColor: BrandColors.base200,
+  },
+  chipText: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 11,
+    color: BrandColors.secondary,
+  },
+  chipTextOn: {
+    color: BrandColors.primary,
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
   sortRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -536,10 +635,21 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   badge: {
-    backgroundColor: BrandColors.surfaceAlt,
+    // A grey pill, not the near-white surfaceAlt it used to be: that sat on a
+    // white card and read as nothing at all.
+    backgroundColor: BrandColors.inputField,
     borderRadius: 20,
     paddingHorizontal: Spacing.two,
     paddingVertical: 2,
+  },
+  // Ongoing is the status worth spotting at a glance, so it wears the theme's
+  // info blue instead of the neutral grey - and blue never collides with the
+  // amber "Active" chip that sits right beside it.
+  ongoingBadge: {
+    backgroundColor: BrandColors.infoBg,
+  },
+  ongoingBadgeText: {
+    color: BrandColors.info,
   },
   settledBadge: {
     backgroundColor: '#E6F6EC',
@@ -582,8 +692,8 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
   },
   tripCardActive: {
-    borderWidth: 2,
-    borderColor: BrandColors.base50,
+    borderWidth: 1,
+    borderColor: BrandColors.base200,
     backgroundColor: BrandColors.base200,
   },
   tripCardPressed: {

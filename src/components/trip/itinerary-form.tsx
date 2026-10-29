@@ -1,4 +1,5 @@
 import ReceiptPicker from '@/components/trip/receipt-picker';
+import ParticipantPicker from '@/components/trip/participant-picker';
 import PrimaryButton from '@/components/Button/primary-button';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { HelperText } from '@/components/ui/card';
@@ -9,10 +10,12 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { createItineraryItem, updateItineraryItem } from '@/services/Firebase/itineraryService';
 import { uploadItineraryPhoto } from '@/services/Supabase/receiptService';
 import { ItineraryItem } from '@/types/expenses';
+import { TripMember } from '@/types/trips';
 import { pickImage, takePhoto } from '@/utils/imagePicker';
+import { toMinutes } from '@/utils/itinerary';
 import { todayKey } from '@/utils/money';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 interface ItineraryFormProps {
   visible: boolean;
@@ -21,6 +24,8 @@ interface ItineraryFormProps {
   currentUserId: string;
   /** Everyone's name, so the edit log can say who changed what. */
   memberNames?: Record<string, string>;
+  /** Everyone in the trip, so the plan can say who is coming. */
+  members?: TripMember[];
   /** Pre-fills the day when adding from inside a day group. */
   defaultDay?: string;
   /** When set, the form edits this plan instead of adding a new one. */
@@ -28,15 +33,13 @@ interface ItineraryFormProps {
   onSaved: (item: ItineraryItem) => void;
 }
 
-/** Times people actually plan around, offered as one-tap chips. */
-const TIME_PRESETS = ['07:00', '09:00', '12:00', '15:00', '18:00', '20:00'];
-
 export default function ItineraryForm({
   visible,
   onClose,
   tripId,
   currentUserId,
   memberNames = {},
+  members = [],
   defaultDay,
   item,
   onSaved,
@@ -44,8 +47,10 @@ export default function ItineraryForm({
   const [title, setTitle] = useState('');
   const [day, setDay] = useState(defaultDay || todayKey());
   const [time, setTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
+  const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -56,8 +61,10 @@ export default function ItineraryForm({
     setTitle(item.title);
     setDay(item.day);
     setTime(item.time ?? '');
+    setEndTime(item.endTime ?? '');
     setLocation(item.location ?? '');
     setNotes(item.notes ?? '');
+    setAttendeeIds(item.attendeeIds ?? []);
     setPhotoUris(item.photoUrls ?? []);
     setError('');
     setSaving(false);
@@ -67,8 +74,10 @@ export default function ItineraryForm({
     setTitle('');
     setDay(defaultDay || todayKey());
     setTime('');
+    setEndTime('');
     setLocation('');
     setNotes('');
+    setAttendeeIds([]);
     setPhotoUris([]);
     setError('');
     setSaving(false);
@@ -115,6 +124,14 @@ export default function ItineraryForm({
       return;
     }
 
+    // A plan that ends before it starts would show a negative duration.
+    const start = toMinutes(time);
+    const end = toMinutes(endTime);
+    if (start !== null && end !== null && end <= start) {
+      setError('The end time needs to be later than the start time.');
+      return;
+    }
+
     setSaving(true);
     try {
       const photoUrls: string[] = [];
@@ -139,7 +156,7 @@ export default function ItineraryForm({
       }
 
       if (item) {
-        const changes = { title, day, time, location, notes, photoUrls };
+        const changes = { title, day, time, endTime, location, notes, attendeeIds, photoUrls };
         // The log is written from what the plan said before this edit, so it
         // can show the old value beside the new one.
         const entry = await updateItineraryItem(tripId, item.id, changes, item, {
@@ -148,14 +165,25 @@ export default function ItineraryForm({
           by: currentUserId,
           byName: memberNames[currentUserId] || 'Someone',
         });
-        const { time: _t, location: _l, notes: _n, photoUrls: _p, history: _h, ...base } = item;
+        const {
+          time: _t,
+          endTime: _e,
+          location: _l,
+          notes: _n,
+          attendeeIds: _a,
+          photoUrls: _p,
+          history: _h,
+          ...base
+        } = item;
         const saved: ItineraryItem = {
           ...base,
           title: title.trim(),
           day,
           ...(time.trim() ? { time: time.trim() } : {}),
+          ...(endTime.trim() ? { endTime: endTime.trim() } : {}),
           ...(location.trim() ? { location: location.trim() } : {}),
           ...(notes.trim() ? { notes: notes.trim() } : {}),
+          ...(attendeeIds.length ? { attendeeIds } : {}),
           ...(photoUrls.length ? { photoUrls } : {}),
           ...(entry ? { history: [entry, ...(item.history ?? [])] } : { history: item.history }),
         };
@@ -168,8 +196,10 @@ export default function ItineraryForm({
         title,
         day,
         time,
+        endTime,
         location,
         notes,
+        attendeeIds,
         photoUrls,
         createdBy: currentUserId,
       });
@@ -228,8 +258,53 @@ export default function ItineraryForm({
 
         <View style={styles.group}>
           <Text style={styles.label}>Time (optional)</Text>
-          <TimeField value={time} onChange={setTime} presets={TIME_PRESETS} />
+          <TimeField value={time} onChange={setTime} />
         </View>
+
+        <View style={styles.group}>
+          <Text style={styles.label}>Ends (optional)</Text>
+          <TimeField value={endTime} onChange={setEndTime} />
+          <HelperText>
+            Add an end time and the plan shows how long it runs, instead of a single moment.
+          </HelperText>
+        </View>
+
+        {members.length > 1 && (
+          <View style={styles.group}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Who is coming? (optional)</Text>
+              {attendeeIds.length > 0 && (
+                <Pressable
+                  onPress={() => setAttendeeIds([])}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.clearLink}>Everyone</Text>
+                </Pressable>
+              )}
+            </View>
+            <ParticipantPicker
+              members={members}
+              selectedIds={attendeeIds.length ? attendeeIds : members.map((m) => m.id)}
+              currentUserId={currentUserId}
+              onToggle={(memberId) => {
+                // An empty list means the whole trip is coming. The first tap
+                // turns that into an explicit list minus the person tapped, so
+                // ticking a face always does what it looks like it does.
+                const base = attendeeIds.length ? attendeeIds : members.map((m) => m.id);
+                const next = base.includes(memberId)
+                  ? base.filter((id) => id !== memberId)
+                  : [...base, memberId];
+                setAttendeeIds(next.length === members.length ? [] : next);
+              }}
+            />
+            <HelperText>
+              {attendeeIds.length === 0
+                ? 'Everyone in the trip, unless you pick who is not coming.'
+                : `${attendeeIds.length} of ${members.length} coming.`}
+            </HelperText>
+          </View>
+        )}
 
         <TextField
           title="Place (optional)"
@@ -263,5 +338,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.primary,
     marginBottom: 2,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  clearLink: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+    color: BrandColors.info,
   },
 });

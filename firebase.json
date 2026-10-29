@@ -6,6 +6,9 @@
     "site": "tripsplit-14f93",
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "/j", "destination": "/index.html" }]
+    "rewrites": [
+      { "source": "/j", "destination": "/j.html" },
+      { "source": "/", "destination": "/j.html" }
+    ]
   }
 }

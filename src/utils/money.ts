@@ -99,7 +99,7 @@ export const parseDayKey = (key: string): Date | null => {
 
 export const isValidDayKey = (key: string): boolean => parseDayKey(key) !== null;
 
-/** "2025-06-14" -> "Sat, Jun 14". */
+/** "2025-06-14" -> "Jun 14, 2025". */
 export const formatDay = (key: string): string => {
   const date = parseDayKey(key);
   if (!date) return key || '—';
@@ -132,7 +132,9 @@ export const formatLongDay = (key: string): string => {
 };
 
 /** All receipt photos of an expense, including ones saved with the older single field. */
-export const receiptsOf = (expense?: { receiptUrl?: string; receiptUrls?: string[] } | null): string[] => {
+export const receiptsOf = (
+  expense?: { receiptUrl?: string; receiptUrls?: string[] } | null,
+): string[] => {
   if (!expense) return [];
   if (expense.receiptUrls?.length) return expense.receiptUrls;
   return expense.receiptUrl ? [expense.receiptUrl] : [];
@@ -159,4 +161,27 @@ export const formatTime = (time?: string): string => {
   const suffix = hours >= 12 ? 'PM' : 'AM';
   const shown = hours % 12 === 0 ? 12 : hours % 12;
   return `${shown}:${match[2]} ${suffix}`;
+};
+
+/** The local date as YYYY-MM-DD, so it can be compared with a record's day key. */
+const localDayKey = (date: Date): string =>
+  `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
+
+/**
+ * A readable heading for one day of a list.
+ *
+ * The two days people care about most get a plain word - "Today" and
+ * "Yesterday" - because a date there makes them do the maths themselves.
+ */
+export const dayHeading = (key: string): string => {
+  if (!key) return 'No date';
+
+  const today = new Date();
+  if (key === localDayKey(today)) return 'Today';
+
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (key === localDayKey(yesterday)) return 'Yesterday';
+
+  return formatDay(key);
 };

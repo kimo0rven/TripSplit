@@ -1,10 +1,12 @@
 import Avatar from '@/components/ui/avatar';
 import BottomSheet from '@/components/ui/bottom-sheet';
+import DayDivider from '@/components/ui/day-divider';
 import { Card } from '@/components/ui/card';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Settlement } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
-import { formatDay, formatMoney } from '@/utils/money';
+import { groupByDay } from '@/utils/listGrouping';
+import { dayHeading, formatDay, formatMoney } from '@/utils/money';
 import { Image } from 'expo-image';
 import { ArrowRight, History, Pencil } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -18,6 +20,8 @@ interface PaymentsListProps {
   currentUserId: string;
   onEditSettlement?: (settlement: Settlement) => void;
   onRespond?: (settlement: Settlement, accept: boolean) => void;
+  /** Splits the list into day sections; used on the page holding every payment. */
+  grouped?: boolean;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -44,6 +48,7 @@ export default function PaymentsList({
   currentUserId,
   onEditSettlement,
   onRespond,
+  grouped = false,
 }: PaymentsListProps) {
   const router = useRouter();
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -104,7 +109,30 @@ export default function PaymentsList({
 
   return (
     <>
-      <View style={styles.list}>{settlements.map(renderPayment)}</View>
+      {grouped ? (
+        <View style={styles.groupedList}>
+          {groupByDay(settlements, (settlement) => settlement.settledOn).map((group) => {
+            // Only confirmed money counts towards a day's total: a payment still
+            // waiting for the other side to agree is not really a payment yet.
+            const dayTotal = group.items
+              .filter((item) => item.status !== 'pending' && item.status !== 'declined')
+              .reduce((sum, item) => sum + (item.amount || 0), 0);
+
+            return (
+              <View key={group.day} style={styles.day}>
+                <DayDivider
+                  label={dayHeading(group.day)}
+                  count={group.items.length}
+                  total={formatMoney(dayTotal, currency)}
+                />
+                <View style={styles.list}>{group.items.map(renderPayment)}</View>
+              </View>
+            );
+          })}
+        </View>
+      ) : (
+        <View style={styles.list}>{settlements.map(renderPayment)}</View>
+      )}
 
       <BottomSheet visible={!!detail} title="Payment details" onClose={() => setDetailId(null)}>
         {detail && (
@@ -252,6 +280,8 @@ export default function PaymentsList({
 
 const styles = StyleSheet.create({
   list: { gap: Spacing.two },
+  groupedList: { gap: Spacing.three },
+  day: { gap: Spacing.two },
   pendingBox: {
     gap: Spacing.two,
     backgroundColor: BrandColors.infoBg,

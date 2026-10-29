@@ -1,56 +1,136 @@
-# Welcome to your Expo app 👋
+# TripSplit
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Split trip costs with friends — expenses, balances, settlements and an itinerary,
+for groups travelling together in the Philippines.
 
-## Get started
+Built with Expo (React Native) and TypeScript. Runs on Android, iOS and web.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## What it does
 
-2. Start the app
+- **Trips** — create a trip, invite people with a code or a QR, set a budget.
+- **Expenses** — log what was spent, who paid, and who shares the cost. Supports
+  several payers on one bill, itemised receipts, percentage and custom splits,
+  receipt photos and repeating expenses.
+- **Balances** — who owes whom, reduced to the fewest payments that settle it.
+- **Settlements** — record cash changing hands, with the receiver confirming it.
+- **Itinerary** — plans with times, places and photos, shown on a timeline.
+- **Reports** — spending over time, by category, and per trip.
+- **Edit logs** — every change to a money record is kept, with who changed what.
 
-   ```bash
-   npx expo start
-   ```
+Works offline: changes are queued and sent when the connection comes back.
 
-In the output, you'll find options to open the app in a
+---
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Two backends, on purpose
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+This is the part that surprises people, so it is worth stating plainly:
 
-## Get a fresh project
+| Backend                        | What it holds                                                          | Why                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Firebase Realtime Database** | All app data — trips, expenses, settlements, plans, users, friendships | Live-syncing JSON, and security rules that can check trip membership per record |
+| **Firebase Auth**              | Sign-in sessions                                                       | The database rules rely on it: every rule starts with `auth != null`            |
+| **Supabase Storage**           | Uploaded files — profile photos and receipt photos                     | Cheap object storage with signed links for a private bucket                     |
 
-When you're ready, run:
+So: **Firebase for data and identity, Supabase for files only.** No app data is
+stored in Supabase, and no files are stored in Firebase.
 
-```bash
-npm run reset-project
+```mermaid
+flowchart LR
+    A("The app") --> B("Firebase Auth<br/>who you are")
+    A --> C("Realtime Database<br/>trips, expenses")
+    A --> D("Supabase Storage<br/>photos")
+    B -.->|"rules check this"| C
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Security rules
 
-### Other setup steps
+The rules live in `database.rules.json` and are deployed to Firebase — they are
+**not** shipped in the app, so a change in the file does nothing until it is
+deployed:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npx firebase deploy --only database
+```
 
-## Learn more
+Always deploy after editing the rules. Keep the file in sync with the console;
+a stale file is how a plan edit was once refused with `PERMISSION_DENIED` while
+the app itself looked correct.
 
-To learn more about developing your project with Expo, look at the following resources:
+---
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Running the app
 
-## Join the community
+```bash
+npm install
+npm start          # then scan the QR with Expo Go
+npm run android    # or build and install on a phone or emulator
+npm run ios        # needs Xcode (macOS only)
+npm run web
+```
 
-Join our community of developers creating universal apps.
+The app name and icon are baked into the native build, so after changing them in
+`app.json` you must regenerate the native folders and rebuild:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npx expo prebuild --clean
+npm run android
+```
+
+`ios/` and `android/` are gitignored — `app.json` is the source of truth.
+
+### Environment
+
+Create a `.env` with these keys (see `.env.example` if present):
+
+```
+EXPO_PUBLIC_FIREBASE_API_KEY=
+EXPO_PUBLIC_FIREBASE_APP_ID=
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=
+EXPO_PUBLIC_FIREBASE_DATABASE_URL=
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+Only Supabase's `anon` key is used in the app; the bucket is private and files
+are read through signed links.
+
+---
+
+## Checks
+
+```bash
+npm test           # maths tests for splitting, balances and stats
+npm run lint       # ESLint
+npx tsc --noEmit   # types
+```
+
+CI runs all three on every push and pull request
+(`.github/workflows/ci.yml`).
+
+---
+
+## Layout
+
+```
+src/
+  app/            screens (Expo Router — file name is the route)
+  components/     UI, grouped by area (trip, dashboard, ui, ...)
+  services/       Firebase data + Supabase uploads + the offline queue
+  utils/          pure logic: split, balance, stats, money, dates
+  types/          shared TypeScript types
+tests/            node:test files for the pure logic in utils/
+public/j.html     the small page a scanned join QR opens
+```
+
+The join page lives at `public/j.html` on purpose, not `public/index.html`: the
+dev server serves anything in `public/` before the app, so an `index.html` there
+would swallow `localhost:<port>/` and you would never see the app in a browser.
+The Firebase rewrites in `firebase.json` still send `/j` and `/` to it on the
+live site.
+
+The maths that decides who owes whom lives in `src/utils/split.ts` and
+`src/utils/balance.ts`, and is covered by `tests/`. Everything works in cents so
+shares always add back to the total.

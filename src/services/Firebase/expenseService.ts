@@ -49,6 +49,16 @@ const cleanRecord = (record: Record<string, number>): Record<string, number> => 
   return result;
 };
 
+/**
+ * Whether two money totals agree.
+ *
+ * Compared in whole cents, not to within a cent. Allowing one cent of slack
+ * let a split add up to a cent more than the bill, which leaves the trip's
+ * balances permanently off by that cent: the people above zero no longer equal
+ * the people below it, so someone is shown as owing money that nobody is owed.
+ */
+const sameMoney = (a: number, b: number): boolean => Math.round(a * 100) === Math.round(b * 100);
+
 /** Adds an expense. Two payers, three payers or everyone is all fine. */
 export const createExpense = async (
   tripId: string,
@@ -69,7 +79,7 @@ export const createExpense = async (
   }
 
   const paidTotal = Object.values(paidBy).reduce((sum, value) => sum + value, 0);
-  if (Math.abs(paidTotal - amount) > 0.01) {
+  if (!sameMoney(paidTotal, amount)) {
     throw new Error('The amounts paid do not add up to the expense total.');
   }
 
@@ -79,7 +89,7 @@ export const createExpense = async (
   }
 
   const shareTotal = Object.values(shares).reduce((sum, value) => sum + value, 0);
-  if (Math.abs(shareTotal - amount) > 0.01) {
+  if (!sameMoney(shareTotal, amount)) {
     throw new Error('The split does not add up to the expense total.');
   }
 
@@ -123,8 +133,20 @@ const announceExpense = async (tripId: string, expense: Expense, repeating: bool
           repeating ? 'recurring' : 'newExpenses',
           repeating ? 'Recurring expense added' : 'New expense',
           repeating
-            ? expense.title + ' was added to ' + name + '. Your share is ' + formatMoney(share, currency) + '.'
-            : who + ' added ' + expense.title + ' in ' + name + ' · your share is ' + formatMoney(share, currency) + '.',
+            ? expense.title +
+                ' was added to ' +
+                name +
+                '. Your share is ' +
+                formatMoney(share, currency) +
+                '.'
+            : who +
+                ' added ' +
+                expense.title +
+                ' in ' +
+                name +
+                ' · your share is ' +
+                formatMoney(share, currency) +
+                '.',
           { tripId },
         ),
       ),
@@ -142,17 +164,31 @@ export const updateExpense = async (
 ): Promise<EditLogEntry | null> => {
   if (!tripId || !expenseId) throw new Error('No expense was selected.');
 
+  const title = (input.title || '').trim();
+  if (!title) throw new Error('Give this expense a name.');
+
   const amount = toAmount(parseAmount(input.amount));
+  // The same floor `createExpense` enforces. Without it an edit can save an
+  // expense worth nothing, with nobody paying and nobody sharing it.
+  if (amount <= 0) throw new Error('Enter an amount greater than zero.');
+
   const paidBy = cleanRecord(input.paidBy);
+  if (Object.keys(paidBy).length === 0) {
+    throw new Error('Pick at least one person who paid.');
+  }
+
   const shares = cleanRecord(input.shares);
+  if (Object.keys(shares).length === 0) {
+    throw new Error('Pick at least one person to split with.');
+  }
 
   const paidTotal = Object.values(paidBy).reduce((sum, value) => sum + value, 0);
   const shareTotal = Object.values(shares).reduce((sum, value) => sum + value, 0);
 
-  if (Math.abs(paidTotal - amount) > 0.01) {
+  if (!sameMoney(paidTotal, amount)) {
     throw new Error('The amounts paid do not add up to the expense total.');
   }
-  if (Math.abs(shareTotal - amount) > 0.01) {
+  if (!sameMoney(shareTotal, amount)) {
     throw new Error('The split does not add up to the expense total.');
   }
 
@@ -161,7 +197,7 @@ export const updateExpense = async (
     const changes = diffExpense(
       audit.before,
       {
-        title: input.title.trim(),
+        title,
         amount,
         category: input.category || 'other',
         spentOn: input.spentOn || todayKey(),
@@ -180,7 +216,7 @@ export const updateExpense = async (
     ...(entry
       ? { [`trips/${tripId}/expenses/${expenseId}/history/${entry.id}`]: serializeEntry(entry) }
       : {}),
-    [`trips/${tripId}/expenses/${expenseId}/title`]: input.title.trim(),
+    [`trips/${tripId}/expenses/${expenseId}/title`]: title,
     [`trips/${tripId}/expenses/${expenseId}/amount`]: amount,
     [`trips/${tripId}/expenses/${expenseId}/category`]: input.category || 'other',
     [`trips/${tripId}/expenses/${expenseId}/spentOn`]: input.spentOn || todayKey(),
@@ -205,7 +241,7 @@ export const updateExpense = async (
       Object.keys(shares).concat(Object.keys(audit?.before.shares ?? {})),
       'expenseChanges',
       'Expense edited',
-      myName() + ' changed ' + input.title.trim() + ' in ' + name + '.',
+      myName() + ' changed ' + title + ' in ' + name + '.',
       { tripId },
     );
   }
@@ -230,7 +266,16 @@ export const fetchExpenses = async (
       history: historyOf((value as { history?: unknown }).history),
     }))
     .sort((a, b) => {
-      if (a.spentOn !== b.spentOn) return a.spentOn < b.spentOn ? 1 : -1;
+      // An expense with no date sorts to the bottom, not the top: an empty string
+      // compares "less than" every real day, which would put an undated entry
+      // above today and hand it a day section of its own at the head of the list.
+      const dayA = a.spentOn ?? '';
+      const dayB = b.spentOn ?? '';
+      if (dayA !== dayB) {
+        if (!dayA) return 1;
+        if (!dayB) return -1;
+        return dayA < dayB ? 1 : -1;
+      }
       const timeA = a.spentTime ?? '';
       const timeB = b.spentTime ?? '';
       if (timeA !== timeB) return timeA < timeB ? 1 : -1;

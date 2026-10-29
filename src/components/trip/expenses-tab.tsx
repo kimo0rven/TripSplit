@@ -8,7 +8,7 @@ import { Receipt } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 /** How many expenses the trip page itself lists before "View all". */
-export const RECENT_EXPENSE_LIMIT = 5;
+export const RECENT_EXPENSE_LIMIT = 3;
 
 interface ExpensesTabProps {
   expenses: Expense[];
@@ -20,10 +20,8 @@ interface ExpensesTabProps {
   onViewAll: () => void;
   /** Opens the sheet holding one expense's full detail. */
   onOpenExpense: (expense: Expense) => void;
-  /** Asks before deleting one of your own entries. */
-  onDelete: (id: string, title: string) => void;
-  /** Opens the form to change one of your own entries. */
-  onEdit: (expense: Expense) => void;
+  /** Saves a reaction someone tapped on an expense card. */
+  onReact?: (expenseId: string, reactions: Record<string, string[]>) => void;
 }
 
 export default function ExpensesTab({
@@ -34,8 +32,7 @@ export default function ExpensesTab({
   onAdd,
   onViewAll,
   onOpenExpense,
-  onDelete,
-  onEdit,
+  onReact,
 }: ExpensesTabProps) {
   // Newest first, then only the first few. The rest live on their own page.
   const recent = expenses.slice(0, RECENT_EXPENSE_LIMIT);
@@ -75,8 +72,7 @@ export default function ExpensesTab({
             currentUserId={currentUserId}
             canChange={() => true}
             onPress={onOpenExpense}
-            onDelete={onDelete}
-            onEdit={onEdit}
+            onReact={onReact}
           />
 
           <HelperText>

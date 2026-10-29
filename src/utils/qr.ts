@@ -20,7 +20,7 @@ export type QrPayload =
  * Where a QR points so that *any* camera can open it.
  *
  * This is the Firebase Hosting site's address. The page at /j on that site
- * forwards the code to the app (see public/index.html), and the app rewrites
+ * forwards the code to the app (see public/j.html), and the app rewrites
  * the incoming link to the join screen (see src/app/+native-intent.ts).
  */
 export const JOIN_QR_ORIGIN = 'https://tripsplit-14f93.web.app';

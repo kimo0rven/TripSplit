@@ -4,8 +4,16 @@ import { findTripColor } from '@/constants/trip-colors';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Trip } from '@/types/trips';
 import { formatLongDay, formatMoney, formatMoneyShort, parseDayKey, todayKey } from '@/utils/money';
+import { shortName } from '@/utils/format';
 import { tripIsOver, tripStatus } from '@/utils/tripList';
-import { CalendarDays, CheckCircle2, Clock3, PiggyBank, QrCode } from 'lucide-react-native';
+import {
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  MessagesSquare,
+  PiggyBank,
+  QrCode,
+} from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface TripHeroProps {
@@ -19,6 +27,8 @@ interface TripHeroProps {
   budget: number;
   /** Opens the sheet with the trip's invite code and QR. */
   onOpenQr?: () => void;
+  /** Opens the trip's notes. */
+  onOpenNotes?: () => void;
 }
 
 /**
@@ -71,6 +81,7 @@ export default function TripHero({
   yourShare,
   budget,
   onOpenQr,
+  onOpenNotes,
 }: TripHeroProps) {
   const palette = findTripColor(trip.iconColor);
   const today = todayKey();
@@ -96,7 +107,7 @@ export default function TripHero({
         </View>
         <View style={styles.titleBlock}>
           <Text style={[styles.name, { color: palette.foreground }]} numberOfLines={2}>
-            {trip.name}
+            {shortName(trip.name, 34)}
           </Text>
           <View style={styles.statusChip}>
             {over ? (
@@ -110,20 +121,33 @@ export default function TripHero({
           </View>
         </View>
 
-        {/* The invite code and QR live in a sheet, opened from here, so the
-            sharing tools sit on the card they belong to instead of in a
-            separate list further down the page. */}
-        {onOpenQr && !!trip.inviteCode && (
-          <Pressable
-            style={({ pressed }) => [styles.qrButton, pressed && styles.qrPressed]}
-            onPress={onOpenQr}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Show this trip's invite code and QR code"
-          >
-            <QrCode size={18} color={palette.foreground} />
-          </Pressable>
-        )}
+        {/* The trip's tools sit on the card itself, top right: notes first, then
+            the invite code and QR. Notes used to be a row inside the Plan tab,
+            where it was easy to miss - the card is on every tab. */}
+        <View style={styles.cardActions}>
+          {onOpenNotes && (
+            <Pressable
+              style={({ pressed }) => [styles.qrButton, pressed && styles.qrPressed]}
+              onPress={onOpenNotes}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Open this trip's notes"
+            >
+              <MessagesSquare size={18} color={palette.foreground} />
+            </Pressable>
+          )}
+          {onOpenQr && !!trip.inviteCode && (
+            <Pressable
+              style={({ pressed }) => [styles.qrButton, pressed && styles.qrPressed]}
+              onPress={onOpenQr}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Show this trip's invite code and QR code"
+            >
+              <QrCode size={18} color={palette.foreground} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <View style={styles.metaItem}>
@@ -207,6 +231,11 @@ const styles = StyleSheet.create({
   },
   titleBlock: {
     flex: 1,
+    gap: Spacing.one,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.one,
   },
   qrButton: {

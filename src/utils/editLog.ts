@@ -37,6 +37,13 @@ export interface ExpenseSnapshot {
   items?: { name: string; amount: number; sharedBy: string[] }[];
 }
 
+/** Plain words for each split mode, as they appear in the change log. */
+const SPLIT_NAME: Record<string, string> = {
+  equal: 'equally',
+  percentage: 'by percentage',
+  custom: 'by exact amount',
+};
+
 const describeItems = (ctx: EditContext, items: ExpenseSnapshot['items']): string =>
   items?.length
     ? items
@@ -69,11 +76,14 @@ export const diffExpense = (
     formatMoney(after.amount, ctx.currency),
   );
   push(changes, 'Paid by', describeMap(ctx, before.paidBy), describeMap(ctx, after.paidBy));
+  // An itemised bill is stored as a custom split, so name it for what it is.
+  const splitName = (s: ExpenseSnapshot) =>
+    s.items?.length ? 'by item' : (SPLIT_NAME[s.splitMode] ?? s.splitMode);
   push(
     changes,
-    'Split (' + after.splitMode + ')',
-    before.splitMode + ': ' + describeMap(ctx, before.shares),
-    after.splitMode + ': ' + describeMap(ctx, after.shares),
+    'Split',
+    splitName(before) + ': ' + describeMap(ctx, before.shares),
+    splitName(after) + ': ' + describeMap(ctx, after.shares),
   );
   push(changes, 'Items', describeItems(ctx, before.items), describeItems(ctx, after.items));
   push(changes, 'Category', before.category, after.category);
@@ -116,8 +126,10 @@ export interface ItinerarySnapshot {
   title: string;
   day: string;
   time?: string;
+  endTime?: string;
   location?: string;
   notes?: string;
+  attendeeIds?: string[];
   photoUrls?: string[];
 }
 
@@ -132,8 +144,17 @@ export const diffItinerary = (before: ItinerarySnapshot, after: ItinerarySnapsho
     before.time ? formatTime(before.time) : 'none',
     after.time ? formatTime(after.time) : 'none',
   );
+  push(
+    changes,
+    'Ends',
+    before.endTime ? formatTime(before.endTime) : 'none',
+    after.endTime ? formatTime(after.endTime) : 'none',
+  );
   push(changes, 'Place', before.location || 'none', after.location || 'none');
   push(changes, 'Description', before.notes || 'none', after.notes || 'none');
+  // Attendees are counted rather than listed: an id means nothing to a reader,
+  // and the point of the row is that the guest list moved.
+  push(changes, 'Going', attendeeLabel(before.attendeeIds), attendeeLabel(after.attendeeIds));
   push(
     changes,
     'Photos',
@@ -141,6 +162,17 @@ export const diffItinerary = (before: ItinerarySnapshot, after: ItinerarySnapsho
     String(after.photoUrls?.length ?? 0),
   );
   return changes;
+};
+
+/**
+ * How a plan's guest list reads in the edit log.
+ *
+ * No ids means the whole trip is coming, which is what an untagged plan means
+ * everywhere else in the app.
+ */
+const attendeeLabel = (ids?: string[]): string => {
+  if (!ids?.length) return 'everyone';
+  return ids.length === 1 ? '1 person' : `${ids.length} people`;
 };
 
 export const buildEntry = (id: string, ctx: EditContext, changes: Change[]): EditLogEntry => ({

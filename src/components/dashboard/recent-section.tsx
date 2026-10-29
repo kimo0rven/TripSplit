@@ -3,6 +3,7 @@ import EmptyState from '@/components/ui/empty-state';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Expense } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
+import { shortName } from '@/utils/format';
 import { UsersRound, Wallet } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -34,7 +35,7 @@ export default function RecentSection({
     <View style={styles.recentExpensesContainer}>
       <View style={styles.recentExpensesHeader}>
         <Text style={styles.recentExpenseTitle}>
-          {hasTrip ? `Recent on ${tripName}` : 'Recent expenses'}
+          {hasTrip ? `Recent on ${shortName(tripName)}` : 'Recent expenses'}
         </Text>
         {hasTrip && expenses.length > 0 && (
           <Pressable onPress={onViewAll} hitSlop={8} accessibilityRole="link">
@@ -45,7 +46,7 @@ export default function RecentSection({
 
       {hasTrip && expenses.length > 0 ? (
         <RecentExpenses
-          limit={5}
+          limit={3}
           expenses={expenses}
           members={members}
           currency={currency}

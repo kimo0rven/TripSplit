@@ -1,4 +1,5 @@
 import InlineInput from '@/components/trip/inline-input';
+import ParticipantPicker from '@/components/trip/participant-picker';
 import { HelperText } from '@/components/ui/card';
 import { FieldLabel } from '@/components/ui/choice-chips';
 import { BrandColors, Spacing } from '@/constants/theme';
@@ -25,6 +26,8 @@ interface ItemisedEditorProps {
   itemShares: Record<string, number>;
   nameOf: (id: string) => string;
   updateItem: (id: string, patch: Partial<Omit<DraftItem, 'id'>>) => void;
+  /** Labels the signed-in member when picking people by face. */
+  currentUserId?: string;
 }
 
 /** One card per receipt line: its name, price, and who shared it. */
@@ -37,6 +40,7 @@ export default function ItemisedEditor({
   itemShares,
   nameOf,
   updateItem,
+  currentUserId,
 }: ItemisedEditorProps) {
   return (
     <View style={styles.group}>
@@ -68,31 +72,18 @@ export default function ItemisedEditor({
               <X size={18} color={BrandColors.secondary} />
             </Pressable>
           </View>
-          <View style={styles.participantGrid}>
-            {members.map((member) => {
-              const on = item.sharedBy.includes(member.id);
-              return (
-                <Pressable
-                  key={member.id}
-                  style={[styles.participant, on && styles.participantOn]}
-                  onPress={() =>
-                    updateItem(item.id, {
-                      sharedBy: on
-                        ? item.sharedBy.filter((id) => id !== member.id)
-                        : [...item.sharedBy, member.id],
-                    })
-                  }
-                >
-                  <Text
-                    style={[styles.participantName, on && styles.participantNameOn]}
-                    numberOfLines={1}
-                  >
-                    {member.fullname.split(' ')[0]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <ParticipantPicker
+            members={members}
+            selectedIds={item.sharedBy}
+            onToggle={(memberId) =>
+              updateItem(item.id, {
+                sharedBy: item.sharedBy.includes(memberId)
+                  ? item.sharedBy.filter((id) => id !== memberId)
+                  : [...item.sharedBy, memberId],
+              })
+            }
+            currentUserId={currentUserId}
+          />
         </View>
       ))}
       <Pressable
@@ -140,35 +131,6 @@ const styles = StyleSheet.create({
     borderColor: BrandColors.border,
     borderRadius: 8,
     backgroundColor: BrandColors.surfaceAlt,
-  },
-  participant: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    maxWidth: '48%',
-  },
-  participantGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  participantName: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 12,
-    color: BrandColors.secondary,
-  },
-  participantNameOn: {
-    color: BrandColors.primary,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  participantOn: {
-    borderColor: BrandColors.base50,
-    backgroundColor: BrandColors.base200,
   },
   payerCurrency: {
     fontFamily: 'PlusJakartaSans-Regular',

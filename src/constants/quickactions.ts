@@ -1,8 +1,8 @@
-import { Banknote, Camera, LucideIcon, Plus, UserPlus } from 'lucide-react-native';
+import { Banknote, Camera, LucideIcon, Plus, StickyNote, UserPlus } from 'lucide-react-native';
 import { BrandColors } from './theme';
 
 /**
- * The four buttons on the dashboard.
+ * The five buttons on the dashboard.
  *
  * Only how they look lives here. What each one *does* is decided by the
  * dashboard, because every action needs the trip that is active right then.
@@ -17,7 +17,7 @@ export interface QuickAction {
 export const quickactions: QuickAction[] = [
   {
     id: 'add-expense',
-    label: 'Add expense',
+    label: 'Expense',
     Icon: Plus,
     btnColor: BrandColors.base50,
   },
@@ -32,6 +32,12 @@ export const quickactions: QuickAction[] = [
     label: 'Receipt',
     Icon: Camera,
     btnColor: BrandColors.base200,
+  },
+  {
+    id: 'note',
+    label: 'Note',
+    Icon: StickyNote,
+    btnColor: BrandColors.inputField,
   },
   {
     id: 'invite',

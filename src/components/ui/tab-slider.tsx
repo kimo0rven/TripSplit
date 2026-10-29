@@ -12,7 +12,7 @@ import Animated, {
 export type TabSliderItem<K extends string> = { key: K; label: string };
 
 type Props<K extends string> = {
-  items: ReadonlyArray<TabSliderItem<K>>;
+  items: readonly TabSliderItem<K>[];
   value: K;
   onChange: (key: K) => void;
 };

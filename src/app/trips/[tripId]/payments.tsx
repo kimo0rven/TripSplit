@@ -1,5 +1,5 @@
-import Avatar from '@/components/ui/avatar';
 import BackButton from '@/components/Button/back-button';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import PaymentsList from '@/components/trip/payments-list';
 import SettleSheet from '@/components/trip/settle-sheet';
 import EmptyState from '@/components/ui/empty-state';
@@ -13,10 +13,11 @@ import { useAuth } from '@/services/Firebase/useAuth';
 import { Trip, TripMember } from '@/types/trips';
 import { computeTripTotals, simplifyDebts } from '@/utils/balance';
 import { formatMoney } from '@/utils/money';
+import { shortName } from '@/utils/format';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowUpDown, Scale, Wallet } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const SORTS = [
   { value: 'newest', label: 'Newest' },
@@ -24,6 +25,22 @@ const SORTS = [
   { value: 'highest', label: 'Highest' },
   { value: 'lowest', label: 'Lowest' },
 ] as const;
+
+/** Whose payments to show. One row of pills instead of a chip row per person. */
+type Who = 'all' | 'sent' | 'received';
+
+const WHO: { value: Who; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'sent', label: 'You paid' },
+  { value: 'received', label: 'You received' },
+];
+
+/**
+ * The chosen filter is remembered per trip, so stepping into a payment and
+ * coming back - or reopening the page later - does not quietly reset it to All
+ * and make a filtered list look like the full one again.
+ */
+const WHO_KEY = (tripId: string) => `tripsplit:payments-who:${tripId}`;
 
 type Payment = Awaited<ReturnType<typeof fetchSettlements>>[number];
 
@@ -41,8 +58,36 @@ export default function AllPaymentsScreen() {
   const [editing, setEditing] = useState<Payment | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sort, setSort] = useState<(typeof SORTS)[number]['value']>('newest');
-  const [payerId, setPayerId] = useState<string | null>(null);
+  const [who, setWho] = useState<Who>('all');
   const loadedOnce = useRef(false);
+
+  // Pull to refresh keeps the spinner local, so the healed list stays on screen.
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Bring back the filter this trip was last looked at with. A missing or
+  // unreadable value just means All, so storage trouble costs nothing.
+  useEffect(() => {
+    if (!tripId) return;
+    let live = true;
+    AsyncStorage.getItem(WHO_KEY(tripId))
+      .then((saved) => {
+        if (live && (saved === 'all' || saved === 'sent' || saved === 'received')) setWho(saved);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [tripId]);
+
+  const chooseWho = useCallback(
+    (next: Who) => {
+      setWho(next);
+      if (tripId) {
+        AsyncStorage.setItem(WHO_KEY(tripId), next).catch(() => undefined);
+      }
+    },
+    [tripId],
+  );
 
   const load = useCallback(async () => {
     if (!tripId) {
@@ -76,6 +121,15 @@ export default function AllPaymentsScreen() {
     load();
   }, [load]);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
   const members: TripMember[] = useMemo(() => Object.values(trip?.members ?? {}), [trip]);
   const edges = useMemo(() => {
     const ids = members.map((member) => member.id);
@@ -85,15 +139,33 @@ export default function AllPaymentsScreen() {
   const currentUserId = currentUser?.uid ?? '';
   const currency = trip?.currency || 'PHP';
   const visible = useMemo(() => {
-    const list = payerId ? payments.filter((payment) => payment.from === payerId) : [...payments];
-    const when = (payment: Payment) => `${payment.settledOn}|${payment.createdAt}`;
+    const list = payments.filter((payment) => {
+      if (who === 'sent') return payment.from === currentUserId;
+      if (who === 'received') return payment.to === currentUserId;
+      return true;
+    });
+    const stamp = (payment: Payment) => `${payment.settledOn}|${payment.createdAt ?? ''}`;
+
+    // The newest day always comes first, whatever the sort: the list is drawn in
+    // day sections, so a plain amount sort would scatter one day's payments into
+    // several sections. Within a day, the chosen sort decides.
     return list.sort((a, b) => {
+      const dayA = a.settledOn || '';
+      const dayB = b.settledOn || '';
+      if (dayA !== dayB) {
+        // Undated payments go last rather than above today's.
+        if (!dayA) return 1;
+        if (!dayB) return -1;
+        return dayA < dayB ? 1 : -1;
+      }
       if (sort === 'highest') return b.amount - a.amount;
       if (sort === 'lowest') return a.amount - b.amount;
-      return sort === 'oldest' ? when(a).localeCompare(when(b)) : when(b).localeCompare(when(a));
+      return sort === 'oldest'
+        ? stamp(a).localeCompare(stamp(b))
+        : stamp(b).localeCompare(stamp(a));
     });
-  }, [payments, payerId, sort]);
-  const payers = members.filter((member) => payments.some((payment) => payment.from === member.id));
+  }, [payments, who, sort, currentUserId]);
+  const filtering = who !== 'all';
   const counted = visible.filter(
     (payment) => payment.status !== 'pending' && payment.status !== 'declined',
   );
@@ -108,13 +180,17 @@ export default function AllPaymentsScreen() {
         <Text style={styles.headerTitle}>All payments</Text>
         {!!trip && (
           <Text style={styles.headerSub} numberOfLines={1}>
-            {trip.name} · {visible.length} {visible.length === 1 ? 'payment' : 'payments'} ·{' '}
-            {formatMoney(total, currency)}
+            {shortName(trip.name)} · {visible.length}{' '}
+            {visible.length === 1 ? 'payment' : 'payments'} · {formatMoney(total, currency)}
           </Text>
         )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <View style={styles.container}>
           {loading ? (
             <ListSkeleton rows={5} rowHeight={72} />
@@ -129,30 +205,6 @@ export default function AllPaymentsScreen() {
           ) : (
             <>
               <View style={styles.controls}>
-                {payers.length > 1 && (
-                  <ScrollView
-                    style={styles.chips}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipRow}
-                  >
-                    {payers.map((member) => {
-                      const on = member.id === payerId;
-                      return (
-                        <Pressable
-                          key={member.id}
-                          style={[styles.chip, on && styles.chipOn]}
-                          onPress={() => setPayerId(on ? null : member.id)}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: on }}
-                          accessibilityLabel={`Payments by ${member.fullname}`}
-                        >
-                          <Avatar name={member.fullname} size={34} photoURL={member.photoURL} />
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                )}
                 <Pressable
                   style={styles.sortButton}
                   hitSlop={8}
@@ -167,33 +219,67 @@ export default function AllPaymentsScreen() {
                   <Text style={styles.sortText}>{SORTS.find((o) => o.value === sort)?.label}</Text>
                 </Pressable>
               </View>
-              <PaymentsList
-                settlements={visible}
-                members={members}
-                currency={currency}
-                currentUserId={currentUserId}
-                onEditSettlement={(payment) => {
-                  setEditing(payment);
-                  setSheetOpen(true);
-                }}
-                onRespond={async (payment, accept) => {
-                  try {
-                    const result = await respondToSettlement(
-                      tripId as string,
-                      payment.id,
-                      currentUserId,
-                      accept,
-                    );
-                    setPayments((previous) =>
-                      previous.map((item) =>
-                        item.id === payment.id ? { ...item, ...result } : item,
-                      ),
-                    );
-                  } catch (err) {
-                    console.error('Could not answer the payment:', err);
-                  }
-                }}
-              />
+
+              <View style={styles.filters}>
+                {WHO.map((option) => (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => chooseWho(option.value)}
+                    style={[styles.pill, who === option.value && styles.pillOn]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: who === option.value }}
+                  >
+                    <Text style={[styles.pillText, who === option.value && styles.pillTextOn]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {visible.length === 0 ? (
+                <EmptyState
+                  icon={Wallet}
+                  title="Nothing matches"
+                  message="No payment fits this filter. Try showing all payments instead."
+                  actionLabel="Clear filters"
+                  onAction={() => chooseWho('all')}
+                />
+              ) : (
+                <PaymentsList
+                  grouped
+                  settlements={visible}
+                  members={members}
+                  currency={currency}
+                  currentUserId={currentUserId}
+                  onEditSettlement={(payment) => {
+                    setEditing(payment);
+                    setSheetOpen(true);
+                  }}
+                  onRespond={async (payment, accept) => {
+                    try {
+                      const result = await respondToSettlement(
+                        tripId as string,
+                        payment.id,
+                        currentUserId,
+                        accept,
+                      );
+                      setPayments((previous) =>
+                        previous.map((item) =>
+                          item.id === payment.id ? { ...item, ...result } : item,
+                        ),
+                      );
+                    } catch (err) {
+                      console.error('Could not answer the payment:', err);
+                    }
+                  }}
+                />
+              )}
+
+              {filtering && (
+                <Text style={styles.footNote}>
+                  {visible.length} of {payments.length} payments shown.
+                </Text>
+              )}
             </>
           )}
         </View>
@@ -281,9 +367,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.two,
   },
-  chips: {
-    flex: 1,
-  },
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -295,19 +378,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.secondary,
   },
-  chipRow: {
-    gap: Spacing.two,
-  },
-  chip: {
+  filters: {
+    flexDirection: 'row',
+    gap: Spacing.one,
+    backgroundColor: BrandColors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: BrandColors.border,
+    borderRadius: 20,
     padding: 3,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    opacity: 0.55,
   },
-  chipOn: {
-    borderColor: BrandColors.primary,
-    opacity: 1,
+  pill: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 18,
+  },
+  pillOn: {
+    backgroundColor: BrandColors.base50,
+  },
+  pillText: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 12,
+    color: BrandColors.secondary,
+  },
+  pillTextOn: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: BrandColors.primary,
   },
   fab: {
     position: 'absolute',

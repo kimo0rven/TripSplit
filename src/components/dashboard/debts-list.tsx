@@ -67,11 +67,30 @@ export default function DebtsList({
               </Text>
               <Text style={styles.hint}>{owedToMe ? 'owes you' : 'you owe'}</Text>
             </View>
-            <Text style={[styles.amount, { color: owedToMe ? BrandColors.success : BrandColors.error }]}>
+            <Text
+              numberOfLines={1}
+              style={[styles.amount, { color: owedToMe ? BrandColors.success : BrandColors.error }]}
+            >
               {formatMoney(edge.amount, currency)}
             </Text>
-            <Pressable style={styles.action} onPress={() => (owedToMe ? remind(edge) : onPay(edge))}>
-              <Text style={styles.actionText}>{owedToMe ? (sentKey === `${edge.from}-${edge.to}` ? 'Sent ✓' : 'Remind') : 'Pay'}</Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.action,
+                !owedToMe && styles.actionPay,
+                pressed && styles.actionPressed,
+              ]}
+              hitSlop={Spacing.two}
+              accessibilityRole="button"
+              accessibilityLabel={
+                owedToMe
+                  ? `Remind ${(other?.fullname ?? 'someone').split(' ')[0]} to pay you`
+                  : `Pay ${(other?.fullname ?? 'someone').split(' ')[0]}`
+              }
+              onPress={() => (owedToMe ? remind(edge) : onPay(edge))}
+            >
+              <Text style={[styles.actionText, !owedToMe && styles.actionTextPay]}>
+                {owedToMe ? (sentKey === `${edge.from}-${edge.to}` ? 'Sent ✓' : 'Remind') : 'Pay'}
+              </Text>
             </Pressable>
           </View>
         );
@@ -107,13 +126,20 @@ const styles = StyleSheet.create({
   info: { flex: 1 },
   name: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, color: BrandColors.primary },
   hint: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 11, color: BrandColors.secondary },
-  amount: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13 },
+  amount: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, flexShrink: 1 },
   action: {
     borderWidth: 1,
     borderColor: BrandColors.border,
-    borderRadius: 10,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
+    borderRadius: 12,
+    minHeight: 36,
+    minWidth: 76,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 11, color: BrandColors.primary },
+  actionPay: { backgroundColor: BrandColors.base500, borderColor: BrandColors.base500 },
+  actionPressed: { opacity: 0.75 },
+  actionText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, color: BrandColors.primary },
+  actionTextPay: { color: BrandColors.heading },
 });

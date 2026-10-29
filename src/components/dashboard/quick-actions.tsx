@@ -3,7 +3,7 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { quickactions } from '@/constants/quickactions';
 import { StyleSheet, Text, View } from 'react-native';
 
-/** The row of round shortcut buttons: add expense, settle up, scan receipt, invite. */
+/** The row of round shortcut buttons: expense, settle up, receipt, note, invite. */
 export default function QuickActions({ handlers }: { handlers: Record<string, () => void> }) {
   return (
     <View style={styles.homescreenButtonsContainer}>

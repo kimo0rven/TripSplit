@@ -7,7 +7,7 @@ import { categoryLabel } from '@/utils/balance';
 import { formatDay, formatLongDay, formatMoney, formatTime, receiptsOf } from '@/utils/money';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Clock, History, Pencil } from 'lucide-react-native';
+import { Clock, History, Pencil, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -31,6 +31,12 @@ interface ExpenseDetailSheetProps {
    * without hunting for the card's small link.
    */
   onEdit?: (expense: Expense) => void;
+  /**
+   * Set for anyone who may delete this expense. Deleting lives here, next to
+   * Edit, so the cards stay short and a wrong tap on a card cannot remove
+   * anything: you have to open the expense first.
+   */
+  onDelete?: (id: string, title: string) => void;
 }
 
 const SPLIT_LABEL: Record<string, string> = {
@@ -53,6 +59,7 @@ export default function ExpenseDetailSheet({
   currency,
   currentUserId,
   onEdit,
+  onDelete,
 }: ExpenseDetailSheetProps) {
   const router = useRouter();
   const [viewing, setViewing] = useState<string | null>(null);
@@ -172,7 +179,11 @@ export default function ExpenseDetailSheet({
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>{SPLIT_LABEL[expense.splitMode] ?? 'Split'}</Text>
+            <Text style={styles.sectionLabel}>
+              {expense.items?.length
+                ? 'Split by item'
+                : (SPLIT_LABEL[expense.splitMode] ?? 'Split')}
+            </Text>
             {shares.length === 0 ? (
               <Text style={styles.emptyLine}>No one was assigned a share.</Text>
             ) : (
@@ -233,20 +244,40 @@ export default function ExpenseDetailSheet({
             </Pressable>
           )}
 
-          {!!onEdit && (
-            <Pressable
-              style={styles.editButton}
-              onPress={() => {
-                const target = expense;
-                onClose();
-                onEdit(target);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Edit this expense"
-            >
-              <Pencil size={15} color={BrandColors.primary} />
-              <Text style={styles.editText}>Edit expense</Text>
-            </Pressable>
+          {(!!onEdit || !!onDelete) && (
+            <View style={styles.actionRow}>
+              {!!onEdit && (
+                <Pressable
+                  style={[styles.editButton, styles.actionButton]}
+                  onPress={() => {
+                    const target = expense;
+                    onClose();
+                    onEdit(target);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit this expense"
+                >
+                  <Pencil size={15} color={BrandColors.primary} />
+                  <Text style={styles.editText}>Edit</Text>
+                </Pressable>
+              )}
+
+              {!!onDelete && (
+                <Pressable
+                  style={[styles.deleteButton, styles.actionButton]}
+                  onPress={() => {
+                    const target = expense;
+                    onClose();
+                    onDelete(target.id, target.title);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete this expense"
+                >
+                  <Trash2 size={15} color={BrandColors.error} />
+                  <Text style={styles.deleteText}>Delete</Text>
+                </Pressable>
+              )}
+            </View>
           )}
 
           <Text style={styles.footNote}>
@@ -421,6 +452,27 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 14,
     color: BrandColors.primary,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  actionButton: {
+    flex: 1,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.three,
+    borderRadius: 12,
+    backgroundColor: BrandColors.errorBg,
+  },
+  deleteText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 14,
+    color: BrandColors.error,
   },
   footNote: {
     fontFamily: 'PlusJakartaSans-Regular',

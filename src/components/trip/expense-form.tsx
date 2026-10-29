@@ -1,21 +1,24 @@
-import InlineInput from '@/components/trip/inline-input';
+import PayerSection from '@/components/trip/expense-payer-section';
+import ExpenseSplitSection from '@/components/trip/expense-split-section';
+import { styles } from '@/components/trip/expense-form-styles';
+import ChoiceChips, { FieldLabel } from '@/components/ui/choice-chips';
+import CategoryPicker from '@/components/ui/category-picker';
+import { ChevronDown, Receipt } from 'lucide-react-native';
 import ItemisedEditor from '@/components/trip/itemised-editor';
 import ReceiptPicker from '@/components/trip/receipt-picker';
 import PrimaryButton from '@/components/Button/primary-button';
-import Avatar from '@/components/ui/avatar';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { HelperText } from '@/components/ui/card';
-import ChoiceChips, { FieldLabel } from '@/components/ui/choice-chips';
 import DateCalendar from '@/components/ui/date-calendar';
 import { TextField } from '@/components/ui/text-input-field';
 import { categoryLook } from '@/constants/expense-categories';
-import { BrandColors, Spacing } from '@/constants/theme';
+import { BrandColors } from '@/constants/theme';
 import { createRecurring } from '@/services/Firebase/recurringService';
 import { createExpense, ExpenseInput, updateExpense } from '@/services/Firebase/expenseService';
 import { uploadReceipt } from '@/services/Supabase/receiptService';
 import { Expense, ExpenseItem, RepeatEvery, SplitMode } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
-import { EXPENSE_CATEGORIES } from '@/utils/balance';
+import { EXPENSE_CATEGORIES, QUICK_CATEGORIES, categoryLabel } from '@/utils/balance';
 import TimeField from '@/components/ui/time-field';
 import {
   centsToInput,
@@ -33,9 +36,8 @@ import {
   validateSplit,
 } from '@/utils/split';
 import { pickImage, takePhoto } from '@/utils/imagePicker';
-import { Check, Receipt, Users } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, Text, View, Pressable } from 'react-native';
 
 interface ExpenseFormProps {
   visible: boolean;
@@ -50,14 +52,6 @@ interface ExpenseFormProps {
   expense?: Expense | null;
   onSaved: (expense: Expense) => void;
 }
-
-const TIME_PRESETS = ['07:00', '09:00', '12:00', '15:00', '18:00', '20:00'];
-
-const SPLIT_CHOICES = [
-  { value: 'equal', label: 'Equal' },
-  { value: 'percentage', label: 'Percent' },
-  { value: 'custom', label: 'Custom' },
-];
 
 export default function ExpenseForm({
   visible,
@@ -74,6 +68,8 @@ export default function ExpenseForm({
   const [title, setTitle] = useState('');
   const [amountText, setAmountText] = useState('');
   const [category, setCategory] = useState('food');
+  // The full category grid, opened by "More" beside the everyday chips.
+  const [pickingCategory, setPickingCategory] = useState(false);
   const [spentOn, setSpentOn] = useState(todayKey());
   const [spentTime, setSpentTime] = useState(nowTime());
   const [notes, setNotes] = useState('');
@@ -177,6 +173,23 @@ export default function ExpenseForm({
   const nameOf = (id: string): string =>
     members.find((member) => member.id === id)?.fullname || 'Member';
 
+  /** The picture and colour of the category currently chosen. */
+  const currentLook = categoryLook(category);
+  // Capitalised, so React reads it as a component rather than a plain tag.
+  const CurrentIcon = currentLook.icon;
+
+  /** The five everyday categories, with their pictures, for the chip row. */
+  const quickChoices = useMemo(
+    () =>
+      EXPENSE_CATEGORIES.filter((entry) => QUICK_CATEGORIES.includes(entry.value)).map((entry) => ({
+        value: entry.value,
+        label: entry.label,
+        icon: categoryLook(entry.value).icon,
+        iconColor: categoryLook(entry.value).tint,
+      })),
+    [],
+  );
+
   const reset = () => {
     setTitle('');
     setAmountText('');
@@ -196,6 +209,7 @@ export default function ExpenseForm({
     setReceiptUris([]);
     setError('');
     setSaving(false);
+    setPickingCategory(false);
   };
 
   const handleClose = () => {
@@ -364,7 +378,9 @@ export default function ExpenseForm({
       }
       paidBy = Object.fromEntries(entries);
       const paidTotal = entries.reduce((sum, [, value]) => sum + value, 0);
-      if (Math.abs(paidTotal - totalCents / 100) > 0.01) {
+      // Whole cents, not "within a cent": one cent of slack lets a save through
+      // that leaves the trip's balances off by that cent forever.
+      if (Math.round(paidTotal * 100) !== totalCents) {
         setError(
           `The amounts paid add up to ${formatMoney(paidTotal, currency)}, not ${formatMoney(
             totalCents / 100,
@@ -574,17 +590,38 @@ export default function ExpenseForm({
         )}
 
         <View style={styles.group}>
-          <FieldLabel>Category</FieldLabel>
-          <ChoiceChips
-            choices={EXPENSE_CATEGORIES.map((entry) => ({
-              value: entry.value,
-              label: entry.label,
-              icon: categoryLook(entry.value).icon,
-              iconColor: categoryLook(entry.value).tint,
-            }))}
-            selectedValue={category}
-            onSelect={setCategory}
-          />
+          <FieldLabel
+            right={
+              <Pressable
+                onPress={() => setPickingCategory(true)}
+                hitSlop={8}
+                style={styles.moreLink}
+                accessibilityRole="button"
+                accessibilityLabel="See all categories"
+              >
+                <Text style={styles.linkText}>More</Text>
+                <ChevronDown size={13} color={BrandColors.info} />
+              </Pressable>
+            }
+          >
+            Category
+          </FieldLabel>
+          <ChoiceChips choices={quickChoices} selectedValue={category} onSelect={setCategory} />
+          {/* An older expense can carry a category that is not one of the five,
+              so it is shown here rather than quietly swapped for "Food". */}
+          {!QUICK_CATEGORIES.includes(category) && (
+            <Pressable
+              onPress={() => setPickingCategory(true)}
+              style={styles.fullCategory}
+              accessibilityRole="button"
+              accessibilityLabel={`Category: ${categoryLabel(category)}`}
+            >
+              <View style={[styles.fullCategoryIcon, { backgroundColor: currentLook.bg }]}>
+                <CurrentIcon size={14} color={currentLook.tint} />
+              </View>
+              <Text style={styles.fullCategoryText}>{categoryLabel(category)}</Text>
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.group}>
@@ -594,118 +631,55 @@ export default function ExpenseForm({
 
         <View style={styles.group}>
           <FieldLabel>Time</FieldLabel>
-          <TimeField value={spentTime} onChange={setSpentTime} presets={TIME_PRESETS} />
+          <TimeField value={spentTime} onChange={setSpentTime} />
         </View>
 
         {/* ----- Who paid ----- */}
-        <View style={styles.group}>
-          <FieldLabel>Who paid?</FieldLabel>
-          <Text style={styles.sectionHint}>
-            The money left someone's pocket. If one person covered the whole bill, leave the switch
-            off.
-          </Text>
-          <View style={styles.switchRow}>
-            <View style={styles.switchTextWrap}>
-              <Text style={styles.switchLabel}>More than one person paid</Text>
-              <Text style={styles.switchHint}>
-                Turn this on when two or more of you chipped in for the same bill.
-              </Text>
-            </View>
-            <Switch
-              value={multiplePayers}
-              onValueChange={(value) => {
-                setMultiplePayers(value);
-                if (value) setPayerAmounts({});
-              }}
-              trackColor={{ false: BrandColors.border, true: BrandColors.base400 }}
-              thumbColor={multiplePayers ? BrandColors.base50 : BrandColors.background}
-              {...({ activeThumbColor: BrandColors.base50 } as object)}
-            />
-          </View>
+        <PayerSection
+          members={members}
+          currency={currency}
+          currentUserId={currentUserId}
+          multiplePayers={multiplePayers}
+          onToggleMultiple={(value) => {
+            setMultiplePayers(value);
+            if (value) setPayerAmounts({});
+          }}
+          payerAmounts={payerAmounts}
+          onChangePayerAmount={(memberId, text) =>
+            setPayerAmounts((previous) => ({ ...previous, [memberId]: text }))
+          }
+          soloPayerId={soloPayerId}
+          onPickSoloPayer={setSoloPayerId}
+          paidPreviewTotal={paidPreviewTotal}
+          totalAmount={totalCents / 100}
+          onSplitEvenly={splitPayersEvenly}
+          nameOf={nameOf}
+        />
 
-          {multiplePayers ? (
-            <View style={styles.payerList}>
-              {members.map((member) => (
-                <View key={member.id} style={styles.payerRow}>
-                  <Avatar name={member.fullname} size={32} photoURL={member.photoURL} />
-                  <Text style={styles.payerName} numberOfLines={1}>
-                    {member.fullname}
-                  </Text>
-                  <View style={styles.payerInput}>
-                    <Text style={styles.payerCurrency}>{currency}</Text>
-                    <InlineInput
-                      value={payerAmounts[member.id] ?? ''}
-                      placeholder="0.00"
-                      onChangeText={(text) =>
-                        setPayerAmounts((previous) => ({ ...previous, [member.id]: text }))
-                      }
-                    />
-                  </View>
-                </View>
-              ))}
-              <Pressable style={styles.splitEvenPayers} onPress={splitPayersEvenly}>
-                <Users size={14} color={BrandColors.info} />
-                <Text style={styles.splitEvenText}>Split the total evenly between everyone</Text>
-              </Pressable>
-              <HelperText
-                tone={Math.abs(paidPreviewTotal - totalCents / 100) > 0.01 ? 'error' : 'success'}
-              >
-                Paid so far {formatMoney(paidPreviewTotal, currency)} of{' '}
-                {formatMoney(totalCents / 100, currency)}
-              </HelperText>
-            </View>
-          ) : (
-            <View style={styles.payerList}>
-              <View style={styles.participantGrid}>
-                {members.map((member) => {
-                  const on = member.id === soloPayerId;
-                  return (
-                    <Pressable
-                      key={member.id}
-                      style={[styles.participant, on && styles.participantOn]}
-                      onPress={() => setSoloPayerId(member.id)}
-                    >
-                      <Avatar name={member.fullname} size={22} photoURL={member.photoURL} />
-                      <Text
-                        style={[styles.participantName, on && styles.participantNameOn]}
-                        numberOfLines={1}
-                      >
-                        {member.id === currentUserId ? 'You' : member.fullname.split(' ')[0]}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <HelperText>{nameOf(soloPayerId)} paid the whole bill.</HelperText>
-            </View>
-          )}
-        </View>
-
-        {/* ----- Itemised receipt ----- */}
-        <View style={styles.group}>
-          <View style={styles.switchRow}>
-            <View style={styles.switchTextWrap}>
-              <Text style={styles.switchLabel}>Itemise the receipt</Text>
-              <Text style={styles.switchHint}>
-                Enter each item with its price and choose who shared it.
-              </Text>
-            </View>
-            <Switch
-              value={itemised}
-              onValueChange={(value) => {
-                setItemised(value);
-                if (value && items.length === 0) {
-                  setItems([
-                    { id: newItemId(), name: '', amount: amountText, sharedBy: [...allIds] },
-                  ]);
-                }
-              }}
-              trackColor={{ false: BrandColors.border, true: BrandColors.base400 }}
-              thumbColor={itemised ? BrandColors.base50 : BrandColors.background}
-              {...({ activeThumbColor: BrandColors.base50 } as object)}
-            />
-          </View>
-        </View>
+        {/* ----- Who shares it, and how ----- */}
+        <ExpenseSplitSection
+          members={members}
+          currency={currency}
+          currentUserId={currentUserId}
+          participants={participants}
+          onToggleParticipant={toggleParticipant}
+          onSelectAll={() => setSplitIds(allSelected ? [] : [...allIds])}
+          allSelected={allSelected}
+          splitMode={splitMode}
+          onChangeMode={changeMode}
+          itemised={itemised}
+          onToggleItemised={(value) => {
+            setItemised(value);
+            if (value && items.length === 0) {
+              setItems([{ id: newItemId(), name: '', amount: amountText, sharedBy: [...allIds] }]);
+            }
+          }}
+          splitValues={splitValues}
+          onChangeSplitValue={changeSplitValue}
+          previewShares={previewShares}
+          previewLeft={previewLeft}
+          onAutoBalance={autoBalance}
+        />
 
         {itemised && (
           <ItemisedEditor
@@ -717,99 +691,8 @@ export default function ExpenseForm({
             itemShares={itemShares}
             nameOf={nameOf}
             updateItem={updateItem}
+            currentUserId={currentUserId}
           />
-        )}
-
-        {/* ----- Who shares it ----- */}
-        {!itemised && (
-          <View style={styles.group}>
-            <FieldLabel
-              right={
-                <Pressable onPress={() => setSplitIds(allSelected ? [] : [...allIds])} hitSlop={8}>
-                  <Text style={styles.linkText}>{allSelected ? 'Clear' : 'Select all'}</Text>
-                </Pressable>
-              }
-            >
-              Who shares the cost?
-            </FieldLabel>
-
-            <Text style={styles.sectionHint}>
-              The people who owe a part of this bill. This can be different from who paid.
-            </Text>
-
-            <View style={styles.participantGrid}>
-              {members.map((member) => {
-                const isIn = participants.includes(member.id);
-                return (
-                  <Pressable
-                    key={member.id}
-                    style={[styles.participant, isIn && styles.participantOn]}
-                    onPress={() => toggleParticipant(member.id)}
-                  >
-                    <View style={[styles.participantCheck, isIn && styles.participantCheckOn]}>
-                      {isIn && <Check size={12} color={BrandColors.background} />}
-                    </View>
-                    <Text
-                      style={[styles.participantName, isIn && styles.participantNameOn]}
-                      numberOfLines={1}
-                    >
-                      {member.fullname.split(' ')[0]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <ChoiceChips
-              choices={SPLIT_CHOICES}
-              selectedValue={splitMode}
-              onSelect={(value) => changeMode(value as SplitMode)}
-              equalWidth
-            />
-
-            {splitMode !== 'equal' && (
-              <View style={styles.splitEditor}>
-                {members
-                  .filter((member) => participants.includes(member.id))
-                  .map((member) => (
-                    <View key={member.id} style={styles.splitRow}>
-                      {/* The name and its money share one column, so a long name
-                        can never squeeze the input field into the number. */}
-                      <View style={styles.splitLeft}>
-                        <Text style={styles.splitName} numberOfLines={1}>
-                          {member.fullname}
-                        </Text>
-                        <Text style={styles.splitShare} numberOfLines={1}>
-                          {formatMoney((previewShares[member.id] ?? 0) / 100, currency)}
-                        </Text>
-                      </View>
-                      <View style={styles.splitInputWrap}>
-                        <InlineInput
-                          value={splitValues[member.id] ? String(splitValues[member.id]) : ''}
-                          placeholder="0"
-                          onChangeText={(text) => changeSplitValue(member.id, text)}
-                        />
-                        <Text style={styles.splitUnit}>
-                          {splitMode === 'percentage' ? '%' : currency}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-
-                <Pressable style={styles.splitEvenPayers} onPress={autoBalance}>
-                  <Text style={styles.splitEvenText}>Make it add up automatically</Text>
-                </Pressable>
-
-                <HelperText tone={Math.abs(previewLeft) > 1 ? 'error' : 'success'}>
-                  {Math.abs(previewLeft) > 1
-                    ? `${formatMoney(Math.abs(previewLeft) / 100, currency)} still ${
-                        previewLeft > 0 ? 'unassigned' : 'over the total'
-                      }`
-                    : 'The split adds up to the total.'}
-                </HelperText>
-              </View>
-            )}
-          </View>
         )}
 
         {/* ----- Receipt ----- */}
@@ -859,204 +742,20 @@ export default function ExpenseForm({
           </Text>
         </View>
       </ScrollView>
+
+      {/* The full category grid. Its own modal, sitting above the form sheet
+          the way the receipt viewer does, so the form's footer is never
+          covered while a category is being picked. */}
+      <CategoryPicker
+        visible={pickingCategory}
+        onClose={() => setPickingCategory(false)}
+        options={EXPENSE_CATEGORIES}
+        selectedValue={category}
+        onSelect={(value) => {
+          setCategory(value);
+          setPickingCategory(false);
+        }}
+      />
     </BottomSheet>
   );
 }
-
-/** A compact numeric field that sits inside a row with its own border. */
-const styles = StyleSheet.create({
-  scroll: { gap: Spacing.four, paddingBottom: Spacing.four },
-  repeatHint: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
-  itemTotal: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 22, color: BrandColors.primary },
-  group: {
-    gap: Spacing.two,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    backgroundColor: BrandColors.surfaceAlt,
-    borderRadius: 12,
-    padding: Spacing.three,
-  },
-  switchTextWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  switchLabel: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 13,
-    color: BrandColors.primary,
-  },
-  switchHint: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 11,
-    color: BrandColors.secondary,
-  },
-  sectionHint: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 12,
-    color: BrandColors.secondary,
-  },
-  payerList: {
-    gap: Spacing.two,
-  },
-  payerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 12,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-  },
-  payerName: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 13,
-    color: BrandColors.primary,
-  },
-  payerInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 8,
-    backgroundColor: BrandColors.surfaceAlt,
-    width: 120,
-    flexShrink: 0,
-  },
-  payerCurrency: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 11,
-    color: BrandColors.secondary,
-    paddingLeft: 6,
-    flexShrink: 0,
-  },
-  splitEvenPayers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    paddingVertical: Spacing.one,
-  },
-  splitEvenText: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 12,
-    color: BrandColors.info,
-  },
-  singlePayer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  linkText: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 12,
-    color: BrandColors.info,
-  },
-  participantGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  participant: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    maxWidth: '48%',
-  },
-  participantOn: {
-    borderColor: BrandColors.base50,
-    backgroundColor: BrandColors.base200,
-  },
-  participantCheck: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: BrandColors.disabled,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  participantCheckOn: {
-    backgroundColor: BrandColors.primary,
-    borderColor: BrandColors.primary,
-  },
-  participantName: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 12,
-    color: BrandColors.secondary,
-  },
-  participantNameOn: {
-    color: BrandColors.primary,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  splitEditor: {
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 12,
-    padding: Spacing.three,
-    backgroundColor: BrandColors.surfaceAlt,
-  },
-  splitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  splitLeft: {
-    flex: 1,
-    // minWidth lets this column shrink inside the row. Without it the text
-    // box keeps its full width and draws over the input beside it.
-    minWidth: 0,
-    gap: 2,
-  },
-  splitName: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 13,
-    color: BrandColors.primary,
-  },
-  splitInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 8,
-    backgroundColor: BrandColors.background,
-    width: 112,
-    flexShrink: 0,
-  },
-  splitUnit: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 11,
-    color: BrandColors.secondary,
-    paddingRight: 6,
-    flexShrink: 0,
-  },
-  splitShare: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 12,
-    color: BrandColors.secondary,
-  },
-  summaryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    backgroundColor: BrandColors.infoBg,
-    borderRadius: 12,
-    padding: Spacing.three,
-  },
-  summaryText: {
-    flex: 1,
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 12,
-    color: BrandColors.primary,
-  },
-});

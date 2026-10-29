@@ -1,6 +1,7 @@
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { HelperText } from '@/components/ui/card';
 import { BrandColors, Spacing } from '@/constants/theme';
+import { shortName } from '@/utils/format';
 import { Camera, Images, Receipt } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -30,7 +31,7 @@ export default function ReceiptSourceSheet({
       <View style={styles.wrap}>
         <HelperText>
           {tripName
-            ? `The photo is saved on “${tripName}”, attached to the expense you add next.`
+            ? `The photo is saved on “${shortName(tripName)}”, attached to the expense you add next.`
             : 'Take a photo of the receipt, then add the expense it belongs to.'}
         </HelperText>
 

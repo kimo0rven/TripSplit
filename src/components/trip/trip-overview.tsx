@@ -81,7 +81,6 @@ export default function TripOverview({
         <View style={styles.stripBody}>
           <Text style={styles.stripTitle} numberOfLines={1}>
             {members.length} {members.length === 1 ? 'member' : 'members'}
-            {isOwner ? ' · you own this' : ''}
           </Text>
           <Text style={[styles.stripSub, !allSettled && styles.stripSubActive]} numberOfLines={1}>
             {summary}

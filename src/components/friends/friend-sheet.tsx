@@ -5,6 +5,7 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { fetchDebtsWithFriend, FriendDebt } from '@/services/Firebase/friendService';
 import { FriendProfile } from '@/types/friends';
 import { formatMoney } from '@/utils/money';
+import { shortName } from '@/utils/format';
 import { ChevronRight, Trash2, Wallet } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -160,7 +161,7 @@ export default function FriendSheet({
                   <View key={debt.tripId} style={styles.tripRow}>
                     <View style={styles.tripInfo}>
                       <Text style={styles.tripName} numberOfLines={1}>
-                        {debt.tripName}
+                        {shortName(debt.tripName)}
                       </Text>
                       <Text
                         style={[styles.tripAmount, debt.youOwe < 0 && styles.tripAmountPositive]}
@@ -188,7 +189,7 @@ export default function FriendSheet({
               >
                 <View style={styles.tripInfo}>
                   <Text style={styles.tripName} numberOfLines={1}>
-                    {debt.tripName}
+                    {shortName(debt.tripName)}
                   </Text>
                   <Text style={styles.tripAmount}>
                     {formatMoney(debt.youOwe, debt.currency)} to pay

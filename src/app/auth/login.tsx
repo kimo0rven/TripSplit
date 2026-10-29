@@ -10,7 +10,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } fr
 
 import { useRouter } from 'expo-router';
 
-export default function loginScreen() {
+export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,7 +29,7 @@ export default function loginScreen() {
 
     try {
       await signIn(email, password);
-      router.replace('/homescreen');
+      router.replace('/dashboard');
     } catch (err: any) {
       console.warn('Login failed:', err?.code ?? err);
       setError(mapFirebaseError(err?.code));

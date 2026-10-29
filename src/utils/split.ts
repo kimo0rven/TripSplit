@@ -40,7 +40,7 @@ export const splitByWeights = (
   if (totalWeight <= 0) return result;
 
   let handedOut = 0;
-  const remainders: Array<{ id: string; odd: number }> = [];
+  const remainders: { id: string; odd: number }[] = [];
 
   entries.forEach(([id, weight]) => {
     const exact = (totalCents * weight) / totalWeight;
@@ -140,7 +140,7 @@ export const validateSplit = (
     if (total <= 0) {
       return { ok: false, message: 'Give at least one person a share.' };
     }
-    if (Math.abs(total - totalCents / 100) > 0.01) {
+    if (Math.round(total * 100) !== totalCents) {
       return {
         ok: false,
         message: 'The custom amounts do not match the expense total yet.',

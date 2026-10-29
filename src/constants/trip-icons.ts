@@ -1,10 +1,10 @@
 import {
   Bike,
-  Camera,
   Car,
   Coffee,
   Compass,
   FerrisWheel,
+  Footprints,
   House,
   MapPin,
   Mountain,
@@ -49,7 +49,9 @@ export const TRIP_ICONS: TripIconChoice[] = [
   { key: 'sun', label: 'Summer', Icon: Sun },
   { key: 'waves', label: 'Island', Icon: Waves },
   { key: 'map-pin', label: 'Day trip', Icon: MapPin },
-  { key: 'camera', label: 'Photo walk', Icon: Camera },
+  // The key stays 'camera' though the picture changed: it is saved on trips,
+  // and renaming it would make every photo walk fall back to the default icon.
+  { key: 'camera', label: 'Photo walk', Icon: Footprints },
   { key: 'ferris-wheel', label: 'Theme park', Icon: FerrisWheel },
 ];
 

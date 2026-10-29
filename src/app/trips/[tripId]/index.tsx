@@ -1,5 +1,6 @@
 import TripHeaderActions from '@/components/trip/trip-header-actions';
 import TripHero from '@/components/trip/trip-hero';
+import DroppedWritesNotice from '@/components/ui/dropped-writes-notice';
 import TripOverview from '@/components/trip/trip-overview';
 import ErrorState from '@/components/ui/error-state';
 import ListSkeleton from '@/components/ui/list-skeleton';
@@ -12,6 +13,7 @@ import BudgetSheet from '@/components/trip/budget-sheet';
 import BalancesTab from '@/components/trip/balances-tab';
 import ExpenseForm from '@/components/trip/expense-form';
 import ExpensesTab from '@/components/trip/expenses-tab';
+import FunTab from '@/components/trip/fun-tab';
 import ItineraryForm from '@/components/trip/itinerary-form';
 import ItineraryTab from '@/components/trip/itinerary-tab';
 import ReportsTab from '@/components/trip/reports-tab';
@@ -23,6 +25,7 @@ import TripShareSheet from '@/components/trip/trip-share-sheet';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useActiveTrip } from '@/hooks/use-active-trip';
 import { deleteExpense, fetchExpenses } from '@/services/Firebase/expenseService';
+import { saveReactions } from '@/services/Firebase/funService';
 import { runDueRecurring } from '@/services/Firebase/recurringService';
 import RecurringList from '@/components/trip/recurring-list';
 import { deleteItineraryItem, fetchItinerary } from '@/services/Firebase/itineraryService';
@@ -48,9 +51,10 @@ import {
   LogOut,
   Plus,
   Scale,
+  Trophy,
 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 type LocalTabKey = TabKey;
 
@@ -65,19 +69,35 @@ export default function TripDetailScreen() {
 
   // Which trip the dashboard shows. Reported to this screen so the star in the
   // header only appears when it would actually do something.
-  const { activeTrip, selectTrip, loading: tripsLoading } = useActiveTrip(currentUser?.uid);
+  const {
+    activeTrip,
+    selectTrip,
+    clearTrip,
+    loading: tripsLoading,
+  } = useActiveTrip(currentUser?.uid);
   const isActiveTrip = !!tripId && activeTrip?.id === tripId;
 
   /**
    * Makes the dashboard work on this trip.
    *
-   * There is only ever one dashboard trip, so there is nothing to switch off -
-   * picking another trip replaces this one. That is why the star only shows on
-   * trips that are not already the dashboard's.
+   * There is only ever one dashboard trip, so picking another trip replaces
+   * this one. Picking is also how a trip taken off the dashboard comes back.
    */
   const handleMarkActive = () => {
     if (!tripId || isActiveTrip) return;
     selectTrip(tripId);
+  };
+
+  /**
+   * Takes this trip off the dashboard, leaving it empty.
+   *
+   * Nothing about the trip changes: it keeps its page, its expenses and its
+   * balances. This is for a trip whose dates are still far off and that should
+   * not be the thing the dashboard opens every time.
+   */
+  const handleClearActive = () => {
+    if (!isActiveTrip) return;
+    clearTrip();
   };
 
   const [trip, setTrip] = useState<Trip | null>(null);
@@ -89,6 +109,10 @@ export default function TripDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<LocalTabKey>('expenses');
+
+  // Pull to refresh. The spinner lives here, not in `loading`, so dragging the
+  // page down never blanks the content and shows the first-load skeleton again.
+  const [refreshing, setRefreshing] = useState(false);
 
   // See useActiveTrip: the spinner belongs to the first load only.
   const loadedOnce = useRef(false);
@@ -185,6 +209,15 @@ export default function TripDetailScreen() {
     }, [loadTrip]),
   );
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadTrip();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadTrip]);
+
   const members: TripMember[] = useMemo(() => {
     const list = Object.values(trip?.members ?? {});
     return [...list].sort((a, b) => {
@@ -265,9 +298,53 @@ export default function TripDetailScreen() {
     setPendingConfirm({ kind: 'plan', id: item.id, title: item.title });
   };
 
-  const handleDeleteExpense = (expenseId: string, title: string) => {
+  const handleDeleteExpense = useCallback((expenseId: string, title: string) => {
     setPendingConfirm({ kind: 'expense', id: expenseId, title });
-  };
+  }, []);
+
+  /** Stable callbacks for the expense list, so a card only re-renders when its own expense changes. */
+  const handleOpenExpense = useCallback((expense: Expense) => {
+    setDetailExpenseId(expense.id);
+  }, []);
+
+  const handleViewAllExpenses = useCallback(() => {
+    router.push(`/trips/${tripId}/expenses` as any);
+  }, [router, tripId]);
+
+  const handleAddExpense = useCallback(() => setExpenseFormOpen(true), []);
+
+  /**
+   * Saves a reaction on an expense.
+   *
+   * The card updates first and the write happens behind it, because a reaction
+   * is a tap: waiting for the server before showing your own emoji makes the
+   * button feel stuck. A failed write puts the old map back and says so.
+   */
+  const handleReact = useCallback(
+    async (expenseId: string, next: Record<string, string[]>) => {
+      // Read the old value from the updater, not from `expenses`: that keeps
+      // this callback stable, so passing it down does not re-render every card.
+      let before: Record<string, string[]> | undefined;
+      setExpenses((previous) => {
+        before = previous.find((entry) => entry.id === expenseId)?.reactions;
+        return previous.map((entry) =>
+          entry.id === expenseId ? { ...entry, reactions: next } : entry,
+        );
+      });
+
+      try {
+        await saveReactions(tripId, expenseId, next);
+      } catch (err) {
+        console.error('Could not save the reaction:', err);
+        setExpenses((previous) =>
+          previous.map((entry) =>
+            entry.id === expenseId ? { ...entry, reactions: before } : entry,
+          ),
+        );
+      }
+    },
+    [tripId],
+  );
 
   /** Runs the delete the user just said yes to. */
   const runPendingConfirm = async () => {
@@ -304,7 +381,7 @@ export default function TripDetailScreen() {
       setLeaveOpen(false);
 
       // A trip with nobody left is gone, so there is nothing to go back to.
-      router.replace('/groups' as any);
+      router.replace('/trips' as any);
 
       if (!result.tripDeleted && result.newOwner) {
         console.log(`${result.newOwner.fullname} is the new trip owner.`);
@@ -348,21 +425,24 @@ export default function TripDetailScreen() {
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <View style={styles.container}>
           <TripScreenHeader
             title={trip?.name || 'Trip'}
-            onBack={() => router.replace('/groups' as any)}
+            onBack={() => router.replace('/trips' as any)}
             leading={<TripIconBadge name={trip?.icon} colorKey={trip?.iconColor} size={28} />}
             right={
               <TripHeaderActions
                 showStar={tab === 'expenses' && !tripsLoading && !isOver}
                 isActiveTrip={isActiveTrip}
                 onMarkActive={handleMarkActive}
+                onClearActive={handleClearActive}
                 isOwner={isOwner}
                 onSettings={() => setSettingsOpen(true)}
-                showInvite={tab === 'expenses' && showInvite}
-                onInvite={() => router.push(`/trips/${tripId}/invite` as any)}
                 muted={muted}
                 onToggleMute={toggleMute}
               />
@@ -375,6 +455,7 @@ export default function TripDetailScreen() {
             <ErrorState message={error || 'This trip could not be found.'} onRetry={loadTrip} />
           ) : (
             <>
+              <DroppedWritesNotice />
               <TripHero
                 trip={trip}
                 currency={currency}
@@ -384,6 +465,7 @@ export default function TripDetailScreen() {
                 }
                 budget={budget}
                 onOpenQr={() => setShareOpen(true)}
+                onOpenNotes={() => router.push(`/trips/${tripId}/notes` as any)}
               />
 
               {isOver && (
@@ -398,6 +480,21 @@ export default function TripDetailScreen() {
                     This trip has ended. You can still settle up and fix anything recorded wrong.
                   </Text>
                   <ChevronRight size={15} color={BrandColors.secondary} />
+                </Pressable>
+              )}
+
+              {/* The recap sits above the tabs, so a finished trip offers it no
+                  matter which tab you are on rather than only under Expenses. */}
+              {isOver && (
+                <Pressable
+                  style={styles.recapLink}
+                  onPress={() => router.push(`/trips/${tripId}/recap` as any)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open the trip recap"
+                >
+                  <Trophy size={16} color={BrandColors.primary} />
+                  <Text style={styles.recapLinkText}>See the trip recap</Text>
+                  <ChevronRight size={16} color={BrandColors.secondary} />
                 </Pressable>
               )}
 
@@ -429,14 +526,10 @@ export default function TripDetailScreen() {
                   members={members}
                   currency={currency}
                   currentUserId={currentUserId}
-                  onAdd={() => setExpenseFormOpen(true)}
-                  onViewAll={() => router.push(`/trips/${tripId}/expenses` as any)}
-                  onOpenExpense={(expense) => setDetailExpenseId(expense.id)}
-                  onDelete={handleDeleteExpense}
-                  onEdit={(expense) => {
-                    setEditingExpense(expense);
-                    setExpenseFormOpen(true);
-                  }}
+                  onAdd={handleAddExpense}
+                  onViewAll={handleViewAllExpenses}
+                  onOpenExpense={handleOpenExpense}
+                  onReact={handleReact}
                 />
               )}
 
@@ -497,6 +590,7 @@ export default function TripDetailScreen() {
                   currentUserId={currentUserId}
                   onDelete={handleDeleteItinerary}
                   isOwner={isOwner}
+                  members={members}
                   onEdit={(plan) => {
                     setEditingPlan(plan);
                     setItineraryFormOpen(true);
@@ -516,6 +610,21 @@ export default function TripDetailScreen() {
                 />
               )}
 
+              {tab === 'fun' && (
+                <FunTab
+                  trip={trip}
+                  members={members}
+                  expenses={expenses}
+                  settlements={settlements}
+                  balances={visibleBalances}
+                  currency={currency}
+                  currentUserId={currentUserId}
+                  today={todayKey()}
+                  tripEnded={isOver}
+                  isOwner={isOwner}
+                />
+              )}
+
               <Pressable
                 style={styles.leaveButton}
                 onPress={() => {
@@ -532,8 +641,9 @@ export default function TripDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Floating action button: the main thing people do on a trip. */}
-      {!loading && !error && trip && tab !== 'reports' && (
+      {/* Floating action button: the main thing people do on a trip. The Fun
+          tab is read-only, so it has none. */}
+      {!loading && !error && trip && tab !== 'reports' && tab !== 'fun' && (
         <Pressable
           style={styles.fab}
           onPress={() => {
@@ -592,6 +702,7 @@ export default function TripDetailScreen() {
             tripId={tripId as string}
             currentUserId={currentUserId}
             memberNames={Object.fromEntries(members.map((member) => [member.id, member.fullname]))}
+            members={members}
             defaultDay={itineraryDay}
             item={editingPlan}
             onSaved={(saved) => {
@@ -653,6 +764,7 @@ export default function TripDetailScreen() {
               setEditingExpense(expense);
               setExpenseFormOpen(true);
             }}
+            onDelete={handleDeleteExpense}
           />
 
           <TripMembersSheet
@@ -901,5 +1013,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
+  },
+  recapLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    backgroundColor: BrandColors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: BrandColors.border,
+    borderRadius: 15,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.three,
+  },
+  recapLinkText: {
+    flex: 1,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 13,
+    color: BrandColors.primary,
   },
 });

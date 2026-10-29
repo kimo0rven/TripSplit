@@ -1,10 +1,15 @@
+import DayDivider from '@/components/ui/day-divider';
 import MemberFaces from '@/components/ui/member-faces';
 import { Card } from '@/components/ui/card';
+import ReactionStrip from '@/components/trip/reaction-strip';
 import { categoryLook } from '@/constants/expense-categories';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Expense } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
-import { formatDayTime, formatMoney } from '@/utils/money';
+import { groupByDay } from '@/utils/listGrouping';
+import { memberLookup } from '@/utils/memberLookup';
+import { dayHeading, formatDayTime, formatMoney } from '@/utils/money';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface ExpenseCardsProps {
@@ -20,12 +25,20 @@ interface ExpenseCardsProps {
    * can fix an expense somebody else recorded, whether they paid it or not.
    */
   canChange?: (expense: Expense) => boolean;
-  /** Opens the sheet holding the whole expense. */
+  /** Opens the sheet holding the whole expense, where Edit and Delete live. */
   onPress?: (expense: Expense) => void;
-  /** Shown as the red "Delete" link on each card, when the owner taps. */
-  onDelete?: (id: string, title: string) => void;
-  /** Shown as the "Edit" link on the cards this person may change. */
-  onEdit?: (expense: Expense) => void;
+  /**
+   * Splits the list into day sections.
+   *
+   * Used on the pages holding a whole trip's history, where a break per day is
+   * what makes a long list readable. The trip's own short list stays flat.
+   */
+  grouped?: boolean;
+  /**
+   * Called when someone taps a reaction, with the whole new map for that
+   * expense. Omit it and the reactions draw without being tappable.
+   */
+  onReact?: (expenseId: string, reactions: Record<string, string[]>) => void;
 }
 
 /**
@@ -33,7 +46,7 @@ interface ExpenseCardsProps {
  * "All expenses" page.
  *
  * One component so an expense can never look different in the two places. The
- * caller decides how many to pass in.
+ * caller decides how many to pass in, and whether they are broken up by day.
  */
 export default function ExpenseCards({
   expenses,
@@ -42,104 +55,114 @@ export default function ExpenseCards({
   currentUserId,
   canChange,
   onPress,
-  onDelete,
-  onEdit,
+  grouped = false,
+  onReact,
 }: ExpenseCardsProps) {
-  // Anyone in the trip may fix an expense, whichever way it was paid: a wrong
-  // amount is wrong no matter who typed it.
-  const allowed = (expense: Expense) => canChange?.(expense) ?? expense.createdBy === currentUserId;
-  const nameOf = (id: string) => members.find((member) => member.id === id)?.fullname ?? 'Someone';
+  const lookup = useMemo(() => memberLookup(members), [members]);
+  const nameOf = lookup.nameOf;
 
-  return (
-    <View style={styles.list}>
-      {expenses.map((expense) => {
-        const payers = Object.keys(expense.paidBy ?? {});
-        const payerLabel =
-          payers.length === 0
-            ? 'nobody'
-            : payers.length === 1
-              ? nameOf(payers[0])
-              : `${payerLabelOf(payers, nameOf, members.length)}`;
-        // The payer's face says who it was faster than a name does, so the
-        // footer draws faces. People who left the trip have no member record
-        // left to draw, which is why the name stays as the screen-reader text.
-        const payerFaces = payers
-          .map((id) => members.find((member) => member.id === id))
-          .filter((member): member is TripMember => !!member);
-        const look = categoryLook(expense.category);
-        const CategoryIcon = look.icon;
-        const canDelete = !!onDelete && allowed(expense);
-        const canEdit = !!onEdit && allowed(expense);
+  const days = useMemo(
+    () => (grouped ? groupByDay(expenses, (expense) => expense.spentOn) : []),
+    [grouped, expenses],
+  );
 
-        return (
-          <Card key={expense.id} style={styles.expenseCard}>
-            {/* The row that opens the details is its own Pressable, and the
-                Delete link is a sibling rather than a child, so a tap on one
-                can never fire the other (nested buttons do that on web). */}
-            <Pressable
-              onPress={() => onPress?.(expense)}
-              style={({ pressed }) => [styles.expenseTop, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel={`${expense.title}, ${formatMoney(expense.amount, currency)}`}
-            >
-              {/* Always the category's picture; receipts are opened from the details. */}
-              <View style={[styles.thumbPlaceholder, { backgroundColor: look.bg }]}>
-                <CategoryIcon size={18} color={look.tint} />
-              </View>
+  /** One card. Shared by both layouts, so the two can never drift apart. */
+  const renderCard = (expense: Expense) => {
+    const payers = Object.keys(expense.paidBy ?? {});
+    const payerLabel =
+      payers.length === 0
+        ? 'nobody'
+        : payers.length === 1
+          ? nameOf(payers[0])
+          : `${payerLabelOf(payers, nameOf, members.length)}`;
+    // The payer's face says who it was faster than a name does, so the footer
+    // draws faces. People who left the trip have no member record left to draw,
+    // which is why the name stays as the screen-reader text.
+    const payerFaces = payers
+      .map((id) => lookup.get(id))
+      .filter((member): member is TripMember => !!member);
+    const look = categoryLook(expense.category);
+    const CategoryIcon = look.icon;
 
-              <View style={styles.expenseInfo}>
-                <Text style={styles.expenseTitle} numberOfLines={1}>
-                  {expense.title}
-                </Text>
-                <Text style={styles.expenseMeta} numberOfLines={1}>
-                  {formatDayTime(expense.spentOn, expense.spentTime)}
-                </Text>
-              </View>
+    return (
+      <Card key={expense.id} style={styles.expenseCard}>
+        {/* The row that opens the details is its own Pressable, and the Delete
+            link is a sibling rather than a child, so a tap on one can never
+            fire the other (nested buttons do that on web). */}
+        <Pressable
+          onPress={() => onPress?.(expense)}
+          style={({ pressed }) => [styles.expenseTop, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel={`${expense.title}, ${formatMoney(expense.amount, currency)}`}
+        >
+          {/* Always the category's picture; receipts are opened from the details. */}
+          <View style={[styles.thumbPlaceholder, { backgroundColor: look.bg }]}>
+            <CategoryIcon size={18} color={look.tint} />
+          </View>
 
-              <Text style={styles.expenseAmount}>{formatMoney(expense.amount, currency)}</Text>
-            </Pressable>
+          <View style={styles.expenseInfo}>
+            <Text style={styles.expenseTitle} numberOfLines={1}>
+              {expense.title}
+            </Text>
+            <Text style={styles.expenseMeta} numberOfLines={1}>
+              {formatDayTime(expense.spentOn, expense.spentTime)}
+            </Text>
+          </View>
 
-            <View style={styles.expenseFooter}>
-              <Pressable
-                onPress={() => onPress?.(expense)}
-                style={styles.footerLines}
-                accessibilityRole="button"
-                accessibilityLabel={`Paid by ${payerLabel}`}
-              >
-                <View style={styles.payerRow}>
-                  <Text style={styles.footerText}>Paid by</Text>
-                  {payerFaces.length > 0 ? (
-                    <MemberFaces members={payerFaces} size={18} max={3} />
-                  ) : (
-                    <Text style={styles.footerText} numberOfLines={1}>
-                      nobody
-                    </Text>
-                  )}
-                </View>
-              </Pressable>
+          <Text style={styles.expenseAmount}>{formatMoney(expense.amount, currency)}</Text>
+        </Pressable>
 
-              {/* Anyone in the trip may change an expense, so the link shows on
-                  every card. */}
-              {canEdit && (
-                <Text
-                  style={styles.editLink}
-                  onPress={() => onEdit?.(expense)}
-                  accessibilityRole="button"
-                >
-                  Edit
-                </Text>
-              )}
-              {canDelete && (
-                <Text
-                  style={styles.deleteLink}
-                  onPress={() => onDelete?.(expense.id, expense.title)}
-                  accessibilityRole="button"
-                >
-                  Delete
+        <View style={styles.expenseFooter}>
+          <Pressable
+            onPress={() => onPress?.(expense)}
+            style={styles.footerLines}
+            accessibilityRole="button"
+            accessibilityLabel={`Paid by ${payerLabel}`}
+          >
+            <View style={styles.payerRow}>
+              <Text style={styles.footerText}>Paid by</Text>
+              {payerFaces.length > 0 ? (
+                <MemberFaces members={payerFaces} size={18} max={3} />
+              ) : (
+                <Text style={styles.footerText} numberOfLines={1}>
+                  nobody
                 </Text>
               )}
             </View>
-          </Card>
+          </Pressable>
+        </View>
+
+        {/* Reactions sit under the footer, so a tap can never land on the
+            rows that open or delete the expense. */}
+        <ReactionStrip
+          reactions={expense.reactions}
+          members={members}
+          currentUserId={currentUserId}
+          onChange={onReact ? (next) => onReact(expense.id, next) : undefined}
+          compact
+        />
+      </Card>
+    );
+  };
+
+  if (!grouped) return <View style={styles.list}>{expenses.map(renderCard)}</View>;
+
+  return (
+    <View style={styles.groupedList}>
+      {days.map((group) => {
+        // Each day's own total, so a section says what that day cost before
+        // anyone reads a single card.
+        const dayTotal = group.items.reduce((sum, expense) => sum + (expense.amount || 0), 0);
+
+        return (
+          <View key={group.day} style={styles.day}>
+            <DayDivider
+              label={dayHeading(group.day)}
+              count={group.items.length}
+              total={formatMoney(dayTotal, currency)}
+            />
+            <View style={styles.list}>{group.items.map(renderCard)}</View>
+          </View>
         );
       })}
     </View>
@@ -160,6 +183,12 @@ function payerLabelOf(
 
 const styles = StyleSheet.create({
   list: {
+    gap: Spacing.two,
+  },
+  groupedList: {
+    gap: Spacing.three,
+  },
+  day: {
     gap: Spacing.two,
   },
   expenseCard: {
@@ -227,15 +256,5 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 11,
     color: BrandColors.secondary,
-  },
-  editLink: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 11,
-    color: BrandColors.info,
-  },
-  deleteLink: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 11,
-    color: BrandColors.error,
   },
 });

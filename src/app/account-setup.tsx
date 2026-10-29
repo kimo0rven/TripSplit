@@ -94,7 +94,7 @@ export default function AccountSetup() {
         console.warn('Could not save your name and default currency:', profileErr);
       }
 
-      router.replace('/homescreen');
+      router.replace('/dashboard');
     } catch (err) {
       console.error('Failed to save account setup:', err);
       setSaveError('Something went wrong saving your profile. Please try again.');
@@ -109,7 +109,7 @@ export default function AccountSetup() {
       return;
     }
 
-    router.replace('/homescreen');
+    router.replace('/dashboard');
   };
 
   const handleBack = () => {

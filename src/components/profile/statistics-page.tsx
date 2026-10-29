@@ -9,6 +9,7 @@ import { fetchSettlements } from '@/services/Firebase/settlementService';
 import { fetchUserTrips } from '@/services/Firebase/tripService';
 import { Expense } from '@/types/expenses';
 import { categoryLabel, computeBalances, simplifyDebts } from '@/utils/balance';
+import { shortName } from '@/utils/format';
 import {
   PersonBalance,
   RANGE_LABEL,
@@ -388,7 +389,7 @@ export default function StatisticsPage({ userId }: StatisticsPageProps) {
                     </Text>
                   </View>
                   <Text style={styles.sub}>
-                    {biggest.tripName} · {biggest.spentOn} · your share{' '}
+                    {shortName(biggest.tripName)} · {biggest.spentOn} · your share{' '}
                     {formatMoney(biggest.share, biggest.currency)}
                   </Text>
                 </View>
@@ -406,7 +407,7 @@ export default function StatisticsPage({ userId }: StatisticsPageProps) {
                       <View key={row.tripId} style={styles.catInfo}>
                         <View style={styles.row}>
                           <Text style={styles.rowLabel} numberOfLines={1}>
-                            {row.tripName}
+                            {shortName(row.tripName)}
                           </Text>
                           <Text style={styles.rowValue}>
                             {formatMoney(row.share, row.currency)}

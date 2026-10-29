@@ -51,6 +51,13 @@ export interface Expense {
   createdAt: string;
   /** Edit log, newest first. */
   history?: EditLogEntry[];
+  /**
+   * Emoji reactions, as emoji -> the member ids who chose it.
+   *
+   * Kept on the expense itself so one tap is one field write, and so a card can
+   * draw its reactions without a second read. It never affects a balance.
+   */
+  reactions?: Record<string, string[]>;
 }
 
 export interface Settlement {
@@ -87,14 +94,44 @@ export interface ItineraryItem {
   day: string;
   /** Optional clock time, HH:mm. */
   time?: string;
+  /**
+   * Optional clock time the plan runs until, HH:mm.
+   *
+   * A plan without one is treated as taking up no time at all - a single
+   * moment on the day, which is how plans were stored before this existed.
+   */
+  endTime?: string;
   location?: string;
   notes?: string;
+  /**
+   * The people coming along, as member ids.
+   *
+   * Empty or missing means "everyone" - the whole trip is assumed to be in,
+   * so a plan nobody bothered to tag still reads correctly.
+   */
+  attendeeIds?: string[];
   /** Public links to photos attached to the plan. */
   photoUrls?: string[];
   createdBy: string;
   createdAt: string;
   /** Edit log, newest first. */
   history?: EditLogEntry[];
+}
+
+/**
+ * One message in a trip's note feed.
+ *
+ * Notes are the things that matter but are not money: "I booked the van",
+ * "bring a jacket", "the ferry moved to 6am". They deliberately do not touch
+ * balances - turning a note into an expense is a separate, deliberate act.
+ */
+export interface TripNote {
+  id: string;
+  body: string;
+  /** Public links to any photos sent with the note. */
+  photoUrls?: string[];
+  createdBy: string;
+  createdAt: string;
 }
 
 /** What one member has put in versus what they should pay. */

@@ -6,8 +6,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 export default function QuickLinks() {
   const router = useRouter();
   const items = [
-    { label: 'Payment history', Icon: Receipt, href: '/payments' },
-    { label: 'Statistics', Icon: BarChart3, href: '/statistics' },
+    { label: 'Payment history', Icon: Receipt, href: '/profile/payments' },
+    { label: 'Statistics', Icon: BarChart3, href: '/profile/statistics' },
   ];
   return (
     <View style={styles.row}>

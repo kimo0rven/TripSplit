@@ -6,9 +6,10 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { DebtEdge, Expense, MemberBalance, Settlement } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
 import { formatMoney } from '@/utils/money';
+import { memberLookup } from '@/utils/memberLookup';
 import { remindDebtor } from '@/services/reminders/push';
 import { ArrowRight, Plus, Scale } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface BalancesTabProps {
@@ -28,7 +29,7 @@ interface BalancesTabProps {
 }
 
 /** How many payments the Balances tab lists before "View all". */
-export const RECENT_PAYMENT_LIMIT = 5;
+export const RECENT_PAYMENT_LIMIT = 3;
 
 export default function BalancesTab({
   members,
@@ -47,9 +48,9 @@ export default function BalancesTab({
 }: BalancesTabProps) {
   const [showAllPairs, setShowAllPairs] = useState(false);
 
-  const nameOf = (id: string) =>
-    members.find((member) => member.id === id)?.fullname ?? 'Someone who left';
-  const photoOf = (id: string) => members.find((member) => member.id === id)?.photoURL;
+  const lookup = useMemo(() => memberLookup(members), [members]);
+  const nameOf = (id: string) => lookup.nameOf(id, 'Someone who left');
+  const photoOf = lookup.photoOf;
   const first = (id: string) => nameOf(id).split(' ')[0];
 
   const [sentKey, setSentKey] = useState('');

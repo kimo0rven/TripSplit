@@ -2,9 +2,9 @@ import { createExpense } from '@/services/Firebase/expenseService';
 import { newId, readPath, writeAt, writeUpdates } from '@/services/offline/offlineStore';
 import { RecurringExpense } from '@/types/expenses';
 import { EVERY_LABEL, nextOccurrence, toDate } from '@/utils/recurrence';
+import { todayKey } from '@/utils/money';
 
 export { EVERY_LABEL, nextOccurrence };
-import { todayKey } from '@/utils/money';
 
 const MAX_CATCH_UP = 31;
 

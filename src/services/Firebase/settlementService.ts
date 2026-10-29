@@ -1,7 +1,13 @@
 import { auth } from '@/config/firebase';
 import { myName, notify, tripLabel } from '@/services/notifications/inbox';
 import { newId, readPath, writeAt, writeUpdates } from '@/services/offline/offlineStore';
-import { EditContext, buildEntry, serializeEntry, diffSettlement, historyOf } from '@/utils/editLog';
+import {
+  EditContext,
+  buildEntry,
+  serializeEntry,
+  diffSettlement,
+  historyOf,
+} from '@/utils/editLog';
 import { EditLogEntry, Settlement, TripBudget } from '@/types/expenses';
 import { formatMoney, parseAmount, todayKey, toAmount } from '@/utils/money';
 
@@ -47,7 +53,9 @@ export const createSettlement = async (
     isCash: input.isCash,
     // The receiver has to agree before a payment counts, unless they recorded it themselves.
     status: input.createdBy === input.to ? 'confirmed' : 'pending',
-    ...(input.createdBy === input.to ? { confirmedBy: input.createdBy, confirmedAt: new Date().toISOString() } : {}),
+    ...(input.createdBy === input.to
+      ? { confirmedBy: input.createdBy, confirmedAt: new Date().toISOString() }
+      : {}),
     ...(input.proofUrls?.length ? { proofUrls: input.proofUrls } : {}),
     ...(!input.isCash && method ? { method } : {}),
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
@@ -65,7 +73,12 @@ export const createSettlement = async (
       settlement.to,
       'paymentRequests',
       'Payment to confirm',
-      payer + ' says they paid you ' + formatMoney(settlement.amount, currency ?? undefined) + ' in ' + trip + '. Please confirm.',
+      payer +
+        ' says they paid you ' +
+        formatMoney(settlement.amount, currency ?? undefined) +
+        ' in ' +
+        trip +
+        '. Please confirm.',
       { tripId },
     );
   }
@@ -164,7 +177,12 @@ export const respondToSettlement = async (
       record.createdBy || record.from,
       'paymentUpdates',
       accept ? 'Payment confirmed' : 'Payment declined',
-      myName() + (accept ? ' confirmed your ' : ' declined your ') + formatMoney(record.amount, currency) + ' payment in ' + name + '.',
+      myName() +
+        (accept ? ' confirmed your ' : ' declined your ') +
+        formatMoney(record.amount, currency) +
+        ' payment in ' +
+        name +
+        '.',
       { tripId },
     );
   }
@@ -182,13 +200,31 @@ export const fetchSettlements = async (
   })) as Record<string, Omit<Settlement, 'id'>> | null;
   if (!data) return [];
 
-  return Object.entries(data)
-    .map(([id, value]) => ({
-      id,
-      ...value,
-      history: historyOf((value as { history?: unknown }).history),
-    }))
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return (
+    Object.entries(data)
+      .map(([id, value]) => ({
+        id,
+        ...value,
+        history: historyOf((value as { history?: unknown }).history),
+      }))
+      // Newest day first, matching how expenses are ordered. Keyed on the day the
+      // money moved rather than on when the record was written: the list is split
+      // into day sections using `settledOn`, and a payment entered late would
+      // otherwise land outside its own section. Within a day, the newest entry
+      // written comes first.
+      .sort((a, b) => {
+        const dayA = a.settledOn || '';
+        const dayB = b.settledOn || '';
+        if (dayA !== dayB) {
+          // An undated payment belongs at the bottom, beside the oldest day,
+          // rather than above today in a section of its own.
+          if (!dayA) return 1;
+          if (!dayB) return -1;
+          return dayA < dayB ? 1 : -1;
+        }
+        return a.createdAt < b.createdAt ? 1 : -1;
+      })
+  );
 };
 
 export const fetchTripBudget = async (tripId: string): Promise<TripBudget | null> => {

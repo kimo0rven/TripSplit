@@ -44,19 +44,19 @@ export interface CreateTripInput {
   /** A starting budget, in the trip's currency. Left out when none was set. */
   budget?: number;
   /** Plans to drop straight into the itinerary, in the order they were added. */
-  itinerary?: Array<{ title: string; day: string; time?: string }>;
+  itinerary?: { title: string; day: string; time?: string }[];
   owner: {
     id: string;
     fullname: string;
     email: string;
     photoURL?: string;
   };
-  members?: Array<{
+  members?: {
     id: string;
     fullname: string;
     email: string;
     photoURL?: string;
-  }>;
+  }[];
 }
 
 export interface InviteResult {

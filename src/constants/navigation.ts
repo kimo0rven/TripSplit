@@ -4,15 +4,13 @@ export const navItems = [
   {
     id: 'home',
     label: 'Home',
-    path: '/homescreen',
+    path: '/dashboard',
     Icon: Home,
   },
   {
     id: 'groups',
-    // The id and path stay the same so links keep working; only the label the
-    // user reads changed.
     label: 'Trips',
-    path: '/groups',
+    path: '/trips',
     Icon: UserRoundGroup,
   },
   {

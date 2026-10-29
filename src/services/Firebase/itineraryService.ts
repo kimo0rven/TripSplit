@@ -7,8 +7,10 @@ export interface ItineraryInput {
   title: string;
   day: string;
   time?: string;
+  endTime?: string;
   location?: string;
   notes?: string;
+  attendeeIds?: string[];
   photoUrls?: string[];
   createdBy: string;
 }
@@ -27,8 +29,10 @@ export const createItineraryItem = async (
     title,
     day: input.day || todayKey(),
     ...(input.time?.trim() ? { time: input.time.trim() } : {}),
+    ...(input.endTime?.trim() ? { endTime: input.endTime.trim() } : {}),
     ...(input.location?.trim() ? { location: input.location.trim() } : {}),
     ...(input.notes?.trim() ? { notes: input.notes.trim() } : {}),
+    ...(input.attendeeIds?.length ? { attendeeIds: input.attendeeIds } : {}),
     ...(input.photoUrls?.length ? { photoUrls: input.photoUrls } : {}),
     createdBy: input.createdBy,
     createdAt: new Date().toISOString(),
@@ -55,8 +59,12 @@ export const updateItineraryItem = async (
 
   const updates: Record<string, unknown> = {
     [`trips/${tripId}/itinerary/${itemId}/time`]: input.time?.trim() || null,
+    [`trips/${tripId}/itinerary/${itemId}/endTime`]: input.endTime?.trim() || null,
     [`trips/${tripId}/itinerary/${itemId}/location`]: input.location?.trim() || null,
     [`trips/${tripId}/itinerary/${itemId}/notes`]: input.notes?.trim() || null,
+    [`trips/${tripId}/itinerary/${itemId}/attendeeIds`]: input.attendeeIds?.length
+      ? input.attendeeIds
+      : null,
     [`trips/${tripId}/itinerary/${itemId}/photoUrls`]: input.photoUrls?.length
       ? input.photoUrls
       : null,
@@ -76,8 +84,10 @@ export const updateItineraryItem = async (
       title: (input.title ?? before.title).trim(),
       day: input.day ?? before.day,
       time: input.time?.trim() || undefined,
+      endTime: input.endTime?.trim() || undefined,
       location: input.location?.trim() || undefined,
       notes: input.notes?.trim() || undefined,
+      attendeeIds: input.attendeeIds?.length ? input.attendeeIds : undefined,
       photoUrls: input.photoUrls?.length ? input.photoUrls : undefined,
     });
     if (changes.length) {
@@ -120,10 +130,8 @@ export const deleteItineraryItem = async (tripId: string, itemId: string): Promi
 };
 
 /** Groups itinerary items by day, keeping the order the service returns. */
-export const groupByDay = (
-  items: ItineraryItem[],
-): Array<{ day: string; items: ItineraryItem[] }> => {
-  const groups: Array<{ day: string; items: ItineraryItem[] }> = [];
+export const groupByDay = (items: ItineraryItem[]): { day: string; items: ItineraryItem[] }[] => {
+  const groups: { day: string; items: ItineraryItem[] }[] = [];
 
   items.forEach((item) => {
     const existing = groups.find((group) => group.day === item.day);

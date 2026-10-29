@@ -45,8 +45,6 @@ interface TimeFieldProps {
   /** Stored 24-hour "HH:MM", or '' when no time is set. */
   value: string;
   onChange: (next: string) => void;
-  /** Quick picks stay for the plans people make most often. */
-  presets?: string[];
 }
 
 /**
@@ -54,7 +52,7 @@ interface TimeFieldProps {
  * single AM/PM toggle finishes it. It shows and reads in 12-hour form while
  * the trip data keeps 24-hour "HH:MM" underneath.
  */
-export default function TimeField({ value, onChange, presets }: TimeFieldProps) {
+export default function TimeField({ value, onChange }: TimeFieldProps) {
   const [open, setOpen] = useState(false);
   const parts = toParts(value);
   const hasTime = /^\d{1,2}:\d{2}$/.test((value || '').trim());
@@ -84,25 +82,6 @@ export default function TimeField({ value, onChange, presets }: TimeFieldProps) 
           </Pressable>
         )}
       </View>
-
-      {!!presets?.length && (
-        <View style={styles.presetRow}>
-          {presets.map((preset) => {
-            const isOn = hasTime && value === preset;
-            return (
-              <Pressable
-                key={preset}
-                style={[styles.presetChip, isOn && styles.presetChipOn]}
-                onPress={() => onChange(isOn ? '' : preset)}
-              >
-                <Text style={[styles.presetText, isOn && styles.presetTextOn]}>
-                  {formatTime(preset)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
 
       {open && (
         <View style={styles.picker}>
@@ -218,31 +197,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Medium',
     fontSize: 12,
     color: BrandColors.info,
-  },
-  presetRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  presetChip: {
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 20,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-  },
-  presetChipOn: {
-    backgroundColor: BrandColors.base50,
-    borderColor: BrandColors.base50,
-  },
-  presetText: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 12,
-    color: BrandColors.secondary,
-  },
-  presetTextOn: {
-    color: BrandColors.heading,
-    fontFamily: 'PlusJakartaSans-Bold',
   },
   picker: {
     borderWidth: 1,

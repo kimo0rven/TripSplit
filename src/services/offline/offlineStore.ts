@@ -139,7 +139,7 @@ export const subscribeToConnection = (listener: (online: boolean) => void): (() 
 const PERMISSION_DENIED_LIMIT = 3;
 
 /** True when the server said "you may not write this", rather than "not yet". */
-const isPermissionDenied = (error: unknown): boolean => {
+export const isPermissionDenied = (error: unknown): boolean => {
   const code = (error as { code?: unknown })?.code;
   const message = String((error as { message?: unknown })?.message ?? '');
 
@@ -149,6 +149,21 @@ const isPermissionDenied = (error: unknown): boolean => {
     /PERMISSION_DENIED|permission_denied/i.test(message)
   );
 };
+
+/**
+ * Turns a failed save into words a person can act on.
+ *
+ * A refused write is the one case worth naming out loud: "try again" is a lie
+ * when the server will refuse it every time, and the reason is the deployed
+ * security rules rather than anything the person did wrong.
+ */
+export const saveErrorMessage = (
+  error: unknown,
+  fallback = 'That could not be saved. Try again.',
+): string =>
+  isPermissionDenied(error)
+    ? 'The app is not allowed to save this yet. Update the database rules, then try again.'
+    : fallback;
 
 /** How many saved changes the server refused and that were dropped. */
 let rejectedWrites = 0;
@@ -799,6 +814,58 @@ export const removeAt = async (path: string): Promise<{ queued: boolean }> =>
 export const newId = (): string => {
   const random = Math.random().toString(36).slice(2, 12);
   return `${Date.now().toString(36)}${random}`;
+};
+
+export interface CacheSize {
+  /** How many saved reads are on the device. */
+  entries: number;
+  /** Rough size on disk, in bytes. */
+  bytes: number;
+}
+
+/**
+ * How much offline data the device is holding, for the Settings screen.
+ *
+ * The byte count is an estimate: a string's length is a fair stand-in for a
+ * small JSON tree, and an exact figure would mean decoding every entry again.
+ */
+export const cacheSize = async (): Promise<CacheSize> => {
+  const index = await readIndex();
+  let bytes = 0;
+
+  for (const item of index) {
+    const raw = await AsyncStorage.getItem(cacheKey(item.path)).catch(() => null);
+    if (raw) bytes += raw.length * 2; // UTF-16: two bytes per character
+  }
+
+  return { entries: index.length, bytes };
+};
+
+/**
+ * Throws away the saved copies of the data, keeping unsent changes.
+ *
+ * A cache clear must never cost someone a change they made while offline, so
+ * the pending queue and the dropped-write count are left alone. The next visit
+ * to each screen simply re-reads it from the server, which is why this is
+ * offered as a way to free space rather than a fix for wrong data.
+ */
+export const clearCache = async (): Promise<{ cleared: number; keptWrites: number }> => {
+  const pending = await loadPendingWrites().catch(() => []);
+
+  try {
+    memo.clear();
+
+    const index = await readIndex();
+    await Promise.all(
+      index.map((item) => AsyncStorage.removeItem(cacheKey(item.path)).catch(() => undefined)),
+    );
+    await AsyncStorage.removeItem(CACHE_INDEX_KEY).catch(() => undefined);
+
+    return { cleared: index.length, keptWrites: pending.length };
+  } catch (error) {
+    console.warn('Could not clear the saved copies:', error);
+    return { cleared: 0, keptWrites: pending.length };
+  }
 };
 
 /** Wipes everything saved for one user, used when signing out. */

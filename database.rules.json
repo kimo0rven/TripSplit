@@ -2,9 +2,7 @@
   "rules": {
     "users": {
       ".read": "auth != null",
-      ".indexOn": [
-        "email"
-      ],
+      ".indexOn": ["email"],
       "$uid": {
         ".write": "auth != null && auth.uid === $uid"
       }
@@ -76,15 +74,15 @@
           }
         },
         "expenses": {
-          ".indexOn": [
-            "spentOn",
-            "createdAt"
-          ],
+          ".indexOn": ["spentOn", "createdAt"],
           "$expenseId": {
             ".write": "auth != null && root.child('trips').child($tripId).child('members').child(auth.uid).exists()",
             ".validate": "!data.child('history').exists() || newData.child('history').exists()",
             "createdBy": {
               ".validate": "data.exists() ? newData.val() === data.val() : newData.val() === auth.uid"
+            },
+            "reactions": {
+              ".write": "auth != null && root.child('trips').child($tripId).child('members').child(auth.uid).exists()"
             },
             "history": {
               "$entryId": {
@@ -94,9 +92,7 @@
           }
         },
         "settlements": {
-          ".indexOn": [
-            "createdAt"
-          ],
+          ".indexOn": ["createdAt"],
           "$settlementId": {
             ".write": "auth != null && root.child('trips').child($tripId).child('members').child(auth.uid).exists() && (!data.exists() || data.child('createdBy').val() === auth.uid || data.child('from').val() === auth.uid || data.child('to').val() === auth.uid)",
             ".validate": "(!data.child('history').exists() || newData.child('history').exists()) && (!data.exists() || data.child('status').val() !== 'confirmed' || data.child('to').val() === auth.uid || newData.child('status').val() !== 'confirmed' || (newData.child('amount').val() === data.child('amount').val() && newData.child('from').val() === data.child('from').val() && newData.child('to').val() === data.child('to').val()))",
@@ -123,9 +119,7 @@
           }
         },
         "itinerary": {
-          ".indexOn": [
-            "day"
-          ],
+          ".indexOn": ["day"],
           "$itemId": {
             ".write": "auth != null && root.child('trips').child($tripId).child('members').child(auth.uid).exists() && (!(data.exists() && !newData.exists()) || data.child('createdBy').val() === auth.uid || root.child('trips').child($tripId).child('createdBy').val() === auth.uid)",
             "createdBy": {
@@ -144,8 +138,29 @@
             ".validate": "!newData.exists() || (newData.hasChildren(['title','amount','every','nextDue','createdBy']) && (data.exists() || newData.child('createdBy').val() === auth.uid))"
           }
         },
+        "notes": {
+          ".indexOn": ["createdAt"],
+          "$noteId": {
+            ".write": "auth != null && root.child('trips').child($tripId).child('members').child(auth.uid).exists() && (!data.exists() || !newData.exists() || data.child('createdBy').val() === auth.uid) && (!(data.exists() && !newData.exists()) || data.child('createdBy').val() === auth.uid || root.child('trips').child($tripId).child('createdBy').val() === auth.uid)",
+            ".validate": "newData.hasChildren(['body','createdBy','createdAt']) && newData.child('body').isString() && newData.child('body').val().length > 0 && newData.child('body').val().length <= 1000 && (data.exists() ? newData.child('createdBy').val() === data.child('createdBy').val() : newData.child('createdBy').val() === auth.uid)"
+          }
+        },
         "budget": {
           ".write": "auth != null && root.child('trips').child($tripId).child('members').child(auth.uid).exists()"
+        },
+        "tracks": {
+          ".read": "auth != null && root.child('trips').child($tripId).child('members').child(auth.uid).exists()",
+          "$trackId": {
+            ".write": "auth != null && root.child('trips').child($tripId).child('members').child(auth.uid).exists()",
+            ".validate": "!newData.exists() || newData.hasChildren(['title','artist','addedBy','addedAt'])"
+          }
+        },
+        "guesses": {
+          ".read": "auth != null && root.child('trips').child($tripId).child('members').child(auth.uid).exists()",
+          "$memberId": {
+            ".write": "auth != null && auth.uid === $memberId && root.child('trips').child($tripId).child('members').child(auth.uid).exists()",
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          }
         },
         "startDate": {
           ".write": "auth != null && root.child('trips').child($tripId).child('createdBy').val() === auth.uid",

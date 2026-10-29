@@ -32,7 +32,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ICONS: Record<NoticeType, LucideIcon> = {
@@ -66,6 +66,7 @@ export default function NotificationsScreen() {
   const uid = currentUser?.uid ?? '';
   const [notices, setNotices] = useState<Notice[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!uid) return;
@@ -86,6 +87,15 @@ export default function NotificationsScreen() {
       load();
     }, [load]),
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
 
   const open = (notice: Notice) => {
     markRead(uid, notice.id).catch(() => {});
@@ -116,7 +126,11 @@ export default function NotificationsScreen() {
         )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <View style={styles.container}>
           {failed ? (
             <ErrorState message="We couldn't load your notifications." onRetry={load} />
@@ -128,7 +142,7 @@ export default function NotificationsScreen() {
               title="You're all caught up"
               message="Trip invites, friend requests, payment requests and reminders will show up here."
               actionLabel="Notification settings"
-              onAction={() => router.push('/settings' as any)}
+              onAction={() => router.push('/settings/notifications' as any)}
             />
           ) : (
             notices.map((notice) => {

@@ -2,8 +2,10 @@ import MemberFaces from '@/components/ui/member-faces';
 import { TripIconBadge } from '@/components/ui/trip-icon';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Trip, TripMember } from '@/types/trips';
-import { formatDay } from '@/utils/money';
-import { ChevronRight, QrCode } from 'lucide-react-native';
+import { formatDay, todayKey } from '@/utils/money';
+import { shortName } from '@/utils/format';
+import { tripCountdown } from '@/utils/fun';
+import { ChevronRight, Luggage, QrCode } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 /**
@@ -22,8 +24,11 @@ function sortedMembers(trip: Trip | null): TripMember[] {
 interface TripPickerProps {
   /** The trip the dashboard is showing right now, if there is one. */
   activeTrip: Trip | null;
-  /** True when that trip's last date has passed. */
-  isOver?: boolean;
+  /**
+   * How many trips exist in total. When there are some but none is active, the
+   * card says so instead of suggesting a first trip be created.
+   */
+  tripCount?: number;
   /** Opens the active trip's page. */
   onOpen: () => void;
   /** Opens the trips list, where a new trip can be made. */
@@ -35,7 +40,7 @@ interface TripPickerProps {
 /** The card at the top of the dashboard: tap it to open the active trip. */
 export function ActiveTripCard({
   activeTrip,
-  isOver,
+  tripCount = 0,
   onOpen,
   onManageTrips,
   onShowQr,
@@ -50,45 +55,81 @@ export function ActiveTripCard({
       ? formatDay(activeTrip.endDate)
       : null;
 
+  /* A trip that has not started yet is really a countdown, not a date. The
+     number that matters is how long until it does. */
+  const countdown = activeTrip
+    ? tripCountdown(activeTrip.startDate, activeTrip.endDate, todayKey())
+    : null;
+  const showCountdown = !!countdown && countdown.phase === 'soon';
+
+  /* Two different empty cards: nothing made yet, or a trip taken off the
+     dashboard on purpose. The second one must not tell the person to create a
+     trip they already have. */
+  const hasTrips = tripCount > 0;
+  const emptyHint = hasTrips ? 'Pick a trip to show it here' : 'Create a trip to start splitting';
+
   return (
     <>
       <Pressable
-        style={styles.card}
+        style={[styles.card, !activeTrip && styles.cardNoTrip]}
         onPress={activeTrip ? onOpen : onManageTrips}
         accessibilityRole="button"
-        accessibilityLabel={activeTrip ? `Open ${activeTrip.name}` : 'Create a trip'}
+        accessibilityLabel={
+          activeTrip
+            ? `Open ${activeTrip.name}`
+            : hasTrips
+              ? 'No trip on the dashboard - pick one'
+              : 'No trip yet - create one'
+        }
       >
         <View style={styles.cardLeft}>
           {/* The badge carries its own colour, so the trip looks the same here
-              as it does on the trips list. */}
-          <TripIconBadge name={activeTrip?.icon} colorKey={activeTrip?.iconColor} size={40} />
+              as it does on the trips list. With no trip there is no colour to
+              carry, so a plain dark chip holds the space instead. */}
+          {activeTrip ? (
+            <TripIconBadge name={activeTrip.icon} colorKey={activeTrip.iconColor} size={40} />
+          ) : (
+            <View style={styles.emptyBadge}>
+              <Luggage size={20} color={BrandColors.disabled} strokeWidth={2} />
+            </View>
+          )}
           <View style={styles.cardBody}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {activeTrip ? activeTrip.name : 'No trip yet'}
+            {/* The date sits above the name, not beside the faces. With a big
+                group the face row pushed it to a sliver, which made it
+                unreadable exactly when the trip was busiest. */}
+            {activeTrip && (
+              <Text style={styles.cardDate} numberOfLines={1}>
+                {showCountdown && countdown
+                  ? `${countdown.label} · ${tripDate ?? activeTrip.currency}`
+                  : tripDate
+                    ? tripDate
+                    : activeTrip.currency}
+              </Text>
+            )}
+            <Text
+              style={[styles.cardTitle, !activeTrip && styles.cardTitleNoTrip]}
+              numberOfLines={1}
+            >
+              {activeTrip ? shortName(activeTrip.name) : 'No Trip'}
             </Text>
             <View style={styles.cardMetaRow}>
               {members.length > 0 && activeTrip ? (
                 <MemberFaces members={members} max={3} size={22} ringColor={BrandColors.base50} />
-              ) : null}
-              <Text style={styles.cardHint} numberOfLines={1}>
-                {activeTrip
-                  ? tripDate
-                    ? isOver
-                      ? `${tripDate} · finished`
-                      : tripDate
-                    : isOver
-                      ? 'Trip finished'
-                      : activeTrip.currency
-                  : 'Create a trip to start splitting'}
-              </Text>
+              ) : (
+                <Text
+                  style={[styles.cardHint, !activeTrip && styles.cardHintNoTrip]}
+                  numberOfLines={1}
+                >
+                  {emptyHint}
+                </Text>
+              )}
             </View>
           </View>
         </View>
-        {/* Its own button, so tapping the QR does not also open the trip. Only
-            shown when there is a code to share. */}
+        {/* Its own button, so tapping it does not also open the trip. */}
         {onShowQr && !!activeTrip?.inviteCode && (
           <Pressable
-            style={({ pressed }) => [styles.qrButton, pressed && styles.qrPressed]}
+            style={({ pressed }) => [styles.cardAction, pressed && styles.cardActionPressed]}
             onPress={onShowQr}
             hitSlop={8}
             accessibilityRole="button"
@@ -98,7 +139,7 @@ export function ActiveTripCard({
           </Pressable>
         )}
 
-        <ChevronRight size={18} color={BrandColors.secondary} />
+        <ChevronRight size={18} color={activeTrip ? BrandColors.secondary : BrandColors.disabled} />
       </Pressable>
     </>
   );
@@ -113,6 +154,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: Spacing.three,
   },
+  /* No trip yet: a dark grey card, so an empty dashboard reads as idle rather
+     than looking like a trip is waiting. */
+  cardNoTrip: {
+    backgroundColor: BrandColors.primary,
+  },
+  emptyBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
+  },
   cardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -123,10 +177,19 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 1,
   },
+  cardDate: {
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontSize: 11,
+    letterSpacing: 0.2,
+    color: BrandColors.secondary,
+  },
   cardTitle: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 16,
     color: BrandColors.primary,
+  },
+  cardTitleNoTrip: {
+    color: BrandColors.background,
   },
   cardHint: {
     fontFamily: 'PlusJakartaSans-Regular',
@@ -134,7 +197,10 @@ const styles = StyleSheet.create({
     color: BrandColors.primary,
     flexShrink: 1,
   },
-  qrButton: {
+  cardHintNoTrip: {
+    color: BrandColors.disabled,
+  },
+  cardAction: {
     width: 32,
     height: 32,
     borderRadius: 10,
@@ -142,7 +208,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: BrandColors.base200,
   },
-  qrPressed: {
+  cardActionPressed: {
     opacity: 0.6,
   },
   cardMetaRow: {

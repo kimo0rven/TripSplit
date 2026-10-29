@@ -1,5 +1,6 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Trip } from '@/types/trips';
+import { shortName } from '@/utils/format';
 import { todayKey } from '@/utils/money';
 import { Plus } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
@@ -39,7 +40,7 @@ export default function TripChips({ trips, activeId, onSelect, onNew }: TripChip
             accessibilityState={{ selected: active }}
           >
             <Text style={[styles.text, active && styles.textActive]} numberOfLines={1}>
-              {trip.name}
+              {shortName(trip.name)}
             </Text>
           </Pressable>
         );

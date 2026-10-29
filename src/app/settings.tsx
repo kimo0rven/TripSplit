@@ -8,35 +8,37 @@ import BigButtonOptions from '@/components/ui/big-button-options';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { HelperText } from '@/components/ui/card';
 import SyncStatusCard from '@/components/ui/sync-status-card';
+import ConfirmSheet from '@/components/ui/confirm-sheet';
+import { SettingsRow, SettingsSection } from '@/components/settings/settings-rows';
 import { currencies } from '@/constants/currencies';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/services/Firebase/useAuth';
 import { getUserData, saveDefaultCurrency } from '@/services/Firebase/userService';
+import { cacheSize, clearCache } from '@/services/offline/offlineStore';
 import {
-  isWeeklyReminderOn,
-  remindersSupported,
-  setWeeklyReminder,
-} from '@/services/reminders/weeklyReminder';
-import {
-  DEFAULT_DELIVERY,
   DEFAULT_PREFS,
-  DeliverySettings,
-  NOTICE_LABELS,
   NoticeType,
   NotificationPrefs,
-  fetchDelivery,
   fetchPrefs,
-  saveDelivery,
-  savePref,
-  setTripMuted,
 } from '@/services/notifications/inbox';
-import { fetchUserTrips } from '@/services/Firebase/tripService';
-import { Trip } from '@/types/trips';
 import { handleLogout } from '@/utils/logout';
+import { formatBytes } from '@/utils/format';
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { Bell, ChevronRight, Coins, Trash2, KeyRound, LucideIcon, UserRound } from 'lucide-react-native';
-import { ReactNode, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  Bell,
+  ChevronRight,
+  CircleHelp,
+  Coins,
+  Database,
+  KeyRound,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  UserRound,
+} from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
@@ -45,16 +47,43 @@ export default function SettingsScreen() {
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [reminderOn, setReminderOn] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [currency, setCurrency] = useState('PHP');
   const [notice, setNotice] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
-  const [delivery, setDelivery] = useState<DeliverySettings>(DEFAULT_DELIVERY);
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const [cacheOpen, setCacheOpen] = useState(false);
+  const [cacheBytes, setCacheBytes] = useState<number | null>(null);
+  const [cacheEntries, setCacheEntries] = useState(0);
+  const [clearing, setClearing] = useState(false);
   const [, setVersion] = useState(0);
+
+  // Reading the saved copies walks every entry, so it is done once on open and
+  // again after a clear, never during a render.
+  const readCacheSize = () => {
+    cacheSize()
+      .then(({ bytes, entries }) => {
+        setCacheBytes(bytes);
+        setCacheEntries(entries);
+      })
+      .catch((err) => console.warn('Could not measure the saved data:', err));
+  };
+
+  useEffect(readCacheSize, []);
+
+  const handleClearCache = async () => {
+    setClearing(true);
+    const { cleared, keptWrites } = await clearCache();
+    setClearing(false);
+    setCacheOpen(false);
+    readCacheSize();
+    setNotice(
+      keptWrites > 0
+        ? `Cleared ${cleared} saved ${cleared === 1 ? 'item' : 'items'}. ${keptWrites} unsent ${keptWrites === 1 ? 'change is' : 'changes are'} still waiting to be sent.`
+        : `Cleared ${cleared} saved ${cleared === 1 ? 'item' : 'items'}.`,
+    );
+  };
 
   const canChangePassword = !!currentUser?.providerData?.some(
     (provider) => provider.providerId === 'password',
@@ -65,12 +94,6 @@ export default function SettingsScreen() {
     fetchPrefs(currentUser.uid)
       .then(setPrefs)
       .catch((err) => console.warn('Could not read notification settings:', err));
-    fetchDelivery(currentUser.uid)
-      .then(setDelivery)
-      .catch((err) => console.warn('Could not read delivery settings:', err));
-    fetchUserTrips(currentUser.uid)
-      .then(setTrips)
-      .catch((err) => console.warn('Could not read trips:', err));
   }, [currentUser]);
 
   useEffect(() => {
@@ -79,61 +102,6 @@ export default function SettingsScreen() {
       .then((data) => data?.currency && setCurrency(data.currency))
       .catch((err) => console.warn('Could not read the default currency:', err));
   }, [currentUser]);
-
-  useEffect(() => {
-    if (remindersSupported) isWeeklyReminderOn().then(setReminderOn).catch(() => {});
-  }, []);
-
-  const toggleReminder = async () => {
-    try {
-      const next = !reminderOn;
-      const ok = await setWeeklyReminder(next);
-      if (!ok) return flash('Allow notifications to get reminders.');
-      setReminderOn(next);
-      flash(next ? 'Weekly reminder on.' : 'Weekly reminder off.');
-    } catch (err) {
-      console.warn('Could not change the reminder:', err);
-      flash('Could not change the reminder.');
-    }
-  };
-
-  const changePref = async (type: NoticeType, on: boolean) => {
-    if (!currentUser) return;
-    setPrefs((current) => ({ ...current, [type]: on }));
-    try {
-      await savePref(currentUser.uid, type, on);
-    } catch (err) {
-      console.warn('Could not save the notification setting:', err);
-      setPrefs((current) => ({ ...current, [type]: !on }));
-      flash('Could not save that setting.');
-    }
-  };
-
-  const changeDelivery = async (patch: { push?: boolean; quiet?: boolean }) => {
-    if (!currentUser) return;
-    const previous = delivery;
-    setDelivery({ ...delivery, ...patch });
-    try {
-      await saveDelivery(currentUser.uid, patch);
-    } catch (err) {
-      console.warn('Could not save the delivery setting:', err);
-      setDelivery(previous);
-      flash('Could not save that setting.');
-    }
-  };
-
-  const changeMuted = async (tripId: string, muted: boolean) => {
-    if (!currentUser) return;
-    const previous = delivery;
-    setDelivery({ ...delivery, mutedTrips: { ...delivery.mutedTrips, [tripId]: muted } });
-    try {
-      await setTripMuted(currentUser.uid, tripId, muted);
-    } catch (err) {
-      console.warn('Could not mute the trip:', err);
-      setDelivery(previous);
-      flash('Could not save that setting.');
-    }
-  };
 
   const flash = (message: string) => {
     setNotice(message);
@@ -165,9 +133,17 @@ export default function SettingsScreen() {
     }
   };
 
-  const mutedTrips = trips.filter((trip) => delivery.mutedTrips[trip.id]);
-
   const currencyName = currencies.find((entry) => entry.value === currency)?.name ?? currency;
+
+  // A one-line answer to "will I be told?", so the row says something useful.
+  const types = Object.keys(DEFAULT_PREFS) as NoticeType[];
+  const onCount = types.filter((type) => prefs[type]).length;
+  const notifySummary =
+    onCount === 0
+      ? 'All off'
+      : onCount === types.length
+        ? 'All on'
+        : `${onCount} of ${types.length} on`;
 
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
@@ -198,94 +174,70 @@ export default function SettingsScreen() {
 
           {!!notice && <HelperText tone="success">{notice}</HelperText>}
 
-          <Section title="Account">
-            <Row icon={UserRound} label="Edit profile" onPress={() => setProfileOpen(true)} />
-            <Row
+          <SettingsSection title="Account">
+            <SettingsRow
+              icon={UserRound}
+              label="Edit profile"
+              hint="Your name and photo"
+              onPress={() => setProfileOpen(true)}
+            />
+            <SettingsRow
               icon={Coins}
               label="Default currency"
+              hint="What new trips start with"
               value={currency}
               onPress={() => setCurrencyOpen(true)}
             />
             {canChangePassword && (
-              <Row icon={KeyRound} label="Change password" onPress={() => setPasswordOpen(true)} />
+              <SettingsRow
+                icon={KeyRound}
+                label="Change password"
+                onPress={() => setPasswordOpen(true)}
+              />
             )}
-          </Section>
+          </SettingsSection>
 
-          {remindersSupported && (
-            <Section title="Reminders">
-              <Row
-                icon={Bell}
-                label="Weekly payment reminder"
-                value={reminderOn ? 'On' : 'Off'}
-                onPress={toggleReminder}
-              />
-            </Section>
-          )}
+          <SettingsSection title="Preferences">
+            <SettingsRow
+              icon={Bell}
+              label="Notifications"
+              hint="Choose what reaches you, and how"
+              value={notifySummary}
+              onPress={() => router.push('/settings/notifications' as any)}
+            />
+          </SettingsSection>
 
-          <Section title="Notifications">
-            {(Object.keys(NOTICE_LABELS) as NoticeType[]).map((type) => (
-              <View key={type} style={styles.row}>
-                <Bell size={20} color={BrandColors.primary} />
-                <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, styles.rowLabelAuto]}>{NOTICE_LABELS[type].label}</Text>
-                  <Text style={styles.rowHint}>{NOTICE_LABELS[type].hint}</Text>
-                </View>
-                <Switch
-                  value={prefs[type]}
-                  onValueChange={(on) => changePref(type, on)}
-                  {...switchColors(prefs[type])}
-                  accessibilityLabel={NOTICE_LABELS[type].label}
-                />
-              </View>
-            ))}
-          </Section>
-
-          <Section title="Delivery">
-            <View style={styles.row}>
-              <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>Push notifications</Text>
-                <Text style={styles.rowHint}>Off keeps notices in the inbox only</Text>
-              </View>
-              <Switch
-                value={delivery.push}
-                onValueChange={(on) => changeDelivery({ push: on })}
-                {...switchColors(delivery.push)}
-                accessibilityLabel="Push notifications"
-              />
-            </View>
-            <View style={styles.row}>
-              <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>Quiet hours</Text>
-                <Text style={styles.rowHint}>No pushes from 10 PM to 7 AM</Text>
-              </View>
-              <Switch
-                value={delivery.quiet}
-                onValueChange={(on) => changeDelivery({ quiet: on })}
-                {...switchColors(delivery.quiet)}
-                accessibilityLabel="Quiet hours"
-              />
-            </View>
-          </Section>
-
-          {mutedTrips.length > 0 && (
-            <Section title="Muted trips">
-              {mutedTrips.map((trip) => (
-                <View key={trip.id} style={styles.row}>
-                  <View style={styles.rowText}>
-                    <Text style={styles.rowLabel}>{trip.name}</Text>
-                    <Text style={styles.rowHint}>Mute a trip from its page with the bell</Text>
-                  </View>
-                  <Pressable onPress={() => changeMuted(trip.id, false)} accessibilityRole="button">
-                    <Text style={styles.rowValue}>Unmute</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </Section>
-          )}
-
-          <Section title="Data">
+          <SettingsSection title="Data">
             <SyncStatusCard />
-          </Section>
+            <SettingsRow
+              icon={Sparkles}
+              label="Saved offline data"
+              hint="Copies of trips kept on this phone so they open without a signal"
+              value={cacheBytes === null ? '—' : `${formatBytes(cacheBytes)}`}
+              onPress={() => setCacheOpen(true)}
+            />
+          </SettingsSection>
+
+          <SettingsSection title="About">
+            <SettingsRow
+              icon={CircleHelp}
+              label="How TripSplit works"
+              hint="Splitting, settling up, and privacy"
+              onPress={() => router.push('/settings/about' as any)}
+            />
+            <SettingsRow
+              icon={ShieldCheck}
+              label="Privacy and your data"
+              hint="What is stored, and who can see it"
+              onPress={() => router.push('/settings/privacy' as any)}
+            />
+            <SettingsRow
+              icon={Database}
+              label="App version"
+              value={Constants.expoConfig?.version ?? '1.0.0'}
+              onPress={() => {}}
+            />
+          </SettingsSection>
 
           <PrimaryButton
             title={loggingOut ? 'Logging out…' : 'Log out'}
@@ -297,10 +249,26 @@ export default function SettingsScreen() {
             disabled={loggingOut}
           />
           {canChangePassword && (
-            <Row icon={Trash2} label="Delete account" onPress={() => setDeleteOpen(true)} />
+            <SettingsRow icon={Trash2} label="Delete account" onPress={() => setDeleteOpen(true)} />
           )}
         </View>
       </ScrollView>
+
+      <ConfirmSheet
+        visible={cacheOpen}
+        title="Clear saved data?"
+        message={
+          cacheEntries === 0
+            ? 'Nothing is saved on this phone right now, so there is nothing to clear.'
+            : `This frees about ${formatBytes(cacheBytes ?? 0)} by removing the offline copies of your trips. They download again next time you open each one. Anything you changed while offline is kept and still gets sent.`
+        }
+        confirmLabel={cacheEntries === 0 ? 'Close' : 'Clear saved data'}
+        icon="delete"
+        busy={clearing}
+        onConfirm={() => (cacheEntries === 0 ? setCacheOpen(false) : handleClearCache())}
+        onCancel={() => setCacheOpen(false)}
+      />
+
       <DeleteAccountSheet visible={deleteOpen} onClose={() => setDeleteOpen(false)} />
 
       <EditProfileSheet
@@ -330,43 +298,6 @@ export default function SettingsScreen() {
         />
       </BottomSheet>
     </SafeAreaView>
-  );
-}
-
-const switchColors = (on: boolean) => ({
-  trackColor: { false: BrandColors.border, true: BrandColors.base400 },
-  thumbColor: on ? BrandColors.base50 : BrandColors.background,
-  // React Native Web ignores thumbColor when on and falls back to teal.
-  activeThumbColor: BrandColors.base50,
-});
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionBody}>{children}</View>
-    </View>
-  );
-}
-
-function Row({
-  icon: Icon,
-  label,
-  value,
-  onPress,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value?: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable style={styles.row} onPress={onPress} accessibilityRole="button">
-      <Icon size={20} color={BrandColors.primary} />
-      <Text style={styles.rowLabel}>{label}</Text>
-      {!!value && <Text style={styles.rowValue}>{value}</Text>}
-      <ChevronRight size={18} color={BrandColors.secondary} />
-    </Pressable>
   );
 }
 
@@ -400,32 +331,4 @@ const styles = StyleSheet.create({
   userInfo: { flex: 1, gap: Spacing.half },
   userName: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 18, color: BrandColors.primary },
   userEmail: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 14, color: BrandColors.secondary },
-  section: { gap: Spacing.two },
-  sectionTitle: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 13,
-    color: BrandColors.secondary,
-    textTransform: 'uppercase',
-  },
-  sectionBody: { gap: Spacing.two },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    backgroundColor: BrandColors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 15,
-    padding: Spacing.four,
-  },
-  rowLabel: {
-    flex: 1,
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 15,
-    color: BrandColors.primary,
-  },
-  rowLabelAuto: { flex: 0 },
-  rowText: { flex: 1, gap: 2 },
-  rowHint: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
-  rowValue: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 14, color: BrandColors.secondary },
 });

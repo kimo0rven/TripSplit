@@ -18,7 +18,7 @@ import {
   View,
 } from 'react-native';
 
-export default function signUpScreen() {
+export default function SignUpScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

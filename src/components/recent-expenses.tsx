@@ -8,7 +8,7 @@ import { formatDayTime, formatMoney } from '@/utils/money';
 interface RecentExpensesProps {
   expenses: Expense[];
   /** Trip members, so a payer id can be drawn as their face and named for screen readers. */
-  members: Array<{ id: string; fullname: string; photoURL?: string }>;
+  members: { id: string; fullname: string; photoURL?: string }[];
   currency: string;
   limit?: number;
   onExpensePress?: (expense: Expense) => void;

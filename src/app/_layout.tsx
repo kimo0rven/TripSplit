@@ -1,4 +1,5 @@
 import LoadingScreen from '@/components/Loader/LoadingScreen';
+import ErrorBoundary from '@/components/ui/error-boundary';
 import { FontAssets } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/services/Firebase/useAuth';
 import { useFonts } from 'expo-font';
@@ -14,10 +15,16 @@ SplashScreen.preventAutoHideAsync();
 const MIN_LOADING_TIME = 1500;
 const FORCE_LOADING_SCREEN = false;
 
-function RootLayoutNav({ fontsLoaded, fontError }: { fontsLoaded: boolean; fontError: Error | null }) {
+function RootLayoutNav({
+  fontsLoaded,
+  fontError,
+}: {
+  fontsLoaded: boolean;
+  fontError: Error | null;
+}) {
   const router = useRouter();
   const segments = useSegments();
-  
+
   const { currentUser, loading } = useAuth();
   const authInitialized = !loading;
 
@@ -32,10 +39,7 @@ function RootLayoutNav({ fontsLoaded, fontError }: { fontsLoaded: boolean; fontE
   }, []);
 
   const isReady =
-    !FORCE_LOADING_SCREEN &&
-    (fontsLoaded || !!fontError) &&
-    minTimeElapsed &&
-    authInitialized;
+    !FORCE_LOADING_SCREEN && (fontsLoaded || !!fontError) && minTimeElapsed && authInitialized;
 
   useEffect(() => {
     if (isReady) {
@@ -56,7 +60,7 @@ function RootLayoutNav({ fontsLoaded, fontError }: { fontsLoaded: boolean; fontE
         }
       } else {
         if (inAuthGroup || isAccountSetup) {
-          router.replace('/homescreen');
+          router.replace('/dashboard');
         }
       }
     } else {
@@ -95,6 +99,10 @@ function RootLayoutNav({ fontsLoaded, fontError }: { fontsLoaded: boolean; fontE
     </Stack>
   );
 }
+
+// Expo Router catches a thrown screen with this, so a crash shows a way back
+// instead of the raw developer error.
+export { ErrorBoundary };
 
 export default function RootLayout() {
   const [loaded, error] = useFonts(FontAssets);

@@ -75,7 +75,10 @@ export const computeTripTotals = (
   settlements: Settlement[] = [],
 ): TripTotals => {
   const spent = expenses.reduce((sum, expense) => sum + cents(expense.amount), 0) / 100;
-  const settled = settlements.filter(countsTowardBalance).reduce((sum, settlement) => sum + cents(settlement.amount), 0) / 100;
+  const settled =
+    settlements
+      .filter(countsTowardBalance)
+      .reduce((sum, settlement) => sum + cents(settlement.amount), 0) / 100;
 
   return {
     total: spent,
@@ -131,7 +134,12 @@ export const simplifyDebts = (balances: MemberBalance[]): DebtEdge[] => {
   return edges;
 };
 
-/** Before simplification: how much each pair of members owes each other. */
+/**
+ * Same result as `simplifyDebts`, under an older name kept for compatibility.
+ * It does not pair members up: the edges come back already simplified, so
+ * `a -> b` may skip a member who was in the middle. Use `debtBetween` when you
+ * need the direct figure between two specific people.
+ */
 export const pairwiseDebts = (balances: MemberBalance[]): DebtEdge[] => simplifyDebts(balances);
 
 export interface SettlementSuggestion {
@@ -157,7 +165,14 @@ export const debtBetween = (edges: DebtEdge[], from: string, to: string): number
   return 0;
 };
 
-/** Categories offered on the expense form. */
+/**
+ * Categories offered on the expense form.
+ *
+ * The first five are the everyday ones and stay on the form all the time. The
+ * rest live behind "More" in the category picker, so the form never grows a
+ * wall of chips. Keep the pictures in `constants/expense-categories.ts` in step
+ * with this list.
+ */
 export const EXPENSE_CATEGORIES = [
   { value: 'food', label: 'Food' },
   { value: 'transport', label: 'Transport' },
@@ -165,7 +180,45 @@ export const EXPENSE_CATEGORIES = [
   { value: 'activity', label: 'Activity' },
   { value: 'shopping', label: 'Shopping' },
   { value: 'other', label: 'Other' },
+
+  { value: 'grocery', label: 'Groceries' },
+  { value: 'snacks', label: 'Snacks' },
+  { value: 'drinks', label: 'Drinks' },
+
+  { value: 'fuel', label: 'Fuel' },
+  { value: 'parking', label: 'Parking' },
+  { value: 'tolls', label: 'Tolls' },
+  { value: 'flight', label: 'Flight' },
+  { value: 'boat', label: 'Boat' },
+  { value: 'rental', label: 'Rental' },
+
+  { value: 'rent', label: 'Rent' },
+  { value: 'laundry', label: 'Laundry' },
+  { value: 'wifi', label: 'Wifi' },
+
+  { value: 'supplies', label: 'Supplies' },
+  { value: 'medicine', label: 'Medicine' },
+
+  { value: 'tickets', label: 'Tickets' },
+  { value: 'games', label: 'Games' },
+  { value: 'photos', label: 'Photos' },
+
+  { value: 'souvenir', label: 'Souvenir' },
+  { value: 'fees', label: 'Fees' },
+  { value: 'tips', label: 'Tips' },
+  { value: 'pet', label: 'Pets' },
+  { value: 'insurance', label: 'Insurance' },
 ] as const;
+
+/**
+ * The five everyday categories kept next to the amount on the form.
+ *
+ * Everything else is one tap away behind "More", which is what keeps the form
+ * short while still offering the full list.
+ */
+export const QUICK_CATEGORIES: string[] = EXPENSE_CATEGORIES.slice(0, 5).map(
+  (entry) => entry.value,
+);
 
 export const categoryLabel = (value?: string): string =>
   EXPENSE_CATEGORIES.find((category) => category.value === value)?.label ?? 'Other';
