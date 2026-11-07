@@ -11,6 +11,18 @@ import SyncStatusCard from '@/components/ui/sync-status-card';
 import ConfirmSheet from '@/components/ui/confirm-sheet';
 import { SettingsRow, SettingsSection } from '@/components/settings/settings-rows';
 import { currencies } from '@/constants/currencies';
+import {
+  AppearanceChoice,
+  readAppearanceChoice,
+  saveAppearanceChoice,
+  startupChoice,
+} from '@/constants/appearance';
+
+const APPEARANCES = [
+  { name: 'Same as phone', value: 'system' },
+  { name: 'Light', value: 'light' },
+  { name: 'Dark', value: 'dark' },
+];
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/services/Firebase/useAuth';
 import { getUserData, saveDefaultCurrency } from '@/services/Firebase/userService';
@@ -31,6 +43,7 @@ import {
   CircleHelp,
   Coins,
   Database,
+  Moon,
   KeyRound,
   ShieldCheck,
   Sparkles,
@@ -49,6 +62,9 @@ export default function SettingsScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  /** What is saved for next time; the colours on screen are what the app started with. */
+  const [appearance, setAppearance] = useState<AppearanceChoice>(readAppearanceChoice);
   const [currency, setCurrency] = useState('PHP');
   const [notice, setNotice] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
@@ -199,6 +215,17 @@ export default function SettingsScreen() {
 
           <SettingsSection title="Preferences">
             <SettingsRow
+              icon={Moon}
+              label="Appearance"
+              hint={
+                appearance !== startupChoice
+                  ? 'Close and reopen TripSplit to switch'
+                  : 'Light, dark, or the same as your phone'
+              }
+              value={APPEARANCES.find((option) => option.value === appearance)?.name}
+              onPress={() => setAppearanceOpen(true)}
+            />
+            <SettingsRow
               icon={Bell}
               label="Notifications"
               hint="Choose what reaches you, and how"
@@ -295,6 +322,27 @@ export default function SettingsScreen() {
           selectedValue={currency}
           onSelect={(choice) => chooseCurrency(choice.value)}
           maxHeight={360}
+        />
+      </BottomSheet>
+
+      <BottomSheet
+        visible={appearanceOpen}
+        title="Appearance"
+        onClose={() => setAppearanceOpen(false)}
+      >
+        <HelperText>
+          {appearance !== startupChoice
+            ? 'Saved. Close TripSplit fully and open it again to see the change.'
+            : 'The change applies the next time you open TripSplit.'}
+        </HelperText>
+        <BigButtonOptions
+          choices={APPEARANCES}
+          selectedValue={appearance}
+          onSelect={(choice) => {
+            const next = choice.value as AppearanceChoice;
+            saveAppearanceChoice(next);
+            setAppearance(next);
+          }}
         />
       </BottomSheet>
     </SafeAreaView>

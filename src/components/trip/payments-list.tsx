@@ -110,8 +110,10 @@ export default function PaymentsList({
           <Text style={styles.pendingText}>
             {settlement.to === currentUserId
               ? first(settlement.from) +
-                ' says they paid you. Did you receive it? Declining puts the debt back.'
-              : 'Taken off the balance. Waiting for ' + first(settlement.to) + ' to confirm.'}
+                ' says they paid you. Did you receive it? Confirming takes it off the balance.'
+              : 'Waiting for ' +
+                first(settlement.to) +
+                ' to confirm. It comes off the balance once they do.'}
           </Text>
           {settlement.to === currentUserId && !!onRespond && (
             <View style={styles.pendingButtons}>

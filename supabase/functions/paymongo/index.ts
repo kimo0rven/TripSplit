@@ -763,6 +763,126 @@ const sessionFromMetadata = (checkout: any): Session | null => {
   };
 };
 
+/* -------------------------------------------------------- app services */
+
+/*
+ * Two jobs the app can't do safely on the phone: sending push notifications
+ * (which needs the other person's push token and settings, now private) and
+ * handing out storage upload links (the storage bucket no longer lets the app
+ * write directly). Both check who is asking with their Firebase sign-in.
+ */
+
+const SUPABASE_URL = env('SUPABASE_URL').replace(/\/$/, '');
+const SUPABASE_SERVICE_KEY = env('SUPABASE_SERVICE_ROLE_KEY');
+const STORAGE_BUCKET = env('STORAGE_BUCKET') || 'TripSplit';
+/** About ten years, so a saved photo link effectively never expires. */
+const READ_LINK_SECONDS = 60 * 60 * 24 * 365 * 10;
+
+/** The signed-in person making the request, or a refusal. */
+const caller = async (request: Request): Promise<string> => {
+  if (!RECORDS) throw new Refusal(503, 'The server is missing its Firebase settings.');
+  const uid = await userFromToken(request.headers.get('x-firebase-token') || '');
+  if (!uid) throw new Refusal(401, 'Sign in again, then try that once more.');
+  return uid;
+};
+
+/** UTC offset in minutes and quiet hours: no pushes from 10 PM to 7 AM their time. */
+const isQuietFor = (tz: number) => {
+  const hour = new Date(Date.now() + (Number(tz) || 0) * 60_000).getUTCHours();
+  return hour >= 22 || hour < 7;
+};
+
+/**
+ * Sends the push for a notice that is already in someone's inbox. The notice
+ * itself was let in by the database rules, which check the sender shares a
+ * trip or a friendship with them, so here it only has to be the caller's own.
+ */
+const pushNotice = async (from: string, to: string, noticeId: string) => {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(to) || !/^[A-Za-z0-9_-]{1,80}$/.test(noticeId)) {
+    throw new Refusal(400, 'That notice could not be found.');
+  }
+  const notice = await db(`notifications/${to}/${noticeId}`);
+  if (!notice || notice.from !== from) throw new Refusal(403, 'That notice is not yours to send.');
+  if (to === from) return 'inbox';
+
+  const settings = (await db(`userPrivate/${to}`)) || {};
+  const prefs = settings.notificationPrefs || {};
+  const delivery = settings.notificationSettings || {};
+  if (prefs[notice.type] === false) return 'off';
+  if (notice.tripId && delivery.mutedTrips?.[notice.tripId]) return 'off';
+  if (delivery.push === false || !settings.pushToken) return 'inbox';
+  if (delivery.quiet && isQuietFor(delivery.tz)) return 'inbox';
+
+  const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({
+      to: settings.pushToken,
+      title: String(notice.title || ''),
+      body: String(notice.body || ''),
+      sound: 'default',
+      data: { tripId: notice.tripId || undefined },
+    }),
+  });
+  const result = await response.json().catch(() => ({}));
+  return response.ok && result?.data?.status !== 'error' ? 'pushed' : 'inbox';
+};
+
+/** Who may put a file at a path: their own folder, or a trip they are in. */
+const mayWrite = async (uid: string, path: string) => {
+  const parts = path.split('/');
+  if (parts.some((part) => !part || part === '.' || part === '..')) return false;
+  if (parts[0] === uid) return true;
+  if (['receipts', 'itinerary', 'notes'].includes(parts[0]) && parts[1]) {
+    const trip = await db(`trips/${parts[1]}/createdBy`);
+    // A trip being created uploads its plan photos just before it exists.
+    if (trip === null) return true;
+    return (await db(`trips/${parts[1]}/members/${uid}/id`)) !== null;
+  }
+  return false;
+};
+
+const storageApi = async (path: string, init: RequestInit) => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    throw new Refusal(503, 'The server is missing its storage settings.');
+  }
+  const response = await fetch(`${SUPABASE_URL}/storage/v1/${path}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      apikey: SUPABASE_SERVICE_KEY,
+      'content-type': 'application/json',
+      ...(init.headers || {}),
+    },
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Refusal(502, body?.message || 'Storage refused that.');
+  return body;
+};
+
+const objectPath = (path: string) => path.split('/').map(encodeURIComponent).join('/');
+
+/** Every file under a folder, walking into sub-folders. */
+const listFolder = async (prefix: string, depth = 0): Promise<string[]> => {
+  const files: string[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const entries = (await storageApi(`object/list/${STORAGE_BUCKET}`, {
+      method: 'POST',
+      body: JSON.stringify({ prefix, limit: 1000, offset }),
+    })) as { name: string; id: string | null }[];
+    for (const entry of entries || []) {
+      const path = `${prefix}/${entry.name}`;
+      if (!entry.id) {
+        if (depth < 3) files.push(...(await listFolder(path, depth + 1)));
+      } else {
+        files.push(path);
+      }
+    }
+    if (!entries || entries.length < 1000) break;
+  }
+  return files;
+};
+
 /* ----------------------------------------------------------------- handler */
 
 Deno.serve(async (request: Request) => {
@@ -942,6 +1062,66 @@ Deno.serve(async (request: Request) => {
       statusCache.set(session.providerId, result);
       const settlement = await recordPayment(session, result);
       return json(200, { ok: true, recorded: Boolean(settlement) });
+    }
+
+    if (route === '/push' && request.method === 'POST') {
+      const uid = await caller(request);
+      const body = await request.json().catch(() => ({}) as Record<string, unknown>);
+      const status = await pushNotice(uid, String(body.to || ''), String(body.noticeId || ''));
+      return json(200, { ok: true, status });
+    }
+
+    if (route === '/storage/upload' && request.method === 'POST') {
+      const uid = await caller(request);
+      const body = await request.json().catch(() => ({}) as Record<string, unknown>);
+      const path = String(body.path || '');
+      if (!(await mayWrite(uid, path))) {
+        return json(403, { ok: false, error: 'You can’t add files there.' });
+      }
+      const signed = await storageApi(`object/upload/sign/${STORAGE_BUCKET}/${objectPath(path)}`, {
+        method: 'POST',
+        headers: { 'x-upsert': 'true' },
+      });
+      const token = new URL(String(signed.url || ''), 'https://x').searchParams.get('token');
+      if (!token) return json(502, { ok: false, error: 'Storage gave no upload link.' });
+      return json(200, { ok: true, path, token });
+    }
+
+    if (route === '/storage/link' && request.method === 'POST') {
+      const uid = await caller(request);
+      const body = await request.json().catch(() => ({}) as Record<string, unknown>);
+      const path = String(body.path || '');
+      if (!(await mayWrite(uid, path))) {
+        return json(403, { ok: false, error: 'That file is not yours to share.' });
+      }
+      const signed = await storageApi(`object/sign/${STORAGE_BUCKET}/${objectPath(path)}`, {
+        method: 'POST',
+        body: JSON.stringify({ expiresIn: READ_LINK_SECONDS }),
+      });
+      return json(200, { ok: true, url: `${SUPABASE_URL}/storage/v1${signed.signedURL}` });
+    }
+
+    if (route === '/storage/delete-trip' && request.method === 'POST') {
+      await caller(request);
+      const body = await request.json().catch(() => ({}) as Record<string, unknown>);
+      const tripId = String(body.tripId || '');
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(tripId)) return json(400, { ok: false, error: 'No trip.' });
+      // Only a trip that is already gone can have its photos cleared.
+      if ((await db(`trips/${tripId}/createdBy`)) !== null) {
+        return json(409, { ok: false, error: 'That trip still exists.' });
+      }
+      let removed = 0;
+      for (const folder of ['receipts', 'itinerary', 'notes']) {
+        const files = await listFolder(`${folder}/${tripId}`);
+        for (let i = 0; i < files.length; i += 100) {
+          await storageApi(`object/${STORAGE_BUCKET}`, {
+            method: 'DELETE',
+            body: JSON.stringify({ prefixes: files.slice(i, i + 100) }),
+          });
+          removed += Math.min(100, files.length - i);
+        }
+      }
+      return json(200, { ok: true, removed });
     }
 
     return json(404, { ok: false, error: 'Not found.' });

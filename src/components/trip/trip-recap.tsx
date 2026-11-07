@@ -123,7 +123,7 @@ export default function TripRecap({
     // Only interesting when one day really did carry more than its share.
     const priciestDayMatters = expenses.length > 1 && priciestDay !== null;
 
-    const outstanding = simplifyDebts(totals.balances);
+    const outstanding = simplifyDebts(totals.balances, settlements);
     const unsettled = totals.balances
       .filter((balance) => balance.net > 0)
       .reduce((sum, balance) => sum + balance.net, 0);

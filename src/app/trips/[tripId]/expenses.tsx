@@ -9,17 +9,19 @@ import ConfirmSheet from '@/components/ui/confirm-sheet';
 import EmptyState from '@/components/ui/empty-state';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { categoryLook } from '@/constants/expense-categories';
-import { EXPENSE_CATEGORIES } from '@/utils/balance';
+import { categoryLabel, EXPENSE_CATEGORIES } from '@/utils/balance';
 import { deleteExpense, fetchExpenses } from '@/services/Firebase/expenseService';
 import { saveReactions } from '@/services/Firebase/funService';
 import { fetchTrip } from '@/services/Firebase/tripService';
 import { useAuth } from '@/services/Firebase/useAuth';
 import { Expense } from '@/types/expenses';
 import { Trip, TripMember } from '@/types/trips';
-import { formatMoney } from '@/utils/money';
+import { formatDay, formatMoney } from '@/utils/money';
+import { ExpenseSort, findExpenses } from '@/utils/expenseSearch';
+import { TextfieldLeftIcon } from '@/components/ui/text-input-field';
 import { shortName } from '@/utils/format';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Plus, Receipt } from 'lucide-react-native';
+import { Plus, Receipt, Search, SlidersHorizontal } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -45,6 +47,11 @@ export default function AllExpensesScreen() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [category, setCategory] = useState<string | null>(null);
   const [payerId, setPayerId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [sharedWith, setSharedWith] = useState<string | null>(null);
+  const [day, setDay] = useState<string | null>(null);
+  const [sort, setSort] = useState<ExpenseSort>('newest');
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // The spinner belongs to the first load only; afterwards the saved copy is
   // already on screen and blanking it would just flicker.
@@ -123,18 +130,57 @@ export default function AllExpensesScreen() {
     [members, expenses],
   );
 
+  /** Everyone who shares at least one expense. */
+  const sharerFilters: FilterOption[] = useMemo(
+    () =>
+      members
+        .filter((member) =>
+          expenses.some((row) => Object.keys(row.shares ?? {}).includes(member.id)),
+        )
+        .map((member) => ({
+          value: member.id,
+          label: member.id === currentUser?.uid ? 'Me' : member.fullname.split(' ')[0],
+        })),
+    [members, expenses, currentUser?.uid],
+  );
+
+  /** Only the days something was spent, newest first. */
+  const dayFilters: FilterOption[] = useMemo(
+    () =>
+      [...new Set(expenses.map((row) => row.spentOn))]
+        .sort()
+        .reverse()
+        .map((value) => ({ value, label: formatDay(value).replace(/, \d{4}$/, '') })),
+    [expenses],
+  );
+
+  const nameOf = useCallback(
+    (id: string) => members.find((member) => member.id === id)?.fullname ?? '',
+    [members],
+  );
+
   const visible = useMemo(
     () =>
-      expenses.filter((row) => {
-        if (category && row.category !== category) return false;
-        if (payerId && !Object.keys(row.paidBy ?? {}).includes(payerId)) return false;
-        return true;
-      }),
-    [expenses, category, payerId],
+      findExpenses(
+        expenses,
+        { text: search, category, payerId, sharedWith, day, sort },
+        nameOf,
+        categoryLabel,
+      ),
+    [expenses, search, category, payerId, sharedWith, day, sort, nameOf],
   );
 
   const total = visible.reduce((sum, expense) => sum + (expense.amount || 0), 0);
-  const filtering = !!category || !!payerId;
+  const extraFilters = (sharedWith ? 1 : 0) + (day ? 1 : 0) + (sort !== 'newest' ? 1 : 0);
+  const filtering = !!search.trim() || !!category || !!payerId || !!sharedWith || !!day;
+  const clearAll = () => {
+    setSearch('');
+    setCategory(null);
+    setPayerId(null);
+    setSharedWith(null);
+    setDay(null);
+    setSort('newest');
+  };
 
   const runDelete = async () => {
     if (!pendingDelete || !tripId || deleting) return;
@@ -186,6 +232,14 @@ export default function AllExpensesScreen() {
             />
           ) : (
             <>
+              <TextfieldLeftIcon
+                title=""
+                placeholder="Search names, notes, people or amounts"
+                value={search}
+                onChangeText={setSearch}
+                leftIcon={Search}
+              />
+
               {/* Filters sit above the list, not inside the scroll area, so they
                   stay reachable however far down the history you are. */}
               {categoryFilters.length > 1 && (
@@ -206,16 +260,68 @@ export default function AllExpensesScreen() {
                 />
               )}
 
+              <View style={styles.moreRow}>
+                <Pressable
+                  style={styles.moreToggle}
+                  onPress={() => setMoreOpen((open) => !open)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: moreOpen }}
+                >
+                  <SlidersHorizontal size={14} color={BrandColors.info} />
+                  <Text style={styles.moreText}>
+                    {moreOpen ? 'Fewer filters' : 'More filters'}
+                    {extraFilters ? ` (${extraFilters})` : ''}
+                  </Text>
+                </Pressable>
+                {(filtering || sort !== 'newest') && (
+                  <Pressable onPress={clearAll} hitSlop={8} accessibilityRole="button">
+                    <Text style={styles.clearText}>Clear all</Text>
+                  </Pressable>
+                )}
+              </View>
+
+              {moreOpen && (
+                <View style={styles.more}>
+                  {sharerFilters.length > 1 && (
+                    <FilterChips
+                      options={sharerFilters}
+                      value={sharedWith}
+                      onChange={setSharedWith}
+                      allLabel="Anyone"
+                      label="Filter by who shares it"
+                    />
+                  )}
+                  {dayFilters.length > 1 && (
+                    <FilterChips
+                      options={dayFilters}
+                      value={day}
+                      onChange={setDay}
+                      allLabel="Any day"
+                      label="Filter by day"
+                    />
+                  )}
+                  <FilterChips
+                    options={SORTS.slice(1)}
+                    value={sort}
+                    onChange={(value) => setSort((value as ExpenseSort) || 'newest')}
+                    allValue="newest"
+                    allLabel="Newest"
+                    label="Sort"
+                  />
+                </View>
+              )}
+
               {visible.length === 0 ? (
                 <EmptyState
                   icon={Receipt}
                   title="Nothing matches"
-                  message="No expense fits these filters. Try a different category or person."
-                  actionLabel="Clear filters"
-                  onAction={() => {
-                    setCategory(null);
-                    setPayerId(null);
-                  }}
+                  message={
+                    search.trim()
+                      ? `No expense matches “${search.trim()}” with these filters.`
+                      : 'No expense fits these filters. Try a different category or person.'
+                  }
+                  actionLabel="Clear all"
+                  onAction={clearAll}
                 />
               ) : (
                 <>
@@ -225,7 +331,8 @@ export default function AllExpensesScreen() {
                     currency={currency}
                     currentUserId={currentUserId}
                     canChange={() => true}
-                    grouped
+                    // Grouping by day only reads right when the list is in date order.
+                    grouped={sort === 'newest' || sort === 'oldest'}
                     onPress={(expense) => setDetailId(expense.id)}
                     onReact={async (expenseId, next) => {
                       const before = expenses.find((entry) => entry.id === expenseId)?.reactions;
@@ -248,7 +355,7 @@ export default function AllExpensesScreen() {
                   />
                   <Text style={styles.footNote}>
                     {filtering
-                      ? `${visible.length} of ${expenses.length} entries shown.`
+                      ? `${visible.length} of ${expenses.length} entries shown · ${formatMoney(total, currency)}.`
                       : "Anyone in this trip can edit or delete an expense. Every change is kept in the expense's edit log."}
                   </Text>
                 </>
@@ -325,7 +432,24 @@ export default function AllExpensesScreen() {
   );
 }
 
+const SORTS: FilterOption[] = [
+  { value: 'newest', label: 'Newest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'highest', label: 'Highest' },
+  { value: 'lowest', label: 'Lowest' },
+];
+
 const styles = StyleSheet.create({
+  moreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  moreToggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  moreText: {
+    flex: 1,
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 13,
+    color: BrandColors.info,
+  },
+  clearText: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, color: BrandColors.secondary },
+  more: { gap: Spacing.two },
   flex: {
     flex: 1,
     backgroundColor: BrandColors.background,

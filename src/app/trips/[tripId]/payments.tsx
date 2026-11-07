@@ -134,7 +134,10 @@ export default function AllPaymentsScreen() {
   const edges = useMemo(() => {
     const ids = members.map((member) => member.id);
     const { balances } = computeTripTotals(ids, expenses, payments);
-    return simplifyDebts(balances.filter((balance) => ids.includes(balance.memberId)));
+    return simplifyDebts(
+      balances.filter((balance) => ids.includes(balance.memberId)),
+      payments,
+    );
   }, [members, expenses, payments]);
   const currentUserId = currentUser?.uid ?? '';
   const currency = trip?.currency || 'PHP';

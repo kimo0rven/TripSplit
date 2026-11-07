@@ -89,6 +89,24 @@ interface PaymentLike {
   createdAt?: string;
 }
 
+/**
+ * Money already sent from one person to another that the receiver hasn't
+ * confirmed yet. It doesn't count in the balances until they do, so the
+ * debt still shows it; this is what to take off before paying again.
+ */
+export const pendingBetween = (
+  payments: { from: string; to: string; amount: number; status?: string }[],
+  from: string,
+  to: string,
+): number =>
+  Math.round(
+    payments
+      .filter(
+        (payment) => payment.status === 'pending' && payment.from === from && payment.to === to,
+      )
+      .reduce((sum, payment) => sum + Math.round(Number(payment.amount) * 100), 0),
+  ) / 100;
+
 /** How far back a payment of the same amount between the same two people counts as a likely repeat. */
 export const DUPLICATE_WINDOW_MS = 24 * 60 * 60 * 1000;
 

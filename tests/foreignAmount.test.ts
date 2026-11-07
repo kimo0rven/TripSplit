@@ -42,3 +42,15 @@ test('a saved original is read back, and junk is ignored', () => {
   assert.equal(readOriginal({ currency: 'USD', amount: 0, rate: 56.2 }), null);
   assert.equal(readOriginal(null), null);
 });
+
+test('what each payer put in abroad is kept, and junk payers dropped', () => {
+  assert.deepEqual(
+    readOriginal({
+      currency: 'USD',
+      amount: 50,
+      rate: 56.2,
+      paidBy: { kim: 30, ana: 20, bad: 'x' },
+    }),
+    { currency: 'USD', amount: 50, rate: 56.2, paidBy: { kim: 30, ana: 20 } },
+  );
+});

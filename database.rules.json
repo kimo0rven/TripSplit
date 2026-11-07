@@ -1,17 +1,17 @@
 {
   "rules": {
     "users": {
-      ".read": "auth != null",
       ".indexOn": ["email"],
       "$uid": {
-        ".write": "auth != null && auth.uid === $uid"
+        ".write": "auth != null && auth.uid === $uid",
+        ".read": "auth != null"
       }
     },
     "notifications": {
       "$uid": {
         ".read": "auth != null && (auth.token.email_verified === true || root.child('legacyUsers').child(auth.uid).exists()) && auth.uid === $uid",
         "$noticeId": {
-          ".write": "auth != null && (auth.token.email_verified === true || root.child('legacyUsers').child(auth.uid).exists()) && (auth.uid === $uid || (!data.exists() && newData.child('from').val() === auth.uid))",
+          ".write": "auth != null && (auth.token.email_verified === true || root.child('legacyUsers').child(auth.uid).exists()) && (auth.uid === $uid || (!data.exists() && newData.child('from').val() === auth.uid && (root.child('friends').child($uid).child(auth.uid).exists() || root.child('friendRequests').child('incoming').child($uid).child(auth.uid).exists() || (newData.child('about').isString() && ((root.child('trips').child(newData.child('about').val()).child('members').child(auth.uid).exists() && (root.child('trips').child(newData.child('about').val()).child('members').child($uid).exists() || root.child('joinRequests').child(newData.child('about').val()).child($uid).exists())) || (root.child('joinRequests').child(newData.child('about').val()).child(auth.uid).exists() && root.child('trips').child(newData.child('about').val()).child('createdBy').val() === $uid))))))",
           ".validate": "newData.hasChildren(['type', 'title', 'body', 'from', 'createdAt'])"
         }
       }
@@ -96,14 +96,17 @@
               "$entryId": {
                 ".validate": "newData.hasChildren(['at','by','byName','changes']) && newData.child('changes').isString() && (data.exists() ? (newData.child('at').val() === data.child('at').val() && newData.child('by').val() === data.child('by').val() && newData.child('byName').val() === data.child('byName').val() && newData.child('changes').val() === data.child('changes').val()) : (newData.child('by').val() === auth.uid || root.child('trips').child($tripId).child('trash').child($expenseId).exists()))"
               }
+            },
+            "revision": {
+              ".validate": "newData.isNumber() && (!data.parent().exists() || newData.val() === (data.exists() ? data.val() : 0) + 1)"
             }
           }
         },
         "settlements": {
           ".indexOn": ["createdAt"],
           "$settlementId": {
-            ".write": "auth != null && (auth.token.email_verified === true || root.child('legacyUsers').child(auth.uid).exists()) && root.child('trips').child($tripId).child('members').child(auth.uid).exists() && (!data.exists() || data.child('createdBy').val() === auth.uid || data.child('from').val() === auth.uid || data.child('to').val() === auth.uid)",
-            ".validate": "(!data.child('history').exists() || newData.child('history').exists()) && (!data.exists() || data.child('status').val() !== 'confirmed' || data.child('to').val() === auth.uid || newData.child('status').val() !== 'confirmed' || (newData.child('amount').val() === data.child('amount').val() && newData.child('from').val() === data.child('from').val() && newData.child('to').val() === data.child('to').val()))",
+            ".write": "auth != null && (auth.token.email_verified === true || root.child('legacyUsers').child(auth.uid).exists()) && root.child('trips').child($tripId).child('members').child(auth.uid).exists() && (!data.exists() || data.child('createdBy').val() === auth.uid || data.child('from').val() === auth.uid || data.child('to').val() === auth.uid || root.child('trips').child($tripId).child('createdBy').val() === auth.uid)",
+            ".validate": "(!data.child('history').exists() || newData.child('history').exists()) && (!data.exists() || data.child('status').val() !== 'confirmed' || data.child('to').val() === auth.uid || root.child('trips').child($tripId).child('createdBy').val() === auth.uid || newData.child('status').val() !== 'confirmed' || (newData.child('amount').val() === data.child('amount').val() && newData.child('from').val() === data.child('from').val() && newData.child('to').val() === data.child('to').val()))",
             "createdBy": {
               ".validate": "data.exists() ? newData.val() === data.val() : newData.val() === auth.uid"
             },
@@ -237,6 +240,19 @@
       "$uid": {
         ".read": "auth != null && (auth.token.email_verified === true || root.child('legacyUsers').child(auth.uid).exists()) && auth.uid === $uid",
         ".write": "auth != null && (auth.token.email_verified === true || root.child('legacyUsers').child(auth.uid).exists()) && auth.uid === $uid"
+      }
+    },
+    "userPrivate": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "emailIndex": {
+      "$key": {
+        ".read": "auth != null && (auth.token.email_verified === true || root.child('legacyUsers').child(auth.uid).exists())",
+        ".write": "auth != null && auth.token.email != null && $key === auth.token.email.toLowerCase().replace('%', '%25').replace('.', '%2E').replace('#', '%23').replace('$', '%24').replace('[', '%5B').replace(']', '%5D').replace('/', '%2F') && (!newData.exists() || newData.val() === auth.uid)",
+        ".validate": "newData.isString()"
       }
     }
   }

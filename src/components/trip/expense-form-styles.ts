@@ -209,4 +209,5 @@ export const styles = StyleSheet.create({
   whenRow: { flexDirection: 'row', gap: Spacing.two },
   whenDay: { flex: 3 },
   whenTime: { flex: 2 },
+  fxCredit: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 10, color: BrandColors.secondary },
 });

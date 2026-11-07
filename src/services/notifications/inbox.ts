@@ -1,6 +1,6 @@
 import { auth } from '@/config/firebase';
 import { newId, readPath, removeAt, writeAt, writeUpdates } from '@/services/offline/offlineStore';
-import { sendPush } from '@/services/reminders/sendPush';
+import { callServer, hasServer } from '@/services/server/appServer';
 
 export type NoticeType =
   | 'tripInvites'
@@ -25,6 +25,8 @@ export interface Notice {
   body: string;
   from: string;
   tripId?: string;
+  /** The trip it is about, for the rules, even when it doesn't link there. */
+  about?: string;
   createdAt: string;
   read?: boolean;
 }
@@ -39,7 +41,10 @@ export const NOTICE_LABELS: Record<NoticeType, { label: string; hint: string }> 
   paymentUpdates: { label: 'Payment confirmed or declined', hint: 'When your payment is answered' },
   pendingPayments: { label: 'Unconfirmed payments', hint: 'A nudge if a payment waits for you' },
   newExpenses: { label: 'New expenses', hint: 'When an expense includes you' },
-  expenseChanges: { label: 'Expense edits and deletes', hint: 'When an expense you are in changes' },
+  expenseChanges: {
+    label: 'Expense edits and deletes',
+    hint: 'When an expense you are in changes',
+  },
   tripActivity: { label: 'Trip members', hint: 'Joins, requests to join, or you were removed' },
   recurring: { label: 'Recurring expenses', hint: 'When a repeating expense is added' },
   budget: { label: 'Budget warnings', hint: 'At 80% and 100% of a trip budget' },
@@ -62,14 +67,25 @@ export interface DeliverySettings {
   mutedTrips: Record<string, boolean>;
 }
 
-export const DEFAULT_DELIVERY: DeliverySettings = { push: true, quiet: false, tz: 0, mutedTrips: {} };
+export const DEFAULT_DELIVERY: DeliverySettings = {
+  push: true,
+  quiet: false,
+  tz: 0,
+  mutedTrips: {},
+};
 
-const deliveryPath = (uid: string) => 'users/' + uid + '/notificationSettings';
+/**
+ * Each person's own settings live under `userPrivate`, which only they can
+ * read. Nobody else can see their push token, quiet hours or muted trips.
+ */
+export const privatePath = (uid: string, key: string) => 'userPrivate/' + uid + '/' + key;
+
+const deliveryPath = (uid: string) => privatePath(uid, 'notificationSettings');
 
 export async function fetchDelivery(uid: string): Promise<DeliverySettings> {
-  const stored = (await readPath(deliveryPath(uid), { preferCache: false })) as
-    | Partial<DeliverySettings>
-    | null;
+  const stored = (await readPath(deliveryPath(uid), {
+    preferCache: false,
+  })) as Partial<DeliverySettings> | null;
   return { ...DEFAULT_DELIVERY, ...(stored ?? {}), mutedTrips: stored?.mutedTrips ?? {} };
 }
 
@@ -88,18 +104,12 @@ export async function setTripMuted(uid: string, tripId: string, muted: boolean):
   await writeUpdates({ [deliveryPath(uid) + '/mutedTrips/' + tripId]: muted ? true : null });
 }
 
-const isQuietNow = (tz: number): boolean => {
-  const minutes = (Math.floor(Date.now() / 60000) + tz + 1440 * 2) % 1440;
-  const hour = Math.floor(minutes / 60);
-  return hour >= 22 || hour < 7;
-};
-
-const prefsPath = (uid: string) => 'users/' + uid + '/notificationPrefs';
+const prefsPath = (uid: string) => privatePath(uid, 'notificationPrefs');
 
 export async function fetchPrefs(uid: string): Promise<NotificationPrefs> {
-  const stored = (await readPath(prefsPath(uid), { preferCache: false })) as
-    | Partial<NotificationPrefs>
-    | null;
+  const stored = (await readPath(prefsPath(uid), {
+    preferCache: false,
+  })) as Partial<NotificationPrefs> | null;
   return { ...DEFAULT_PREFS, ...(stored ?? {}) };
 }
 
@@ -123,15 +133,22 @@ export async function notify(
   type: NoticeType,
   title: string,
   body: string,
-  options: { tripId?: string; push?: boolean; id?: string } = {},
+  options: {
+    tripId?: string;
+    /**
+     * The trip a notice is about when it shouldn't link there (a trip that
+     * was deleted, or one they were removed from). The database rules use it
+     * to check the sender and the person share that trip.
+     */
+    about?: string;
+    push?: boolean;
+    id?: string;
+  } = {},
 ): Promise<NotifyResult> {
   const me = auth.currentUser?.uid;
   if (!me || !toUserId) return 'failed';
   try {
-    const [prefs, delivery] = await Promise.all([fetchPrefs(toUserId), fetchDelivery(toUserId)]);
-    if (!prefs[type]) return 'off';
-    if (options.tripId && delivery.mutedTrips[options.tripId]) return 'off';
-
+    const about = options.about ?? options.tripId;
     const notice: Notice = {
       id: options.id || newId(),
       type,
@@ -139,21 +156,21 @@ export async function notify(
       body,
       from: me,
       ...(options.tripId ? { tripId: options.tripId } : {}),
+      ...(about ? { about } : {}),
       createdAt: new Date().toISOString(),
       read: false,
     };
     await writeAt('notifications/' + toUserId + '/' + notice.id, notice);
 
+    // Their push token and settings are private, so the server sends the push.
+    // It reads the notice just written, so it can only push what the rules let in.
     const wantsPush = options.push !== false && toUserId !== me;
-    if (wantsPush && delivery.push && !(delivery.quiet && isQuietNow(delivery.tz))) {
-      const token = (await readPath('users/' + toUserId + '/pushToken')) as string | null;
-      if (token) {
-        const sent = await sendPush(token, title, body, options.tripId).then(
-          () => true,
-          () => false,
-        );
-        if (sent) return 'pushed';
-      }
+    if (wantsPush && hasServer()) {
+      const { status } = await callServer<{ status: NotifyResult }>('/push', {
+        to: toUserId,
+        noticeId: notice.id,
+      }).catch(() => ({ status: 'inbox' as NotifyResult }));
+      return status;
     }
     return 'inbox';
   } catch (error) {
@@ -168,7 +185,7 @@ export async function notifyMany(
   type: NoticeType,
   title: string,
   body: string,
-  options: { tripId?: string } = {},
+  options: { tripId?: string; about?: string } = {},
 ): Promise<void> {
   const me = auth.currentUser?.uid;
   const others = [...new Set(userIds)].filter((id) => id && id !== me);
@@ -188,18 +205,23 @@ export const myName = (): string => auth.currentUser?.displayName || 'Someone';
 
 export async function fetchNotices(uid: string): Promise<Notice[]> {
   if (!uid) return [];
-  const [value, prefs] = await Promise.all([
+  const [value, prefs, delivery] = await Promise.all([
     readPath('notifications/' + uid, { preferCache: false }),
     fetchPrefs(uid),
+    fetchDelivery(uid),
   ]);
+  // Anyone sharing a trip can leave a notice; the ones they turned off stay hidden.
   return Object.values((value ?? {}) as Record<string, Notice>)
     .filter((notice) => prefs[notice.type] !== false)
+    .filter((notice) => !(notice.tripId && delivery.mutedTrips[notice.tripId]))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 export async function markAllRead(uid: string, notices: Notice[]): Promise<void> {
   const updates: Record<string, unknown> = {};
-  notices.filter((n) => !n.read).forEach((n) => (updates['notifications/' + uid + '/' + n.id + '/read'] = true));
+  notices
+    .filter((n) => !n.read)
+    .forEach((n) => (updates['notifications/' + uid + '/' + n.id + '/read'] = true));
   if (Object.keys(updates).length) await writeUpdates(updates);
 }
 

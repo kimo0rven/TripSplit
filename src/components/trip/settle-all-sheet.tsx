@@ -12,7 +12,7 @@ import { DebtEdge, Settlement } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
 import { computeBalances, simplifyDebts } from '@/utils/balance';
 import { formatMoney, todayKey } from '@/utils/money';
-import { debtBetween } from '@/utils/settle';
+import { debtBetween, pendingBetween } from '@/utils/settle';
 import { Check } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -29,6 +29,8 @@ interface SettleAllSheetProps {
   currency: string;
   members: TripMember[];
   edges: DebtEdge[];
+  /** Every payment in the trip, so money still waiting for confirmation is taken off. */
+  settlements?: Settlement[];
   currentUserId: string;
   /** Every payment that was recorded, in the order they were saved. */
   onSaved: (saved: Settlement[]) => void;
@@ -46,10 +48,19 @@ export default function SettleAllSheet({
   currency,
   members,
   edges,
+  settlements = [],
   currentUserId,
   onSaved,
 }: SettleAllSheetProps) {
-  const owed = edges.filter((edge) => edge.from === currentUserId && edge.amount > 0.004);
+  // What is left on each debt once payments still waiting are taken off.
+  const owed = edges
+    .filter((edge) => edge.from === currentUserId)
+    .map((edge) => ({
+      ...edge,
+      amount:
+        Math.round((edge.amount - pendingBetween(settlements, edge.from, edge.to)) * 100) / 100,
+    }))
+    .filter((edge) => edge.amount > 0.004);
   const [picked, setPicked] = useState<string[]>([]);
   const [method, setMethod] = useState<'cash' | 'other'>('cash');
   const [note, setNote] = useState('');
@@ -98,9 +109,14 @@ export default function SettleAllSheet({
             freshExpenses,
             freshPayments,
           ),
+          freshPayments,
         );
         const changed = chosen.filter(
-          (edge) => debtBetween(freshEdges, currentUserId, edge.to) + 0.005 < edge.amount,
+          (edge) =>
+            debtBetween(freshEdges, currentUserId, edge.to) -
+              pendingBetween(freshPayments, currentUserId, edge.to) +
+              0.005 <
+            edge.amount,
         );
         if (changed.length) {
           setError(

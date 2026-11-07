@@ -7,6 +7,8 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
+import { startedDark } from './appearance';
+
 export const Colors = {
   light: {
     text: '#000000',
@@ -24,7 +26,7 @@ export const Colors = {
   },
 } as const;
 
-export const BrandColors = {
+const LIGHT_COLORS = {
   base50: '#FEBB1B',
   base200: '#FFE099',
   base400: '#FED766',
@@ -47,7 +49,45 @@ export const BrandColors = {
   warningBg: '#FEF3E7',
   info: '#2F80ED',
   infoBg: '#EAF2FE',
-} as const;
+};
+
+/**
+ * The same roles in the dark. Neutrals flip; the brand yellows become deep
+ * golds, so the light text that sits on them stays readable, and the tinted
+ * backgrounds become dark tints of the same colour.
+ */
+const DARK_COLORS: typeof LIGHT_COLORS = {
+  base50: '#9C7100',
+  base200: '#3D3214',
+  base400: '#5A4613',
+  base500: '#9C7100',
+  base600: '#9C7100',
+  base700: '#F2C04D',
+  heading: '#F5F5F5',
+  primary: '#E8E8E8',
+  secondary: '#A0A0A0',
+  disabled: '#5C5C5C',
+  background: '#121212',
+  surfaceAlt: '#1A1A1A',
+  inputField: '#262626',
+  border: '#363636',
+  success: '#4CC27F',
+  successBg: '#143021',
+  error: '#F07171',
+  errorBg: '#3A1A1A',
+  warning: '#F5A75E',
+  warningBg: '#3A2A14',
+  info: '#6AA6F5',
+  infoBg: '#16263E',
+};
+
+/**
+ * The app's colours, picked once at start from the Appearance setting (or
+ * the phone's own light or dark mode). Every screen builds its styles from
+ * these when it loads, which is why a change applies after reopening the app.
+ */
+export const BrandColors = startedDark ? DARK_COLORS : LIGHT_COLORS;
+export const isDarkTheme = startedDark;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 

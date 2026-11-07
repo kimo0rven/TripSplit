@@ -100,7 +100,10 @@ export default function DashboardScreen() {
     return computeTripTotals(ids, expenses, settlements);
   }, [members, expenses, settlements]);
 
-  const edges = useMemo(() => simplifyDebts(totals.balances), [totals.balances]);
+  const edges = useMemo(
+    () => simplifyDebts(totals.balances, settlements),
+    [totals.balances, settlements],
+  );
 
   const myBalance = totals.balances.find((balance) => balance.memberId === userId);
   const myNet = myBalance?.net ?? 0;

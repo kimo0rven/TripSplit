@@ -3,6 +3,7 @@ import { describe, test } from 'node:test';
 
 import {
   findDuplicatePayment,
+  pendingBetween,
   amountFor,
   amountProblem,
   choiceForAmount,
@@ -110,4 +111,15 @@ describe('spotting a payment recorded twice', () => {
       null,
     );
   });
+});
+
+test('money waiting for confirmation is counted per pair', () => {
+  const payments = [
+    { from: 'ana', to: 'kim', amount: 100, status: 'pending' },
+    { from: 'ana', to: 'kim', amount: 50.5, status: 'pending' },
+    { from: 'ana', to: 'kim', amount: 70, status: 'confirmed' },
+    { from: 'ana', to: 'ben', amount: 20, status: 'pending' },
+  ];
+  assert.equal(pendingBetween(payments, 'ana', 'kim'), 150.5);
+  assert.equal(pendingBetween(payments, 'kim', 'ana'), 0);
 });

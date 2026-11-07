@@ -1,12 +1,11 @@
-import { db } from '@/config/firebase';
 import { isConnected, readPath, writeUpdates } from '@/services/offline/offlineStore';
+import { lookupEmail } from '@/services/Firebase/privateData';
 import { myName, notify } from '@/services/notifications/inbox';
 import { fetchExpenses } from '@/services/Firebase/expenseService';
 import { fetchSettlements } from '@/services/Firebase/settlementService';
 import { fetchUserTrips } from '@/services/Firebase/tripService';
 import { FriendProfile, FriendRequest, UserSearchResult } from '@/types/friends';
 import { computeBalances, simplifyDebts } from '@/utils/balance';
-import { equalTo, get, orderByChild, query, ref } from 'firebase/database';
 
 /** Said whenever a step needs the server and the phone has no connection. */
 export const OFFLINE_MESSAGE =
@@ -95,9 +94,7 @@ export const searchUserByEmail = async (
   }
 
   requireConnection();
-  const usersRef = ref(db, 'users');
-  const userQuery = query(usersRef, orderByChild('email'), equalTo(cleanEmail));
-  const snapshot = await get(userQuery);
+  const snapshot = await lookupEmail(cleanEmail);
 
   if (!snapshot.exists()) {
     return null;
@@ -291,7 +288,7 @@ export const fetchDebtsWithFriend = async (
 
       const memberIds = Object.keys(trip.members ?? {});
       const balances = computeBalances(memberIds, expenses, settlements);
-      const edges = simplifyDebts(balances);
+      const edges = simplifyDebts(balances, settlements);
 
       const owed = edges
         .filter(
@@ -349,9 +346,7 @@ export const addFriendByEmail = async (
 
   requireConnection();
 
-  const usersRef = ref(db, 'users');
-  const userQuery = query(usersRef, orderByChild('email'), equalTo(cleanEmail));
-  const snapshot = await get(userQuery);
+  const snapshot = await lookupEmail(cleanEmail);
 
   if (!snapshot.exists()) {
     return { success: false, message: 'No TripSplit account uses that email.' };

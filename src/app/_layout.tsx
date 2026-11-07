@@ -1,11 +1,14 @@
 import LoadingScreen from '@/components/Loader/LoadingScreen';
 import ErrorBoundary from '@/components/ui/error-boundary';
-import { FontAssets } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/services/Firebase/useAuth';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { registerPushToken, tripIdFromNotification } from '@/services/reminders/push';
+import { tidyMyData } from '@/services/Firebase/privateData';
+import { BrandColors, FontAssets, isDarkTheme } from '@/constants/theme';
+import { StatusBar } from 'expo-status-bar';
+import { auth } from '@/config/firebase';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { useEffect, useState } from 'react';
@@ -80,7 +83,12 @@ function RootLayoutNav({
   // notifications" step, and the Push switch in notification settings. So a
   // "Not now" stays a "Not now".
   useEffect(() => {
-    if (uid) void registerPushToken(uid, { ask: false });
+    if (uid) {
+      // Private settings out of the public profile, and findable by email.
+      void tidyMyData(uid, auth.currentUser?.email).then(() =>
+        registerPushToken(uid, { ask: false }),
+      );
+    }
   }, [uid]);
 
   // Tapping a reminder opens the trip it is about.
@@ -98,13 +106,25 @@ function RootLayoutNav({
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false, animation: 'fade', animationDuration: 150 }}>
-      {/* Joining slides up as a full page, like a sheet that covers the screen. */}
-      <Stack.Screen
-        name="trips/join"
-        options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
-      />
-    </Stack>
+    <>
+      {/* Light icons over the dark theme, dark icons over the light one. */}
+      <StatusBar style={isDarkTheme ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
+          animationDuration: 150,
+          // The page behind every screen, so a screen change never flashes white in the dark.
+          contentStyle: { backgroundColor: BrandColors.background },
+        }}
+      >
+        {/* Joining slides up as a full page, like a sheet that covers the screen. */}
+        <Stack.Screen
+          name="trips/join"
+          options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
+        />
+      </Stack>
+    </>
   );
 }
 

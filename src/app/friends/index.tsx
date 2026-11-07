@@ -244,7 +244,7 @@ export default function FriendsScreen() {
       const context: PayContext = {
         trip,
         members,
-        edges: simplifyDebts(balances),
+        edges: simplifyDebts(balances, settlements),
         currency: trip.currency || 'PHP',
         friendId: friend.id,
         expenses,

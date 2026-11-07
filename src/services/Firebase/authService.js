@@ -6,6 +6,7 @@ import {
   signInWithEmailAndPassword,
 } from 'firebase/auth';
 import { ref, set } from 'firebase/database';
+import { emailKey } from '@/services/Firebase/privateData';
 
 export async function signIn(email, password) {
   const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -24,6 +25,8 @@ export async function signUp(email, password) {
       email: user.email,
       createdAt: new Date().toISOString(),
     }),
+    // So friends can find them by email; nobody can list the index.
+    set(ref(db, `emailIndex/${emailKey(user.email || '')}`), user.uid),
     user.getIdToken().then((token) => saveToken(token)),
   ]).catch((error) => {
     console.error('Unable to finish saving the new user profile:', error);

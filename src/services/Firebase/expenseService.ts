@@ -220,7 +220,7 @@ export const updateExpense = async (
     if (changes.length) entry = buildEntry(newId(), audit.context, changes);
   }
 
-  await writeUpdates({
+  const edit = writeUpdates({
     ...(entry
       ? { [`trips/${tripId}/expenses/${expenseId}/history/${entry.id}`]: serializeEntry(entry) }
       : {}),
@@ -240,7 +240,17 @@ export const updateExpense = async (
       : null,
     [`trips/${tripId}/expenses/${expenseId}/receiptUrl`]: input.receiptUrls?.[0] || null,
     [`trips/${tripId}/expenses/${expenseId}/original`]: input.original ?? null,
+    // Built on the copy the editor started from; the rules refuse a stale one.
+    [`trips/${tripId}/expenses/${expenseId}/revision`]: (audit?.before.revision ?? 0) + 1,
     [`trips/${tripId}/expenses/${expenseId}/updatedAt`]: new Date().toISOString(),
+  });
+  await edit.catch((err) => {
+    if (/permission|denied/i.test(String(err?.message ?? ''))) {
+      throw new Error(
+        'Someone else changed this expense while you were editing it. Close it, open it again to see their change, then make yours.',
+      );
+    }
+    throw err;
   });
 
   await refreshTripTotal(tripId);

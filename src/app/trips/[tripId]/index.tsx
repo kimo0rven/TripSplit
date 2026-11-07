@@ -278,7 +278,10 @@ export default function TripDetailScreen() {
     return map;
   }, [visibleBalances]);
 
-  const edges = useMemo(() => simplifyDebts(visibleBalances), [visibleBalances]);
+  const edges = useMemo(
+    () => simplifyDebts(visibleBalances, settlements),
+    [visibleBalances, settlements],
+  );
 
   const currentUserId = currentUser?.uid ?? '';
   const [muted, setMuted] = useState(false);
@@ -910,6 +913,7 @@ export default function TripDetailScreen() {
             currency={currency}
             members={members}
             edges={edges}
+            settlements={settlements}
             currentUserId={currentUserId}
             onSaved={(saved) =>
               setSettlements((previous) => [
@@ -1007,6 +1011,7 @@ export default function TripDetailScreen() {
               currentEndDate={trip.endDate}
               currentRequireApproval={trip.requireApproval === true}
               currentAllowEarlySpending={trip.allowEarlySpending === true}
+              hasMoney={expenses.length > 0 || settlements.length > 0}
               currentBudget={budget}
               onEditBudget={() => {
                 setSettingsOpen(false);
@@ -1025,6 +1030,8 @@ export default function TripDetailScreen() {
                 setCloseOpen(true);
               }}
               onSaved={(settings) => {
+                // A currency change may have converted every amount; read them again.
+                if (settings.currency !== currency) void loadTrip();
                 // Keep the screen in step with the save, so the header title, the
                 // header icon and the money on every tab use the new settings at
                 // once.

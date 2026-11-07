@@ -1,4 +1,5 @@
 import { supabase } from '@/config/supabase';
+import { callServer } from '@/services/server/appServer';
 import { OptimizeOptions, optimizeImage } from '@/services/Supabase/optimizeImage';
 import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
@@ -7,9 +8,6 @@ import { Platform } from 'react-native';
  * Everything we upload (avatars, receipts) goes into this one Supabase bucket.
  */
 export const STORAGE_BUCKET = 'TripSplit';
-
-/** About ten years, so a saved receipt link effectively never expires. */
-const SIGNED_URL_SECONDS = 60 * 60 * 24 * 365 * 10;
 
 const KNOWN_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'gif'];
 
@@ -108,22 +106,20 @@ export async function uploadLocalFile(
 
   const { body, contentType } = await readLocalFile(source);
 
+  // The bucket lets nobody write to it directly. The server checks this person
+  // may put a file here (their own folder, or a trip they're in) and hands
+  // back a one-time upload link; the file then goes straight to storage.
+  const { token } = await callServer<{ token: string }>('/storage/upload', { path });
   const { error } = await supabase.storage
     .from(STORAGE_BUCKET)
-    .upload(path, body, { contentType, upsert: true });
-
+    .uploadToSignedUrl(path, token, body, { contentType, upsert: true });
   if (error) throw error;
 
-  // The bucket is private, so a plain public link would not load. A long-lived
-  // signed link works whether or not the bucket is made public later.
-  const { data, error: signError } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .createSignedUrl(path, SIGNED_URL_SECONDS);
-  if (signError || !data?.signedUrl) {
-    throw signError ?? new Error('Could not get a link for that file.');
-  }
+  // The bucket is private; a long-lived signed link is what the app shows.
+  const { url } = await callServer<{ url: string }>('/storage/link', { path });
+  if (!url) throw new Error('Could not get a link for that file.');
 
-  return options.cacheBust ? `${data.signedUrl}&t=${Date.now()}` : data.signedUrl;
+  return options.cacheBust ? `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}` : url;
 }
 
 /** Builds a unique, safe file name such as `1730000000-a1b2c3.jpg`. */

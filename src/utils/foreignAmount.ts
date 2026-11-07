@@ -13,6 +13,8 @@ export interface OriginalAmount {
   amount: number;
   /** Trip-currency units per one unit of the paid currency. */
   rate: number;
+  /** With several payers, what each put in, in the paid currency. */
+  paidBy?: Record<string, number>;
 }
 
 /** The trip-currency cents for an amount paid in another currency. */
@@ -51,5 +53,18 @@ export const readOriginal = (value: unknown): OriginalAmount | null => {
   if (typeof entry.currency !== 'string' || !entry.currency || !(amount > 0) || !(rate > 0)) {
     return null;
   }
-  return { currency: entry.currency, amount, rate };
+  const paidBy =
+    entry.paidBy && typeof entry.paidBy === 'object'
+      ? Object.fromEntries(
+          Object.entries(entry.paidBy as Record<string, unknown>)
+            .map(([id, value]) => [id, Number(value)] as const)
+            .filter(([, value]) => Number.isFinite(value) && value > 0),
+        )
+      : null;
+  return {
+    currency: entry.currency,
+    amount,
+    rate,
+    ...(paidBy && Object.keys(paidBy).length ? { paidBy } : {}),
+  };
 };

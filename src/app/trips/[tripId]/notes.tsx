@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: 2,
   },
-  clockMine: { color: '#8A6209' },
+  clockMine: { color: BrandColors.base700 },
   clockTheirs: { color: BrandColors.secondary },
 
   notePhotos: {

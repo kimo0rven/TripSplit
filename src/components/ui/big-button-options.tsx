@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     color: BrandColors.primary,
   },
   selectedOptionText: {
-    color: '#FFFFFF',
+    color: BrandColors.heading,
     fontFamily: 'PlusJakartaSans-Bold',
   },
 });

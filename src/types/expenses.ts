@@ -62,6 +62,12 @@ export interface Expense {
   reactions?: Record<string, string[]>;
   /** Set when it was paid in another currency: what was paid, and the rate used. */
   original?: OriginalAmount;
+  /**
+   * Counts edits. Each edit must say which version it started from, so an edit
+   * made on an out-of-date copy (offline, or while someone else edited) is
+   * refused instead of quietly overwriting the other change.
+   */
+  revision?: number;
 }
 
 export interface Settlement {

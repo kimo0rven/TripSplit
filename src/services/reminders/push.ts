@@ -62,8 +62,9 @@ export async function registerPushToken(
     const { data } = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined,
     );
-    const stored = await readPath('users/' + userId + '/pushToken');
-    if (stored !== data) await writeUpdates({ ['users/' + userId + '/pushToken']: data });
+    // Kept private: only the server reads it, to send this person pushes.
+    const stored = await readPath('userPrivate/' + userId + '/pushToken');
+    if (stored !== data) await writeUpdates({ ['userPrivate/' + userId + '/pushToken']: data });
     return 'granted';
   } catch (error) {
     // Push is a nicety; a phone that cannot register just gets reminders by message.

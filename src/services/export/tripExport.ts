@@ -105,7 +105,7 @@ export const buildCsv = (data: ExportData): string => {
   });
 
   // What is left to pay, as the app shows it: the fewest payments.
-  const toPay = simplifyDebts(balances);
+  const toPay = simplifyDebts(balances, settlements);
   lines.push('', 'Still to pay');
   lines.push(row(['From', 'To', 'Amount']));
   if (!toPay.length) lines.push(row(['Everyone is settled', '', '']));
@@ -129,7 +129,7 @@ export const buildHtml = (data: ExportData): string => {
     settlements,
   );
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const toPay = simplifyDebts(balances);
+  const toPay = simplifyDebts(balances, settlements);
   const toPayRows = toPay.length
     ? toPay
         .map(

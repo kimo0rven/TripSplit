@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: BrandColors.base50,
-    backgroundColor: '#FFF8E6',
+    backgroundColor: BrandColors.warningBg,
   },
   header: {
     flexDirection: 'row',

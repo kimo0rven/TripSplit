@@ -21,7 +21,7 @@ import { isConnected } from '@/services/offline/offlineStore';
 import { uploadReceipt } from '@/services/Supabase/receiptService';
 import { DebtEdge, Expense, Settlement } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
-import { computeBalances, simplifyDebts } from '@/utils/balance';
+import { computeBalances, countsTowardBalance, simplifyDebts } from '@/utils/balance';
 import { coverageFor, previewCoverage } from '@/utils/coverage';
 import { formatMoney, parseAmount, todayKey } from '@/utils/money';
 import { choiceFor, PAYMENT_CHOICES, storedPayment } from '@/utils/paymentMethod';
@@ -33,6 +33,7 @@ import {
   debtsWithMe,
   findDuplicatePayment,
   fullDebtFor,
+  pendingBetween,
   kindFor,
   type AmountChoice,
 } from '@/utils/settle';
@@ -107,16 +108,31 @@ export default function SettleSheet({
 
   const checkout = usePayMongoCheckout({ visible, tripId, currency, currentUserId });
 
+  /**
+   * What is still to pay between two people: the simplified debt, less any
+   * payment between them still waiting for the receiver to confirm. A
+   * confirmed payment being edited is already in the balances, so it is added
+   * back; a pending one was never taken off.
+   */
+  const pendingFor = (payer: string, payee: string) =>
+    pendingBetween(
+      (settlements ?? []).filter((item) => item.id !== settlement?.id),
+      payer,
+      payee,
+    );
+  const debtFor = (payer: string, payee: string) =>
+    fullDebtFor(
+      debtBetween(edges, payer, payee) - pendingFor(payer, payee),
+      settlement && countsTowardBalance(settlement) ? settlement : null,
+      { from: payer, to: payee },
+    );
+
   // Start from the payment being edited, the debt picked elsewhere, or the
   // first debt you are part of (one you owe first, then one owed to you).
   useEffect(() => {
     if (!visible) return;
     if (settlement) {
-      const debt = fullDebtFor(
-        debtBetween(edges, settlement.from, settlement.to),
-        settlement,
-        settlement,
-      );
+      const debt = debtFor(settlement.from, settlement.to);
       const picked = choiceForAmount(settlement.amount, debt);
       setFrom(settlement.from);
       setTo(settlement.to);
@@ -131,8 +147,9 @@ export default function SettleSheet({
       const fallback = preselect?.to ? null : debtsWithMe(edges, currentUserId)[0];
       const nextFrom = preselect?.from || fallback?.from || currentUserId || '';
       const nextTo = preselect?.to || fallback?.to || '';
-      const debt = Math.max(0, debtBetween(edges, nextFrom, nextTo));
-      const start = preselect?.amount || fallback?.amount || debt;
+      const debt = debtFor(nextFrom, nextTo);
+      // A debt picked elsewhere may not know about payments still waiting.
+      const start = Math.min(preselect?.amount || fallback?.amount || debt, debt);
       const picked = choiceForAmount(start, debt);
       setFrom(nextFrom);
       setTo(nextTo);
@@ -164,8 +181,8 @@ export default function SettleSheet({
   const personOf = (id: string) =>
     id ? { id, label: labelOf(id), fullname: nameOf(id), photoURL: memberOf(id)?.photoURL } : null;
 
-  const owed = debtBetween(edges, from, to);
-  const debt = fullDebtFor(owed, settlement, { from, to });
+  const pendingNow = to ? pendingFor(from, to) : 0;
+  const debt = debtFor(from, to);
   const amount = amountFor(choice, debt, parseAmount(typed) / 100);
   const kind = kindFor(amount, debt);
   const money = (value: number) => formatMoney(value, currency);
@@ -211,7 +228,9 @@ export default function SettleSheet({
   const problemNow = () =>
     !to
       ? 'There is nobody to pay right now.'
-      : amountProblem(amount, debt, { from: nameOf(from), to: nameOf(to), money });
+      : debt <= 0.005 && pendingNow > 0
+        ? `${nameOf(from)} already sent ${nameOf(to)} ${money(pendingNow)}, which covers it. It's waiting for ${nameOf(to).split(' ')[0]} to confirm.`
+        : amountProblem(amount, debt, { from: nameOf(from), to: nameOf(to), money });
 
   const repeatKey = `${from}>${to}:${Math.round(amount * 100)}`;
   const repeatShown = repeat?.key === repeatKey ? repeat.text : '';
@@ -239,8 +258,12 @@ export default function SettleSheet({
             freshExpenses,
             freshPayments,
           ),
+          freshPayments,
         );
-        freshProblem = amountProblem(amount, debtBetween(freshEdges, from, to), {
+        // Payments still waiting don't count in the balances, so they come off here.
+        const freshDebt =
+          debtBetween(freshEdges, from, to) - pendingBetween(freshPayments, from, to);
+        freshProblem = amountProblem(amount, freshDebt, {
           from: nameOf(from),
           to: nameOf(to),
           money,
@@ -493,6 +516,13 @@ export default function SettleSheet({
           }}
           onTyped={setTyped}
         />
+
+        {pendingNow > 0 && (
+          <HelperText>
+            {money(pendingNow)} already sent to {labelOf(to)} is waiting for them to confirm, so
+            it&apos;s taken off what&apos;s left to pay.
+          </HelperText>
+        )}
 
         {covers && (
           <CoversList

@@ -7,8 +7,10 @@
  * The database rules only let in people whose email is verified, or whose
  * account is listed under `legacyUsers`. Nobody can write that list from the
  * app; this script fills it, using the Firebase service account, with every
- * account created before verification became required. Run it once, before
- * publishing the rules. Running it again is harmless.
+ * account created before verification became required, moves everyone's
+ * private settings out of their public profile, and indexes emails so people
+ * can still be found by email. Run it before publishing the rules. Running it
+ * again is harmless.
  */
 
 import { createSign } from 'node:crypto';
@@ -134,3 +136,48 @@ if (count > 0) {
 console.log(
   `\n✔ ${count} of ${total} accounts were made before verification and can keep using the app.\n`,
 );
+
+/* Private settings out of public profiles, and every email findable. The app
+   does this for each person as they open it; this does everyone at once. */
+const PRIVATE_KEYS = ['pushToken', 'notificationSettings', 'notificationPrefs', 'archivedTrips'];
+const emailKey = (email) =>
+  email
+    .trim()
+    .toLowerCase()
+    .replace(/%/g, '%25')
+    .replace(/\./g, '%2E')
+    .replace(/#/g, '%23')
+    .replace(/\$/g, '%24')
+    .replace(/\[/g, '%5B')
+    .replace(/\]/g, '%5D')
+    .replace(/\//g, '%2F');
+
+const usersResponse = await fetch(`${databaseUrl}/users.json`, { headers });
+if (!usersResponse.ok) fail(`Could not read the users: ${usersResponse.status}`);
+const users = (await usersResponse.json()) || {};
+const tidy = {};
+let moved = 0;
+let indexed = 0;
+for (const [uid, profile] of Object.entries(users)) {
+  if (!profile || typeof profile !== 'object') continue;
+  for (const key of PRIVATE_KEYS) {
+    if (profile[key] !== undefined && profile[key] !== null) {
+      tidy[`userPrivate/${uid}/${key}`] = profile[key];
+      tidy[`users/${uid}/${key}`] = null;
+      moved += 1;
+    }
+  }
+  if (typeof profile.email === 'string' && profile.email.includes('@')) {
+    tidy[`emailIndex/${emailKey(profile.email)}`] = uid;
+    indexed += 1;
+  }
+}
+if (Object.keys(tidy).length) {
+  const response = await fetch(`${databaseUrl}/.json`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(tidy),
+  });
+  if (!response.ok) fail(`Could not tidy the profiles: ${response.status} ${await response.text()}`);
+}
+console.log(`✔ Moved ${moved} private settings out of public profiles and indexed ${indexed} emails.\n`);

@@ -14,11 +14,16 @@ const cents = (value: number): number => Math.round((Number.isFinite(value) ? va
 /**
  * Whether a payment changes the balances.
  *
- * A payment counts the moment it is recorded, so the debt drops straight away
- * for both people. The receiver can still decline it; only a declined payment
- * stops counting, which puts the debt back.
+ * Only once the receiver has it: confirmed, recorded by the receiver
+ * themselves, or an older payment from before confirming existed. A payment
+ * still waiting is shown on the debt as "waiting for confirmation" instead,
+ * so a decline never flips the balances back after everyone has seen them.
  */
-export const countsTowardBalance = (settlement: Settlement): boolean => !isDeclined(settlement);
+export const countsTowardBalance = (settlement: { status?: string }): boolean =>
+  !isDeclined(settlement) && !isPending(settlement);
+
+export const isPending = (settlement: { status?: string }): boolean =>
+  settlement.status === 'pending';
 
 /** Declined, including the older "rejected" spelling some records still carry. */
 export const isDeclined = (settlement: { status?: string }): boolean =>
@@ -105,7 +110,15 @@ export const computeTripTotals = (
  * `settlements` are already folded into the balances by computeBalances, so
  * pass them there and use the result here - do not subtract them twice.
  */
-export const simplifyDebts = (balances: MemberBalance[]): DebtEdge[] => {
+export const simplifyDebts = (
+  balances: MemberBalance[],
+  /**
+   * The trip's payments. People who already paid each other are paired first,
+   * so "who pays whom" doesn't keep switching to a new person every time an
+   * expense is added. Leaving this out gives the plain greedy pairing.
+   */
+  payments: { from: string; to: string; status?: string; createdAt?: string }[] = [],
+): DebtEdge[] => {
   const creditors = balances
     .filter((balance) => Math.round(balance.net * 100) > 0)
     .map((balance) => ({ id: balance.memberId, amount: Math.round(balance.net * 100) }))
@@ -117,12 +130,45 @@ export const simplifyDebts = (balances: MemberBalance[]): DebtEdge[] => {
     .sort((a, b) => b.amount - a.amount);
 
   const edges: DebtEdge[] = [];
+
+  // Pairs who already paid each other come first, most recent first. Each
+  // pairing clears at least one person, so the count of payments still never
+  // goes past one fewer than the people involved.
+  const preferred = [...payments]
+    .filter((payment) => !isDeclined(payment))
+    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+  const seen = new Set<string>();
+  preferred.forEach((payment) => {
+    const key = payment.from + '>' + payment.to;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const debtor = debtors.find((entry) => entry.id === payment.from);
+    const creditor = creditors.find((entry) => entry.id === payment.to);
+    if (!debtor || !creditor) return;
+    const amount = Math.min(debtor.amount, creditor.amount);
+    if (amount <= 0) return;
+    edges.push({ from: debtor.id, to: creditor.id, amount: amount / 100 });
+    debtor.amount -= amount;
+    creditor.amount -= amount;
+  });
+  // What is left is paired biggest to biggest, as before.
+  creditors.sort((a, b) => b.amount - a.amount);
+  debtors.sort((a, b) => b.amount - a.amount);
+
   let c = 0;
   let d = 0;
 
   while (c < creditors.length && d < debtors.length) {
     const creditor = creditors[c];
     const debtor = debtors[d];
+    if (creditor.amount <= 0) {
+      c += 1;
+      continue;
+    }
+    if (debtor.amount <= 0) {
+      d += 1;
+      continue;
+    }
     const amount = Math.min(creditor.amount, debtor.amount);
 
     if (amount > 0) {

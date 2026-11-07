@@ -17,16 +17,10 @@ import { createRecurring } from '@/services/Firebase/recurringService';
 import { createExpense, ExpenseInput, updateExpense } from '@/services/Firebase/expenseService';
 import { uploadReceipt } from '@/services/Supabase/receiptService';
 import { canScanReceipts, scanReceipt } from '@/services/receipts/scanReceipt';
-import { fetchRates } from '@/services/currency/rates';
+import { fetchRateOn } from '@/services/currency/rates';
 import CurrencyField from '@/components/ui/currency-field';
 import RatesCredit from '@/components/ui/rates-credit';
-import {
-  cleanRateText,
-  convertedCents,
-  rateBetween,
-  rateText,
-  readOriginal,
-} from '@/utils/foreignAmount';
+import { cleanRateText, convertedCents, rateText, readOriginal } from '@/utils/foreignAmount';
 import type { ReceiptLine } from '@/utils/receiptParser';
 import { Expense, ExpenseItem, RepeatEvery, SplitMode } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
@@ -48,6 +42,7 @@ import {
   emptyValues,
   evenValues,
   refill,
+  splitByWeights,
   splitEqual,
   validateSplit,
 } from '@/utils/split';
@@ -90,6 +85,15 @@ export default function ExpenseForm({
   /** Trip-currency units per one unit of `paidIn`. */
   const [fxRateText, setFxRateText] = useState('');
   const [fxRateStatus, setFxRateStatus] = useState<'loading' | 'ready' | 'missing'>('ready');
+  /** Which day's rate is in the box, and where it came from. */
+  const [fxRateInfo, setFxRateInfo] = useState<{
+    day: string;
+    source: 'history' | 'latest';
+  } | null>(null);
+  /** The currency and day the rate was looked up for, so a new date looks it up again. */
+  const [fxLookedUp, setFxLookedUp] = useState('');
+  /** True once the person typed their own rate; it is then never replaced. */
+  const [fxTyped, setFxTyped] = useState(false);
   const [category, setCategory] = useState('food');
   // The full category grid, opened by "More" beside the everyday chips.
   const [pickingCategory, setPickingCategory] = useState(false);
@@ -224,6 +228,10 @@ export default function ExpenseForm({
     setForeignText(original ? centsToInput(Math.round(original.amount * 100)) : '');
     setFxRateText(original ? rateText(original.rate) : '');
     setFxRateStatus('ready');
+    // A saved rate stays as saved; it is looked up again only if the date changes.
+    setFxLookedUp(original ? `${original.currency}|${expense.spentOn || todayKey()}` : '');
+    setFxTyped(!!original);
+    setFxRateInfo(null);
     setCategory(expense.category || 'other');
     setSpentOn(expense.spentOn || todayKey());
     setSpentTime(expense.spentTime ?? '');
@@ -243,7 +251,8 @@ export default function ExpenseForm({
     );
     setPayerAmounts(
       Object.fromEntries(
-        Object.entries(expense.paidBy ?? {}).map(([id, value]) => [
+        // Paid abroad by several people: what each put in, in that currency.
+        Object.entries(original?.paidBy ?? expense.paidBy ?? {}).map(([id, value]) => [
           id,
           centsToInput(parseAmount(value)),
         ]),
@@ -276,25 +285,47 @@ export default function ExpenseForm({
     changeAmount(cents > 0 ? centsToInput(cents) : '');
   };
 
-  /** Picks the currency it was paid in, and loads today's rate for it. */
+  /** Looks up the rate for the day of the expense, and applies it. */
+  const lookUpRate = async (code: string, day: string, amount: string) => {
+    setFxLookedUp(`${code}|${day}`);
+    setFxRateStatus('loading');
+    const found = await fetchRateOn(code, currency, day, todayKey());
+    setFxRateStatus(found ? 'ready' : 'missing');
+    setFxRateInfo(found ? { day: found.day, source: found.source } : null);
+    applyForeign(amount, found ? rateText(found.rate) : '');
+  };
+
+  /** Picks the currency it was paid in, and loads that day's rate for it. */
   const choosePaidIn = async (code: string) => {
     setPaidIn(code);
+    setFxTyped(false);
+    // Amounts each payer put in were in the old currency; start them again.
+    if (multiplePayers) setPayerAmounts({});
     if (code === currency) {
       setForeignText('');
       setFxRateText('');
       setFxRateStatus('ready');
+      setFxRateInfo(null);
+      setFxLookedUp('');
       return;
     }
     // An amount already typed (or read off a receipt) was what the receipt
     // says, so it becomes the amount paid in the new currency.
     const carried = foreign ? foreignText : amountText;
     setFxRateText('');
-    setFxRateStatus('loading');
     applyForeign(carried, '');
-    const rate = rateBetween(await fetchRates(code), currency);
-    setFxRateStatus(rate ? 'ready' : 'missing');
-    applyForeign(carried, rate ? rateText(rate) : '');
+    await lookUpRate(code, spentOn, carried);
   };
+
+  // A new date means a different day's rate, unless the person typed their own.
+  useEffect(() => {
+    if (!visible || !foreign || fxTyped) return;
+    if (fxLookedUp && fxLookedUp !== `${paidIn}|${spentOn}`) {
+      void lookUpRate(paidIn, spentOn, foreignText);
+    }
+    // Only the date and currency decide when to look again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spentOn, paidIn, visible]);
   const allIds = useMemo(() => members.map((member) => member.id), [members]);
 
   // Everything is derived from the members list, so a selection can never
@@ -349,6 +380,9 @@ export default function ExpenseForm({
     setForeignText('');
     setFxRateText('');
     setFxRateStatus('ready');
+    setFxRateInfo(null);
+    setFxLookedUp('');
+    setFxTyped(false);
     setCategory('food');
     setSpentOn(todayKey());
     setSpentTime(nowTime());
@@ -514,6 +548,7 @@ export default function ExpenseForm({
 
     // Money paid: one payer takes the whole bill, or several must add up.
     let paidBy: Record<string, number> = {};
+    let foreignPaidBy: Record<string, number> | undefined;
     if (multiplePayers) {
       const entries = payerIds
         .map((id) => [id, parseAmount(payerAmounts[id]) / 100] as const)
@@ -522,18 +557,33 @@ export default function ExpenseForm({
         setError('Add at least one person who paid.');
         return;
       }
-      paidBy = Object.fromEntries(entries);
+      // Paid abroad, each payer's amount is in the currency it was paid in.
+      const payerCurrency = foreign ? paidIn : currency;
+      const target = foreign ? foreignCents : totalCents;
       const paidTotal = entries.reduce((sum, [, value]) => sum + value, 0);
       // Whole cents, not "within a cent": one cent of slack lets a save through
       // that leaves the trip's balances off by that cent forever.
-      if (Math.round(paidTotal * 100) !== totalCents) {
+      if (Math.round(paidTotal * 100) !== target) {
         setError(
-          `The amounts paid add up to ${formatMoney(paidTotal, currency)}, not ${formatMoney(
-            totalCents / 100,
-            currency,
+          `The amounts paid add up to ${formatMoney(paidTotal, payerCurrency)}, not ${formatMoney(
+            target / 100,
+            payerCurrency,
           )}.`,
         );
         return;
+      }
+      if (foreign) {
+        // Each payer's share of the converted total, to the cent, adding up exactly.
+        foreignPaidBy = Object.fromEntries(entries);
+        const converted = splitByWeights(
+          totalCents,
+          Object.fromEntries(entries.map(([id, value]) => [id, Math.round(value * 100)])),
+        );
+        paidBy = Object.fromEntries(
+          Object.entries(converted).map(([id, value]) => [id, value / 100]),
+        );
+      } else {
+        paidBy = Object.fromEntries(entries);
       }
     } else {
       if (!soloPayerId) {
@@ -611,7 +661,14 @@ export default function ExpenseForm({
         items: savedItems,
         receiptUrls,
         ...(foreign && foreignCents > 0 && fxRate > 0
-          ? { original: { currency: paidIn, amount: foreignCents / 100, rate: fxRate } }
+          ? {
+              original: {
+                currency: paidIn,
+                amount: foreignCents / 100,
+                rate: fxRate,
+                ...(foreignPaidBy ? { paidBy: foreignPaidBy } : {}),
+              },
+            }
           : {}),
         createdBy: expense?.createdBy ?? currentUserId,
       };
@@ -637,6 +694,8 @@ export default function ExpenseForm({
           title: title.trim(),
           amount: totalCents / 100,
           notes: notes.trim() || undefined,
+          // The next edit builds on this one.
+          revision: (expense.revision ?? 0) + 1,
         };
       } else {
         saved = await createExpense(tripId, input);
@@ -682,7 +741,8 @@ export default function ExpenseForm({
     setItems((previous) => previous.map((item) => (item.id === id ? { ...item, ...patch } : item)));
 
   const splitPayersEvenly = () => {
-    const target = totalCents;
+    // Paid abroad, payers type what they paid in that currency.
+    const target = foreign ? foreignCents : totalCents;
     if (target <= 0 || allIds.length === 0) return;
     const even = splitEqual(target, allIds);
     const next: Record<string, string> = {};
@@ -756,7 +816,10 @@ export default function ExpenseForm({
                       title=""
                       placeholder={fxRateStatus === 'loading' ? 'Loading…' : 'Rate'}
                       value={fxRateText}
-                      onChangeText={(text) => applyForeign(foreignText, cleanRateText(text))}
+                      onChangeText={(text) => {
+                        setFxTyped(true);
+                        applyForeign(foreignText, cleanRateText(text));
+                      }}
                       keyboardType="numeric"
                     />
                   </View>
@@ -764,10 +827,19 @@ export default function ExpenseForm({
                 </View>
                 <HelperText tone={fxRateStatus === 'missing' && !fxRate ? 'error' : 'muted'}>
                   {fxRateStatus === 'missing' && !fxRate
-                    ? 'Could not load today’s rate. Type the rate your card or money changer used.'
-                    : `Comes to ${formatMoney(totalCents / 100, currency)} in the trip’s currency. The rate is today’s; change it to match what you were charged.`}
+                    ? 'Could not load a rate. Type the rate your card or money changer used.'
+                    : `Comes to ${formatMoney(totalCents / 100, currency)} in the trip’s currency. ${
+                        fxTyped
+                          ? 'Using the rate you typed.'
+                          : fxRateInfo?.source === 'history'
+                            ? `The rate is the published one for ${formatDay(fxRateInfo.day)}.`
+                            : 'The rate is today’s; no published rate was found for that day.'
+                      } Change it to match what you were charged.`}
                 </HelperText>
-                {fxRateStatus !== 'missing' && <RatesCredit />}
+                {!fxTyped && fxRateInfo?.source === 'latest' && <RatesCredit />}
+                {!fxTyped && fxRateInfo?.source === 'history' && (
+                  <Text style={styles.fxCredit}>Rates by Frankfurter</Text>
+                )}
               </>
             )}
           </View>
@@ -825,8 +897,9 @@ export default function ExpenseForm({
         {/* ----- Who paid ----- */}
         <PayerSection
           members={members}
-          currency={currency}
           currentUserId={currentUserId}
+          // Paid abroad, each payer types what they paid in that currency.
+          currency={foreign ? paidIn : currency}
           multiplePayers={multiplePayers}
           onToggleMultiple={(value) => {
             setMultiplePayers(value);
@@ -839,7 +912,7 @@ export default function ExpenseForm({
           soloPayerId={soloPayerId}
           onPickSoloPayer={setSoloPayerId}
           paidPreviewTotal={paidPreviewTotal}
-          totalAmount={totalCents / 100}
+          totalAmount={(foreign ? foreignCents : totalCents) / 100}
           onSplitEvenly={splitPayersEvenly}
           nameOf={nameOf}
         />

@@ -11,7 +11,11 @@ import { DEFAULT_TRIP_COLOR } from '@/constants/trip-colors';
 import { DEFAULT_TRIP_ICON } from '@/constants/trip-icons';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { updateTripSettings } from '@/services/Firebase/tripService';
-import { formatMoney } from '@/utils/money';
+import { convertTripCurrency } from '@/services/Firebase/currencyChangeService';
+import { fetchRateOn } from '@/services/currency/rates';
+import TabSlider from '@/components/ui/tab-slider';
+import { cleanRateText, rateText as rateText_ } from '@/utils/foreignAmount';
+import { formatMoney, todayKey } from '@/utils/money';
 import { Lock, LockOpen, Trash2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
@@ -36,6 +40,8 @@ interface TripSettingsSheetProps {
   currentRequireApproval?: boolean;
   /** Whether money can be recorded before the trip starts right now. */
   currentAllowEarlySpending?: boolean;
+  /** True when the trip has expenses or payments, which a new currency would convert. */
+  hasMoney?: boolean;
   currentBudget?: number;
   onEditBudget?: () => void;
   /** Asks to delete the whole trip. The screen confirms before anything goes. */
@@ -76,6 +82,7 @@ export default function TripSettingsSheet({
   currentEndDate,
   currentRequireApproval = false,
   currentAllowEarlySpending = false,
+  hasMoney = false,
   currentBudget = 0,
   onEditBudget,
   onDelete,
@@ -91,6 +98,22 @@ export default function TripSettingsSheet({
   const [endDate, setEndDate] = useState('');
   const [requireApproval, setRequireApproval] = useState(false);
   const [allowEarly, setAllowEarly] = useState(false);
+  /** Changing currency on a trip with money in it: convert the amounts, or keep the numbers. */
+  const [convert, setConvert] = useState(true);
+  const [rateText, setRateText] = useState('');
+  const [rateStatus, setRateStatus] = useState<'loading' | 'ready' | 'missing'>('ready');
+  const rateNumber = Number(rateText) || 0;
+
+  const chooseCurrency = async (code: string) => {
+    setCurrency(code);
+    setConvert(true);
+    setRateText('');
+    if (code === currentCurrency || !hasMoney) return;
+    setRateStatus('loading');
+    const found = await fetchRateOn(currentCurrency, code, todayKey(), todayKey());
+    setRateStatus(found ? 'ready' : 'missing');
+    setRateText(found ? rateText_(found.rate) : '');
+  };
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -105,6 +128,9 @@ export default function TripSettingsSheet({
     setEndDate(currentEndDate || '');
     setRequireApproval(currentRequireApproval);
     setAllowEarly(currentAllowEarlySpending);
+    setConvert(true);
+    setRateText('');
+    setRateStatus('ready');
     setError('');
     setSaving(false);
   }, [
@@ -139,6 +165,11 @@ export default function TripSettingsSheet({
     setError('');
 
     try {
+      // Converting writes the new currency with every amount, in one go.
+      if (currency !== currentCurrency && hasMoney && convert) {
+        if (!rateNumber) throw new Error('Enter the exchange rate to convert at.');
+        await convertTripCurrency(tripId, currentCurrency, currency, rateNumber);
+      }
       await updateTripSettings(tripId, editorId, {
         name: trimmedName,
         currency,
@@ -235,13 +266,45 @@ export default function TripSettingsSheet({
 
         <CurrencyField
           value={currency}
-          onChange={setCurrency}
+          onChange={chooseCurrency}
           hint={
-            currency !== currentCurrency ? (
-              <HelperText>
-                Amounts already in this trip keep their numbers. Only the currency shown changes. To
-                add an expense paid in another currency, pick it on the expense instead.
-              </HelperText>
+            currency !== currentCurrency && hasMoney ? (
+              <View style={styles.convertBox}>
+                <TabSlider
+                  items={CONVERT_TABS}
+                  value={convert ? 'convert' : 'keep'}
+                  onChange={(value) => setConvert(value === 'convert')}
+                />
+                {convert ? (
+                  <>
+                    <View style={styles.rateRow}>
+                      <Text style={styles.rateLabel}>1 {currentCurrency} =</Text>
+                      <View style={styles.rateInput}>
+                        <TextField
+                          title=""
+                          placeholder={rateStatus === 'loading' ? 'Loading…' : 'Rate'}
+                          value={rateText}
+                          onChangeText={(text) => setRateText(cleanRateText(text))}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                      <Text style={styles.rateLabel}>{currency}</Text>
+                    </View>
+                    <HelperText tone={rateStatus === 'missing' && !rateNumber ? 'error' : 'muted'}>
+                      {rateStatus === 'missing' && !rateNumber
+                        ? 'Could not load today’s rate. Type the rate to convert at.'
+                        : 'Every expense, payment, the budget and repeating expenses are converted at this rate, and each expense’s log notes the change. Everyone in the trip is told.'}
+                    </HelperText>
+                  </>
+                ) : (
+                  <HelperText>
+                    Amounts keep their numbers; only the currency shown changes. Use this only if
+                    the trip was set to the wrong currency from the start.
+                  </HelperText>
+                )}
+              </View>
+            ) : currency !== currentCurrency ? (
+              <HelperText>Nothing has been spent yet, so there is nothing to convert.</HelperText>
             ) : undefined
           }
         />
@@ -341,7 +404,16 @@ export default function TripSettingsSheet({
   );
 }
 
+const CONVERT_TABS = [
+  { key: 'convert', label: 'Convert amounts' },
+  { key: 'keep', label: 'Keep the numbers' },
+] as const;
+
 const styles = StyleSheet.create({
+  convertBox: { gap: Spacing.two },
+  rateRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  rateLabel: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
+  rateInput: { flex: 1 },
   scroll: {
     gap: Spacing.four,
     paddingBottom: Spacing.four,

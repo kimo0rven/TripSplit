@@ -1,6 +1,7 @@
 import { DEFAULT_TRIP_COLOR } from '@/constants/trip-colors';
 import { DEFAULT_TRIP_ICON } from '@/constants/trip-icons';
-import { auth, db } from '@/config/firebase';
+import { auth } from '@/config/firebase';
+import { lookupEmail } from '@/services/Firebase/privateData';
 import { myName, notify, notifyMany } from '@/services/notifications/inbox';
 import { fetchExpenses } from '@/services/Firebase/expenseService';
 import { fetchSettlements } from '@/services/Firebase/settlementService';
@@ -19,7 +20,6 @@ import {
   TripMember,
   TripPreview,
 } from '@/types/trips';
-import { equalTo, get, orderByChild, query, ref } from 'firebase/database';
 
 /**
  * Said whenever a step truly needs the server.
@@ -387,12 +387,7 @@ export const inviteByEmail = async (tripId: string, email: string): Promise<Invi
     return { success: false, message: 'Inviting by email needs a connection.' };
   }
 
-  const usersRef = ref(db, 'users');
-  const userQuery = query(usersRef, orderByChild('email'), equalTo(cleanEmail));
-
-  // A server-side lookup by email cannot be answered from the device, so
-  // inviting a non-member needs a connection. Everything else works offline.
-  const snapshot = await get(userQuery);
+  const snapshot = await lookupEmail(cleanEmail);
 
   if (!snapshot.exists()) {
     return { success: false, message: 'No TripSplit account uses that email yet.' };
@@ -696,6 +691,7 @@ export const declineJoinRequest = async (
     'tripActivity',
     'Request declined',
     myName() + ' didn’t let you into ' + trip.name + '.',
+    { about: tripId },
   ).catch((err) => console.warn('Could not tell them about the decline:', err));
 };
 
@@ -1009,6 +1005,7 @@ export const deleteTrip = async (tripId: string, ownerId: string): Promise<void>
       'tripActivity',
       'Trip deleted',
       myName() + ' deleted ' + trip.name + '.',
+      { about: tripId },
     );
   } catch (err) {
     console.warn('Could not tell the members about the deleted trip:', err);
@@ -1099,19 +1096,21 @@ export const removeMemberFromTrip = async (
     );
   }
 
-  await writeUpdates({
-    [`trips/${tripId}/members/${memberId}`]: null,
-    [`userTrips/${memberId}/${tripId}`]: null,
-    [`trips/${tripId}/payDetails/${memberId}`]: null,
-  });
-
-  // tripId is left off so a muted trip cannot hide the news that you were removed.
+  // Told first, while they are still in the trip (the rules check that). No
+  // link, so a muted trip can't hide the news that they were removed.
   await notify(
     memberId,
     'tripActivity',
     'Removed from a trip',
     myName() + ' removed you from ' + trip.name + '.',
+    { about: tripId },
   );
+
+  await writeUpdates({
+    [`trips/${tripId}/members/${memberId}`]: null,
+    [`userTrips/${memberId}/${tripId}`]: null,
+    [`trips/${tripId}/payDetails/${memberId}`]: null,
+  });
 };
 
 /**

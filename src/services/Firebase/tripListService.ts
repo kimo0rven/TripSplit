@@ -5,7 +5,7 @@ import { computeBalances } from '@/utils/balance';
 import { fetchExpenses } from './expenseService';
 import { fetchSettlements } from './settlementService';
 
-const archivePath = (uid: string) => 'users/' + uid + '/archivedTrips';
+const archivePath = (uid: string) => 'userPrivate/' + uid + '/archivedTrips';
 
 /** Trips this person has tucked away. Only they see this; the trip itself is unchanged. */
 export async function fetchArchivedTrips(uid: string): Promise<Record<string, boolean>> {

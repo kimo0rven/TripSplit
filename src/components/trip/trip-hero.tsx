@@ -1,7 +1,7 @@
 import { ProgressBar } from '@/components/ui/card';
 import TripIcon from '@/components/ui/trip-icon';
 import { findTripColor } from '@/constants/trip-colors';
-import { BrandColors, Spacing } from '@/constants/theme';
+import { BrandColors, Spacing, isDarkTheme } from '@/constants/theme';
 import { Trip } from '@/types/trips';
 import { formatLongDay, formatMoney, formatMoneyShort, parseDayKey, todayKey } from '@/utils/money';
 import { shortName } from '@/utils/format';
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     // A faint wash of the card's own ink, so the button reads as a control
     // without introducing a second colour onto the banner.
-    backgroundColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: isDarkTheme ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.45)',
   },
   qrPressed: {
     opacity: 0.6,

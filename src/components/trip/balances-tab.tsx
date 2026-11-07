@@ -4,6 +4,7 @@ import PaymentsList from '@/components/trip/payments-list';
 import EmptyState from '@/components/ui/empty-state';
 import { BrandColors, Spacing } from '@/constants/theme';
 import WhyOweSheet from '@/components/trip/why-owe-sheet';
+import { pendingBetween } from '@/utils/settle';
 import { DebtEdge, Expense, MemberBalance, Settlement } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
 import { formatMoney } from '@/utils/money';
@@ -85,6 +86,8 @@ export default function BalancesTab({
   const [whyId, setWhyId] = useState('');
   const myBalance = balances.find((balance) => balance.memberId === currentUserId);
   const myDebts = edges.filter((edge) => edge.from === currentUserId && edge.amount > 0.004);
+  /** Money already sent on this debt that the receiver hasn't confirmed yet. */
+  const waitingOn = (edge: DebtEdge) => pendingBetween(settlements, edge.from, edge.to);
   const myNet = myBalance?.net ?? 0;
 
   const totalOwed = edges.reduce((sum, edge) => sum + edge.amount, 0);
@@ -162,10 +165,15 @@ export default function BalancesTab({
                   <Text style={styles.edgeText} numberOfLines={1}>
                     {first(edge.from)} pays {first(edge.to)}
                   </Text>
-                  <Text style={styles.edgeHint}>
-                    {settleLocked
-                      ? 'Can be paid once the trip starts'
-                      : 'Tap to record this payment'}
+                  <Text
+                    style={[styles.edgeHint, waitingOn(edge) > 0 && styles.edgeWaiting]}
+                    numberOfLines={2}
+                  >
+                    {waitingOn(edge) > 0
+                      ? `${formatMoney(waitingOn(edge), currency)} sent, waiting for ${first(edge.to)} to confirm`
+                      : settleLocked
+                        ? 'Can be paid once the trip starts'
+                        : 'Tap to record this payment'}
                   </Text>
                 </View>
                 <View style={styles.edgeRight}>
@@ -175,14 +183,18 @@ export default function BalancesTab({
               </Pressable>
               <Pressable
                 onPress={() => setWhyId(edge.from)}
-                style={[styles.whyBtn, edge.to !== currentUserId && styles.whyLast]}
+                style={[
+                  styles.whyBtn,
+                  !(edge.to === currentUserId && waitingOn(edge) < edge.amount - 0.004) &&
+                    styles.whyLast,
+                ]}
                 hitSlop={6}
                 accessibilityRole="button"
                 accessibilityLabel={`Why ${first(edge.from)} owes this`}
               >
                 <Text style={styles.whyText}>Why?</Text>
               </Pressable>
-              {edge.to === currentUserId && (
+              {edge.to === currentUserId && waitingOn(edge) < edge.amount - 0.004 && (
                 <Pressable
                   onPress={() => remind(edge)}
                   style={styles.remindBtn}
@@ -209,6 +221,11 @@ export default function BalancesTab({
           {pairPayments === 1 ? 'payment' : 'payments'}. With simplification it takes {edges.length}
           {savedPayments > 0 ? `, so ${savedPayments} fewer.` : '.'}
         </Text>
+        <HelperText>
+          A new expense can change who pays whom, but never how much anyone owes in total. People
+          who already paid each other stay paired, so the list changes as little as it can. Tap Why?
+          on any payment to see the expenses behind it.
+        </HelperText>
         <HelperText>
           Total still to move around: {formatMoney(totalOwed, currency)}
           {biggest > 0 ? ` · largest single payment ${formatMoney(biggest, currency)}` : ''}
@@ -442,6 +459,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.one,
     paddingVertical: Spacing.one,
   },
+  edgeWaiting: { color: BrandColors.warning },
   whyLast: { marginRight: Spacing.three },
   whyText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 11, color: BrandColors.info },
   remindBtn: {
