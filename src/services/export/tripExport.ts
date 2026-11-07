@@ -1,6 +1,11 @@
 import { Expense, Settlement } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
-import { computeBalances, categoryLabel, countsTowardBalance } from '@/utils/balance';
+import {
+  computeBalances,
+  categoryLabel,
+  countsTowardBalance,
+  simplifyDebts,
+} from '@/utils/balance';
 import { formatDay, formatMoney, formatTime } from '@/utils/money';
 import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
@@ -42,7 +47,9 @@ export const buildCsv = (data: ExportData): string => {
 
   lines.push(row(['Trip', data.tripName]), row(['Currency', currency]), '');
   lines.push('Expenses');
-  lines.push(row(['Date', 'Time', 'Title', 'Category', 'Amount', 'Paid by', 'Split between', 'Notes']));
+  lines.push(
+    row(['Date', 'Time', 'Title', 'Category', 'Amount', 'Paid by', 'Split between', 'Notes']),
+  );
   expenses.forEach((expense) => {
     lines.push(
       row([
@@ -88,8 +95,22 @@ export const buildCsv = (data: ExportData): string => {
   lines.push(row(['Member', 'Paid', 'Share', 'Net (positive = is owed)']));
   balances.forEach((balance) => {
     lines.push(
-      row([nameOf(members, balance.memberId), money(balance.paid), money(balance.owed), money(balance.net)]),
+      row([
+        nameOf(members, balance.memberId),
+        money(balance.paid),
+        money(balance.owed),
+        money(balance.net),
+      ]),
     );
+  });
+
+  // What is left to pay, as the app shows it: the fewest payments.
+  const toPay = simplifyDebts(balances);
+  lines.push('', 'Still to pay');
+  lines.push(row(['From', 'To', 'Amount']));
+  if (!toPay.length) lines.push(row(['Everyone is settled', '', '']));
+  toPay.forEach((edge) => {
+    lines.push(row([nameOf(members, edge.from), nameOf(members, edge.to), money(edge.amount)]));
   });
 
   return lines.join('\n');
@@ -108,6 +129,21 @@ export const buildHtml = (data: ExportData): string => {
     settlements,
   );
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const toPay = simplifyDebts(balances);
+  const toPayRows = toPay.length
+    ? toPay
+        .map(
+          (edge) =>
+            '<tr><td>' +
+            esc(nameOf(members, edge.from)) +
+            ' pays ' +
+            esc(nameOf(members, edge.to)) +
+            '</td><td class="r">' +
+            fmt(edge.amount) +
+            '</td></tr>',
+        )
+        .join('')
+    : '<tr><td colspan="2">Everyone is settled.</td></tr>';
 
   const expenseRows = expenses
     .map(
@@ -187,6 +223,9 @@ export const buildHtml = (data: ExportData): string => {
     ' · ' +
     counted.length +
     ' payments counted</div>' +
+    '<h2>Still to pay</h2><table><tr><th>Who</th><th class="r">Amount</th></tr>' +
+    toPayRows +
+    '</table>' +
     '<h2>Balances</h2><table><tr><th>Member</th><th class="r">Paid</th><th class="r">Share</th><th class="r">Net</th></tr>' +
     balanceRows +
     '</table><h2>Expenses</h2><table><tr><th>Date</th><th>Title</th><th>Category</th><th>Paid by</th><th class="r">Amount</th></tr>' +
@@ -197,7 +236,8 @@ export const buildHtml = (data: ExportData): string => {
   );
 };
 
-const safeName = (value: string) => value.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '') || 'trip';
+const safeName = (value: string) =>
+  value.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '') || 'trip';
 
 export const exportTripCsv = async (data: ExportData): Promise<void> => {
   const csv = buildCsv(data);

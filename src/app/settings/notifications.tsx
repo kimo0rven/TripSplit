@@ -3,6 +3,7 @@ import { HelperText } from '@/components/ui/card';
 import { SettingsSection, SettingsToggleRow } from '@/components/settings/settings-rows';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/services/Firebase/useAuth';
+import { registerPushToken } from '@/services/reminders/push';
 import { shortName } from '@/utils/format';
 import { fetchUserTrips } from '@/services/Firebase/tripService';
 import {
@@ -39,7 +40,7 @@ import {
   LucideIcon,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /**
@@ -142,6 +143,17 @@ export default function NotificationSettingsScreen() {
 
   const changeDelivery = async (patch: { push?: boolean; quiet?: boolean }) => {
     if (!currentUser) return;
+    // Turning push on is also where the phone is asked for permission; a
+    // refusal leaves the switch off rather than pretending pushes will arrive.
+    if (patch.push === true) {
+      const result = await registerPushToken(currentUser.uid, { ask: true });
+      if (result === 'blocked') {
+        flash('Notifications are off for TripSplit. Turn them on in your phone settings.');
+        void Linking.openSettings();
+        return;
+      }
+      if (result === 'denied') return flash('Allow notifications to get pushes.');
+    }
     const previous = delivery;
     setDelivery({ ...delivery, ...patch });
     try {

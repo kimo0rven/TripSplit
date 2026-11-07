@@ -19,6 +19,10 @@ export interface TripSummary {
   hasExpenses: boolean;
   /** Everyone is even and there is something that was split. */
   settled: boolean;
+  /** Everything spent on the trip, in its own currency. */
+  spent?: number;
+  /** Where you stand: above zero you are owed, below zero you owe. */
+  myNet?: number;
 }
 
 export type TripStatus = 'upcoming' | 'ongoing' | 'past';
@@ -29,9 +33,11 @@ export type TripStatus = 'upcoming' | 'ongoing' | 'past';
  * status at all, rather than a guess.
  */
 export function tripStatus(
-  trip: { startDate?: string; endDate?: string },
+  trip: { startDate?: string; endDate?: string; closedAt?: string },
   today: string,
 ): TripStatus | null {
+  // A closed trip is done, whatever its dates say.
+  if (trip.closedAt) return 'past';
   if (!trip.startDate) return null;
   const end = trip.endDate && trip.endDate >= trip.startDate ? trip.endDate : trip.startDate;
   if (today < trip.startDate) return 'upcoming';
@@ -175,9 +181,63 @@ export function sortTrips<T extends ListableTrip>(
       });
     case 'newest':
       return copy.sort((a, b) => created(b) - created(a));
-    case 'spent':
-      return copy.sort((a, b) => (b.totalSpent ?? 0) - (a.totalSpent ?? 0));
+    case 'spent': {
+      // The figure counted from the expenses beats the trip's stored total,
+      // which is not kept up to date by every way an expense changes.
+      const spent = (t: T) => summaries[t.id]?.spent ?? t.totalSpent ?? 0;
+      return copy.sort((a, b) => spent(b) - spent(a));
+    }
     default:
       return copy.sort((a, b) => activity(b) - activity(a));
   }
+}
+
+const dayNumber = (key: string): number => {
+  const [y, m, d] = key.split('-').map(Number);
+  return Math.round(Date.UTC(y, (m || 1) - 1, d || 1) / 86_400_000);
+};
+
+/**
+ * Where a trip is in time, in words: "Starts in 3 days", "Day 2 of 5",
+ * "Finished". '' for a trip without dates, which shows nothing rather than a
+ * placeholder.
+ */
+export function tripTimeLabel(
+  trip: { startDate?: string; endDate?: string; closedAt?: string },
+  today: string,
+): string {
+  if (trip.closedAt) return 'Closed';
+  const status = tripStatus(trip, today);
+  if (!status || !trip.startDate) return '';
+  if (status === 'past') return 'Finished';
+
+  const start = dayNumber(trip.startDate);
+  const now = dayNumber(today);
+  if (status === 'upcoming') {
+    const days = start - now;
+    if (days === 1) return 'Starts tomorrow';
+    if (days < 7) return `Starts in ${days} days`;
+    if (days < 60)
+      return `Starts in ${Math.round(days / 7)} ${Math.round(days / 7) === 1 ? 'week' : 'weeks'}`;
+    return `Starts in ${Math.round(days / 30)} months`;
+  }
+
+  const end = dayNumber(
+    trip.endDate && trip.endDate >= trip.startDate ? trip.endDate : trip.startDate,
+  );
+  const total = end - start + 1;
+  return total > 1 ? `Day ${now - start + 1} of ${total}` : 'Happening today';
+}
+
+/**
+ * Whether money can be recorded on a trip yet. Before its first day it can't,
+ * unless the owner allowed it (for flights and deposits paid ahead). A trip
+ * with no dates is always open. `today` is YYYY-MM-DD.
+ */
+export function canRecordMoney(
+  trip: { startDate?: string; allowEarlySpending?: boolean },
+  today: string,
+): boolean {
+  if (!trip.startDate || trip.allowEarlySpending) return true;
+  return today >= trip.startDate;
 }

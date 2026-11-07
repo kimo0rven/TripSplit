@@ -21,7 +21,7 @@ import {
 import { fetchSettlements } from '@/services/Firebase/settlementService';
 import { fetchTrip } from '@/services/Firebase/tripService';
 import { useAuth } from '@/services/Firebase/useAuth';
-import { DebtEdge } from '@/types/expenses';
+import { DebtEdge, Expense, Settlement } from '@/types/expenses';
 import { FriendProfile, FriendRequest } from '@/types/friends';
 import { Trip, TripMember } from '@/types/trips';
 import { computeBalances, simplifyDebts } from '@/utils/balance';
@@ -37,6 +37,8 @@ interface PayContext {
   edges: DebtEdge[];
   currency: string;
   friendId: string;
+  expenses: Expense[];
+  settlements: Settlement[];
 }
 
 export default function FriendsScreen() {
@@ -245,6 +247,8 @@ export default function FriendsScreen() {
         edges: simplifyDebts(balances),
         currency: trip.currency || 'PHP',
         friendId: friend.id,
+        expenses,
+        settlements,
       };
 
       // The friend sheet closes first and the payment form opens just after.
@@ -501,6 +505,8 @@ export default function FriendsScreen() {
           currency={payContext.currency}
           members={payContext.members}
           edges={payContext.edges}
+          expenses={payContext.expenses}
+          settlements={payContext.settlements}
           currentUserId={currentUser?.uid ?? ''}
           preselect={{
             to: payContext.friendId,

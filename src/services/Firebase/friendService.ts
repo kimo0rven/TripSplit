@@ -178,7 +178,12 @@ export const sendFriendRequest = async (
     [outboxPath(from.id, toId)]: request,
   });
 
-  await notify(toId, 'friendRequests', 'New friend request', from.fullname + ' wants to be your friend.');
+  await notify(
+    toId,
+    'friendRequests',
+    'New friend request',
+    from.fullname + ' wants to be your friend.',
+  );
 };
 
 const readRequests = (value: unknown): FriendRequest[] => {
@@ -214,7 +219,12 @@ export const acceptFriendRequest = async (meId: string, fromId: string): Promise
     [outboxPath(fromId, meId)]: null,
   });
 
-  await notify(fromId, 'friendAccepted', 'Friend request accepted', myName() + ' is now your friend.');
+  await notify(
+    fromId,
+    'friendAccepted',
+    'Friend request accepted',
+    myName() + ' is now your friend.',
+  );
 };
 
 /** Refuses a request, or withdraws one you sent. Either way it disappears. */

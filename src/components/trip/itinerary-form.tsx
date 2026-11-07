@@ -1,21 +1,19 @@
 import ReceiptPicker from '@/components/trip/receipt-picker';
-import ParticipantPicker from '@/components/trip/participant-picker';
 import PrimaryButton from '@/components/Button/primary-button';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { HelperText } from '@/components/ui/card';
-import DateCalendar from '@/components/ui/date-calendar';
+import DayField from '@/components/ui/day-field';
 import { TextField } from '@/components/ui/text-input-field';
 import TimeField from '@/components/ui/time-field';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { createItineraryItem, updateItineraryItem } from '@/services/Firebase/itineraryService';
 import { uploadItineraryPhoto } from '@/services/Supabase/receiptService';
 import { ItineraryItem } from '@/types/expenses';
-import { TripMember } from '@/types/trips';
 import { pickImage, takePhoto } from '@/utils/imagePicker';
 import { toMinutes } from '@/utils/itinerary';
 import { todayKey } from '@/utils/money';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 interface ItineraryFormProps {
   visible: boolean;
@@ -24,8 +22,6 @@ interface ItineraryFormProps {
   currentUserId: string;
   /** Everyone's name, so the edit log can say who changed what. */
   memberNames?: Record<string, string>;
-  /** Everyone in the trip, so the plan can say who is coming. */
-  members?: TripMember[];
   /** Pre-fills the day when adding from inside a day group. */
   defaultDay?: string;
   /** When set, the form edits this plan instead of adding a new one. */
@@ -39,7 +35,6 @@ export default function ItineraryForm({
   tripId,
   currentUserId,
   memberNames = {},
-  members = [],
   defaultDay,
   item,
   onSaved,
@@ -253,58 +248,24 @@ export default function ItineraryForm({
 
         <View style={styles.group}>
           <Text style={styles.label}>Which day?</Text>
-          <DateCalendar value={day} onChange={setDay} />
+          <DayField label="Day" value={day} onChange={setDay} />
         </View>
 
         <View style={styles.group}>
           <Text style={styles.label}>Time (optional)</Text>
-          <TimeField value={time} onChange={setTime} />
-        </View>
-
-        <View style={styles.group}>
-          <Text style={styles.label}>Ends (optional)</Text>
-          <TimeField value={endTime} onChange={setEndTime} />
+          {/* Start and end side by side, like the expense form's date and time. */}
+          <View style={styles.timeRow}>
+            <View style={styles.timeHalf}>
+              <TimeField label="Starts" value={time} onChange={setTime} />
+            </View>
+            <View style={styles.timeHalf}>
+              <TimeField label="Ends" value={endTime} onChange={setEndTime} />
+            </View>
+          </View>
           <HelperText>
             Add an end time and the plan shows how long it runs, instead of a single moment.
           </HelperText>
         </View>
-
-        {members.length > 1 && (
-          <View style={styles.group}>
-            <View style={styles.labelRow}>
-              <Text style={styles.label}>Who is coming? (optional)</Text>
-              {attendeeIds.length > 0 && (
-                <Pressable
-                  onPress={() => setAttendeeIds([])}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.clearLink}>Everyone</Text>
-                </Pressable>
-              )}
-            </View>
-            <ParticipantPicker
-              members={members}
-              selectedIds={attendeeIds.length ? attendeeIds : members.map((m) => m.id)}
-              currentUserId={currentUserId}
-              onToggle={(memberId) => {
-                // An empty list means the whole trip is coming. The first tap
-                // turns that into an explicit list minus the person tapped, so
-                // ticking a face always does what it looks like it does.
-                const base = attendeeIds.length ? attendeeIds : members.map((m) => m.id);
-                const next = base.includes(memberId)
-                  ? base.filter((id) => id !== memberId)
-                  : [...base, memberId];
-                setAttendeeIds(next.length === members.length ? [] : next);
-              }}
-            />
-            <HelperText>
-              {attendeeIds.length === 0
-                ? 'Everyone in the trip, unless you pick who is not coming.'
-                : `${attendeeIds.length} of ${members.length} coming.`}
-            </HelperText>
-          </View>
-        )}
 
         <TextField
           title="Place (optional)"
@@ -326,6 +287,8 @@ export default function ItineraryForm({
 }
 
 const styles = StyleSheet.create({
+  timeRow: { flexDirection: 'row', gap: Spacing.two },
+  timeHalf: { flex: 1 },
   scroll: {
     gap: Spacing.four,
     paddingBottom: Spacing.four,
@@ -338,16 +301,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.primary,
     marginBottom: 2,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.two,
-  },
-  clearLink: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 12,
-    color: BrandColors.info,
   },
 });

@@ -11,9 +11,18 @@ import type { DebtEdge, Expense, MemberBalance, Settlement } from '@/types/expen
 
 const cents = (value: number): number => Math.round((Number.isFinite(value) ? value : 0) * 100);
 
-/** Only payments the receiver has not rejected or left waiting change the balances. */
-export const countsTowardBalance = (settlement: Settlement): boolean =>
-  !settlement.status || settlement.status === 'confirmed';
+/**
+ * Whether a payment changes the balances.
+ *
+ * A payment counts the moment it is recorded, so the debt drops straight away
+ * for both people. The receiver can still decline it; only a declined payment
+ * stops counting, which puts the debt back.
+ */
+export const countsTowardBalance = (settlement: Settlement): boolean => !isDeclined(settlement);
+
+/** Declined, including the older "rejected" spelling some records still carry. */
+export const isDeclined = (settlement: { status?: string }): boolean =>
+  settlement.status === 'declined' || settlement.status === ('rejected' as string);
 
 export const computeBalances = (
   memberIds: string[],

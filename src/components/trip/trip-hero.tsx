@@ -91,11 +91,13 @@ export default function TripHero({
   const ratio = budget > 0 ? spent / budget : 0;
   const left = budget - spent;
 
+  // A trip without dates simply shows none: no "No dates set" placeholder.
+  const hasDates = !!trip.startDate;
   const dateLine = trip.startDate
     ? trip.endDate && trip.endDate !== trip.startDate
       ? `${formatLongDay(trip.startDate)} – ${formatLongDay(trip.endDate)}`
       : formatLongDay(trip.startDate)
-    : 'No dates set';
+    : '';
 
   return (
     <View style={[styles.card, { backgroundColor: palette.background }]}>
@@ -109,16 +111,18 @@ export default function TripHero({
           <Text style={[styles.name, { color: palette.foreground }]} numberOfLines={2}>
             {shortName(trip.name, 34)}
           </Text>
-          <View style={styles.statusChip}>
-            {over ? (
-              <CheckCircle2 size={11} color={palette.foreground} />
-            ) : (
-              <Clock3 size={11} color={palette.foreground} />
-            )}
-            <Text style={[styles.statusText, { color: palette.foreground }]} numberOfLines={1}>
-              {over ? 'Finished' : statusLine(trip, today)}
-            </Text>
-          </View>
+          {(over || hasDates) && (
+            <View style={styles.statusChip}>
+              {over ? (
+                <CheckCircle2 size={11} color={palette.foreground} />
+              ) : (
+                <Clock3 size={11} color={palette.foreground} />
+              )}
+              <Text style={[styles.statusText, { color: palette.foreground }]} numberOfLines={1}>
+                {over ? 'Finished' : statusLine(trip, today)}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* The trip's tools sit on the card itself, top right: notes first, then
@@ -150,12 +154,14 @@ export default function TripHero({
         </View>
       </View>
 
-      <View style={styles.metaItem}>
-        <CalendarDays size={13} color={palette.foreground} />
-        <Text style={[styles.metaText, { color: palette.foreground }]} numberOfLines={1}>
-          {dateLine}
-        </Text>
-      </View>
+      {hasDates && (
+        <View style={styles.metaItem}>
+          <CalendarDays size={13} color={palette.foreground} />
+          <Text style={[styles.metaText, { color: palette.foreground }]} numberOfLines={1}>
+            {dateLine}
+          </Text>
+        </View>
+      )}
 
       {/* Spending against the budget, or just the total when no budget is set. */}
       <View style={styles.moneyBlock}>

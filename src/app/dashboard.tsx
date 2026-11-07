@@ -17,6 +17,7 @@ import TripChips from '@/components/dashboard/trip-chips';
 import { fetchTripBudget, respondToSettlement } from '@/services/Firebase/settlementService';
 import { deleteExpense } from '@/services/Firebase/expenseService';
 import ExpenseDetailSheet from '@/components/trip/expense-detail-sheet';
+import PendingJoinBanner from '@/components/dashboard/pending-join-banner';
 import SettleSheet from '@/components/trip/settle-sheet';
 import ExpenseForm from '@/components/trip/expense-form';
 import TripShareSheet from '@/components/trip/trip-share-sheet';
@@ -29,6 +30,8 @@ import { pickImage, takePhoto } from '@/utils/imagePicker';
 import { Expense } from '@/types/expenses';
 import { computeTripTotals, simplifyDebts } from '@/utils/balance';
 import { dateToday, timeOfTheDay } from '@/utils/dates';
+import { formatDay, todayKey } from '@/utils/money';
+import { canRecordMoney } from '@/utils/tripList';
 import { useRouter } from 'expo-router';
 import { Bell, Settings } from 'lucide-react-native';
 import { useUnreadCount } from '@/services/notifications/useUnreadCount';
@@ -150,8 +153,17 @@ export default function DashboardScreen() {
     [trip],
   );
 
+  /** Before the trip's first day, money waits unless the owner allowed it early. */
+  const requireStarted = (): boolean => {
+    if (!trip || canRecordMoney(trip, todayKey())) return true;
+    setNoTripNotice(
+      `${trip.name} starts on ${formatDay(trip.startDate ?? '')}. Expenses and payments open then; the trip owner can allow them earlier in trip settings.`,
+    );
+    return false;
+  };
+
   const handleAddExpense = () => {
-    if (!requireTrip('add an expense')) return;
+    if (!requireTrip('add an expense') || !requireStarted()) return;
     setPendingReceipt(null);
     setEditingExpense(null);
     setExpenseFormOpen(true);
@@ -186,7 +198,7 @@ export default function DashboardScreen() {
   };
 
   const handleSettleUp = () => {
-    if (!requireTrip('settle up')) return;
+    if (!requireTrip('settle up') || !requireStarted()) return;
     setPreselect(undefined);
     if (edges.length === 0 && myNet === 0) {
       setNoTripNotice('Everyone is settled up on this trip, so there is nothing to pay right now.');
@@ -196,7 +208,7 @@ export default function DashboardScreen() {
   };
 
   const handleReceipt = () => {
-    if (!requireTrip('save a receipt')) return;
+    if (!requireTrip('save a receipt') || !requireStarted()) return;
     setReceiptStep('source');
   };
 
@@ -323,6 +335,8 @@ export default function DashboardScreen() {
                 />
               )}
 
+              <PendingJoinBanner />
+
               <ActiveTripCard
                 activeTrip={activeTrip}
                 tripCount={trips.length}
@@ -368,6 +382,7 @@ export default function DashboardScreen() {
                     tripId={activeTrip.id}
                     tripName={activeTrip.name}
                     onPay={(edge) => {
+                      if (!requireStarted()) return;
                       setPreselect({ from: edge.from, to: edge.to, amount: edge.amount });
                       setSettleOpen(true);
                     }}
@@ -466,9 +481,16 @@ export default function DashboardScreen() {
             edges={edges}
             currentUserId={userId}
             preselect={preselect}
+            expenses={expenses}
+            settlements={settlements}
             onSaved={(saved) => {
               // Settlements change the balances, so they are kept in step here.
-              setSettlements((previous) => [saved, ...previous]);
+              // The server may have written a PayMongo payment already, so the
+              // list replaces a copy it holds instead of adding a second one.
+              setSettlements((previous) => [
+                saved,
+                ...previous.filter((item) => item.id !== saved.id),
+              ]);
             }}
           />
 

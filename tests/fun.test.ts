@@ -3,7 +3,9 @@ import { test } from 'node:test';
 import {
   pickRandomPayer,
   scoreGuesses,
+  sliceAtPointer,
   spinTargetRotation,
+  wheelLanding,
   tripAwards,
   tripCountdown,
   wheelAngleFor,
@@ -210,4 +212,28 @@ test('a spin always runs at least one whole turn', () => {
   // like nothing happened at all.
   const target = spinTargetRotation(90, 270, 1);
   assert.ok(target - 90 >= 360);
+});
+
+test("a spin lands inside the winner's slice, whichever way it was flicked", () => {
+  const count = 5;
+  const slice = 360 / count;
+  for (let index = 0; index < count; index += 1) {
+    for (const direction of [1, -1] as const) {
+      for (const offset of [-0.9, -0.3, 0, 0.3, 0.9]) {
+        for (const from of [0, 77, -400, 1234]) {
+          const end = wheelLanding(from, index * slice, slice, { direction, offset, turns: 4 });
+          assert.equal(sliceAtPointer(end, count), index);
+          // It turns the way it was flicked, by at least the whole turns asked for.
+          assert.ok(direction === 1 ? end - from >= 4 * 360 : from - end >= 4 * 360);
+        }
+      }
+    }
+  }
+});
+
+test('the slice under the pointer follows the ring', () => {
+  assert.equal(sliceAtPointer(0, 4), 0);
+  // Turning the ring 90 degrees clockwise brings the last slice to the top.
+  assert.equal(sliceAtPointer(90, 4), 3);
+  assert.equal(sliceAtPointer(-90, 4), 1);
 });

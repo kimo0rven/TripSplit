@@ -20,12 +20,24 @@ test('balances net to zero and debts settle them', () => {
   assert.deepEqual(edges.map((e) => [e.from, e.to, e.amount]).sort(), [['b', 'a', 30], ['c', 'a', 30]]);
 });
 
-test('confirmed settlements clear debt, pending ones do not', () => {
+test('a payment clears the debt as soon as it is made; only a declined one does not', () => {
   const expenses: any[] = [{ amount: 50, paidBy: { a: 50 }, shares: { a: 25, b: 25 } }];
   const pending: any[] = [{ from: 'b', to: 'a', amount: 25, status: 'pending' }];
   const done: any[] = [{ from: 'b', to: 'a', amount: 25, status: 'confirmed' }];
-  assert.equal(computeBalances(['a', 'b'], expenses, pending)[1].net, -25);
+  const declined: any[] = [{ from: 'b', to: 'a', amount: 25, status: 'declined' }];
+  assert.equal(computeBalances(['a', 'b'], expenses, pending)[1].net, 0);
   assert.equal(computeBalances(['a', 'b'], expenses, done)[1].net, 0);
+  assert.equal(computeBalances(['a', 'b'], expenses, declined)[1].net, -25);
+});
+
+test('a paid-off debt leaves nothing to settle', () => {
+  const expenses: any[] = [{ amount: 300, paidBy: { a: 300 }, shares: { a: 100, b: 100, c: 100 } }];
+  const paid: any[] = [
+    { from: 'b', to: 'a', amount: 100, status: 'pending' },
+    { from: 'c', to: 'a', amount: 40, status: 'confirmed' },
+  ];
+  const edges = simplifyDebts(computeBalances(['a', 'b', 'c'], expenses, paid));
+  assert.deepEqual(edges.map((e) => [e.from, e.to, e.amount]), [['c', 'a', 60]]);
 });
 
 test('convertAll converts or reports a missing rate', () => {

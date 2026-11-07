@@ -49,7 +49,8 @@ export default function SignUpScreen() {
 
     try {
       await signUp(email.trim(), password);
-      router.replace('/account-setup');
+      // Verify the email first; the layout moves on to account setup after.
+      router.replace({ pathname: '/verify-email', params: { sent: '1' } } as any);
     } catch (err: any) {
       console.error('Error during sign up:', err);
       setError(mapFirebaseError(err?.code));

@@ -25,7 +25,7 @@ function RootLayoutNav({
   const router = useRouter();
   const segments = useSegments();
 
-  const { currentUser, loading } = useAuth();
+  const { currentUser, loading, mustVerifyEmail } = useAuth();
   const authInitialized = !loading;
 
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
@@ -52,14 +52,18 @@ function RootLayoutNav({
 
     const inAuthGroup = segments[0] === 'auth' || !segments[0];
     const isAccountSetup = segments[0] === 'account-setup';
+    const isVerifyEmail = segments[0] === 'verify-email';
 
     if (currentUser) {
-      if (!currentUser.displayName) {
+      // A new account verifies its email before anything else.
+      if (mustVerifyEmail) {
+        if (!isVerifyEmail) router.replace('/verify-email');
+      } else if (!currentUser.displayName) {
         if (!isAccountSetup) {
           router.replace('/account-setup');
         }
       } else {
-        if (inAuthGroup || isAccountSetup) {
+        if (inAuthGroup || isAccountSetup || isVerifyEmail) {
           router.replace('/dashboard');
         }
       }
@@ -68,11 +72,15 @@ function RootLayoutNav({
         router.replace('/');
       }
     }
-  }, [isReady, currentUser, segments]);
+  }, [isReady, currentUser, mustVerifyEmail, segments]);
 
   const uid = currentUser?.uid;
+  // Only registers a phone that already allows notifications. The system
+  // prompt is shown where it is explained: the setup screen's "Enable
+  // notifications" step, and the Push switch in notification settings. So a
+  // "Not now" stays a "Not now".
   useEffect(() => {
-    if (uid) registerPushToken(uid);
+    if (uid) void registerPushToken(uid, { ask: false });
   }, [uid]);
 
   // Tapping a reminder opens the trip it is about.

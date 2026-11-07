@@ -172,7 +172,8 @@ export function tripAwards(
   // The Fastest Settler: who cleared the most payments.
   const paidOut: Record<string, number> = {};
   settlements.forEach((settlement) => {
-    if (settlement.status && settlement.status !== 'confirmed') return;
+    // Same rule as the balances: everything counts except a declined payment.
+    if (['declined', 'rejected'].includes(String(settlement.status))) return;
     paidOut[settlement.from] = (paidOut[settlement.from] ?? 0) + settlement.amount;
   });
   const topSettler = Object.entries(paidOut).sort((a, b) => b[1] - a[1])[0];
@@ -306,6 +307,42 @@ export function spinTargetRotation(current: number, indexAngle: number, turns = 
   // makes a full circle, which is where the negative angle comes from.
   const landing = (((-indexAngle - normalized) % 360) + 360) % 360;
   return current + wholeTurns * 360 + landing;
+}
+
+/**
+ * Where a spin ends, like a real wheel: a few whole turns in the direction it
+ * was flicked, stopping somewhere inside the winner's slice rather than dead
+ * centre. `offset` is where in the slice, from -0.5 (one edge) to 0.5 (the
+ * other); it is kept inside 0.4 so the pointer never sits on a border.
+ */
+export function wheelLanding(
+  current: number,
+  indexAngle: number,
+  sliceAngle: number,
+  options: { turns?: number; direction?: 1 | -1; offset?: number } = {},
+): number {
+  const turns = Math.max(1, Math.round(options.turns ?? 5));
+  const direction = options.direction ?? 1;
+  const offset = Math.max(-0.4, Math.min(0.4, options.offset ?? 0));
+  // The slice is under the pointer when the ring has turned to -indexAngle
+  // (mod 360); the offset moves the stop within the slice.
+  const goal = -indexAngle - offset * sliceAngle;
+  const normalized = ((current % 360) + 360) % 360;
+  if (direction === 1) {
+    const ahead = (((goal - normalized) % 360) + 360) % 360;
+    return current + turns * 360 + ahead;
+  }
+  const behind = (((normalized - goal) % 360) + 360) % 360;
+  return current - turns * 360 - behind;
+}
+
+/** Which slice is under the pointer when the ring has turned `rotation` degrees. */
+export function sliceAtPointer(rotation: number, count: number): number {
+  if (count <= 0) return 0;
+  const slice = 360 / count;
+  // Slice i is centred on i * slice; the pointer reads the ring at -rotation.
+  const at = (((-rotation + slice / 2) % 360) + 360) % 360;
+  return Math.floor(at / slice) % count;
 }
 
 /* ------------------------------------------------------------------ */

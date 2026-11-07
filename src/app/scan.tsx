@@ -1,8 +1,11 @@
 import PrimaryButton from '@/components/Button/primary-button';
+import JoinTripSheet from '@/components/trip/join-trip-sheet';
 import ConfirmDialog from '@/components/ui/confirm-dialog';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { sendFriendRequest } from '@/services/Firebase/friendService';
-import { fetchTripPreview, joinTripByCode } from '@/services/Firebase/tripService';
+import { fetchTripPreview } from '@/services/Firebase/tripService';
+import { savePendingJoinCode } from '@/services/joining/pendingJoinCodes';
+import { isConnected } from '@/services/offline/offlineStore';
 import { useAuth } from '@/services/Firebase/useAuth';
 import { TripPreview } from '@/types/trips';
 import { parseQrPayload } from '@/utils/qr';
@@ -11,7 +14,16 @@ import { CameraView, scanFromURLAsync, useCameraPermissions } from 'expo-camera'
 import { useRouter } from 'expo-router';
 import { ImagePlus, ScanLine, X } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Pressable, Platform, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Pressable,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 export default function ScanScreen() {
   const router = useRouter();
@@ -37,11 +49,21 @@ export default function ScanScreen() {
     const loop = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(sweep, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(sweep, {
+            toValue: 1,
+            duration: 2000,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
           Animated.timing(goingUp, { toValue: 0, duration: 0, useNativeDriver: true }),
         ]),
         Animated.parallel([
-          Animated.timing(sweep, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(sweep, {
+            toValue: 0,
+            duration: 2000,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
           Animated.timing(goingUp, { toValue: 1, duration: 0, useNativeDriver: true }),
         ]),
       ]),
@@ -87,6 +109,15 @@ export default function ScanScreen() {
         const code = payload.type === 'trip' ? payload.code : '';
         if (!code) {
           throw new Error('That QR code could not be read.');
+        }
+
+        // Offline, the code is kept and offered on the dashboard once back online.
+        if (!isConnected()) {
+          await savePendingJoinCode(code);
+          setStatus('You’re offline. The trip code was saved for when you’re back online.');
+          setBusy(false);
+          setTimeout(() => router.replace('/dashboard' as any), 1500);
+          return;
         }
 
         // Look the trip up first, so the person can confirm before joining.
@@ -192,33 +223,6 @@ export default function ScanScreen() {
     }
   };
 
-  /** Joins the trip the scanned QR pointed at, once the person agrees. */
-  const handleConfirmJoin = async () => {
-    if (!pending || !currentUser?.uid || busy) return;
-
-    setBusy(true);
-    setStatus('Joining…');
-    setError('');
-
-    try {
-      const trip = await joinTripByCode(pendingCode, {
-        id: currentUser.uid,
-        fullname: currentUser.displayName || currentUser.email?.split('@')[0] || 'You',
-        email: currentUser.email || '',
-        ...(currentUser.photoURL ? { photoURL: currentUser.photoURL } : {}),
-      });
-
-      setPending(null);
-      router.replace(`/trips/${trip.id}` as any);
-    } catch (err: any) {
-      console.error('Failed to join trip:', err);
-      setPending(null);
-      setStatus('');
-      setError(err?.message || 'Could not join that trip.');
-      allowRescan();
-    }
-  };
-
   if (!permission) {
     return (
       <View style={styles.centered}>
@@ -301,7 +305,16 @@ export default function ScanScreen() {
               pointerEvents="none"
               style={[
                 styles.scanner,
-                { transform: [{ translateY: sweep.interpolate({ inputRange: [0, 1], outputRange: [-70, 269] }) }] },
+                {
+                  transform: [
+                    {
+                      translateY: sweep.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-70, 269],
+                      }),
+                    },
+                  ],
+                },
               ]}
             >
               <Animated.View style={{ opacity: Animated.subtract(1, goingUp) }}>
@@ -369,18 +382,16 @@ export default function ScanScreen() {
         }}
       />
 
-      <ConfirmDialog
-        visible={!!pending}
-        title={`Join "${pending?.name ?? 'this trip'}"?`}
-        message="You will be added to this trip and can see and split its expenses with everyone in it."
-        confirmLabel="Join trip"
-        cancelLabel="Not now"
-        busy={busy}
-        onConfirm={handleConfirmJoin}
-        onCancel={() => {
-          if (busy) return;
+      <JoinTripSheet
+        preview={pending}
+        code={pendingCode}
+        onClose={() => {
           setPending(null);
           allowRescan();
+        }}
+        onJoined={(tripId) => {
+          setPending(null);
+          router.replace(`/trips/${tripId}` as any);
         }}
       />
     </View>
@@ -442,7 +453,11 @@ const styles = StyleSheet.create({
     height: 280,
   },
   cameraClip: {
-    position: 'absolute', top: 0, bottom: 0, left: 0, right: 0,
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
     margin: 4,
     borderRadius: 12,
     overflow: 'hidden',

@@ -1,0 +1,301 @@
+{
+  "users": {
+    "$uid": {
+      "email": "string",
+      "fullname": "string",
+      "photoURL": "string (URL, optional)",
+      "currency": "string (default currency, e.g. PHP)",
+      "pushToken": "string (Expo push token, optional)",
+      "createdAt": "string (ISO date)",
+      "updatedAt": "string (ISO date)",
+      "notificationPrefs": {
+        "tripInvites": "boolean",
+        "friendRequests": "boolean",
+        "friendAccepted": "boolean",
+        "paymentRequests": "boolean",
+        "paymentUpdates": "boolean",
+        "pendingPayments": "boolean",
+        "newExpenses": "boolean",
+        "expenseChanges": "boolean",
+        "tripActivity": "boolean",
+        "recurring": "boolean",
+        "budget": "boolean",
+        "settleUp": "boolean",
+        "summary": "boolean",
+        "reminders": "boolean"
+      },
+      "notificationSettings": {
+        "push": "boolean",
+        "quiet": "boolean (quiet hours 10 PM to 7 AM)",
+        "tz": "number (UTC offset in minutes)",
+        "mutedTrips": {
+          "$tripId": "boolean (true)"
+        }
+      },
+      "archivedTrips": {
+        "$tripId": "boolean (true)"
+      }
+    }
+  },
+
+  "userTrips": {
+    "$uid": {
+      "$tripId": "boolean (true)"
+    }
+  },
+
+  "inviteCodes": {
+    "$code": {
+      "tripId": "string",
+      "name": "string (trip name)"
+    }
+  },
+
+  "trips": {
+    "$tripId": {
+      "name": "string",
+      "currency": "string (e.g. PHP)",
+      "icon": "string (icon key)",
+      "iconColor": "string (colour key)",
+      "startDate": "string (YYYY-MM-DD)",
+      "endDate": "string (YYYY-MM-DD, optional)",
+      "createdBy": "string ($uid of the owner)",
+      "createdAt": "string (ISO date)",
+      "inviteCode": "string (6 letters/digits)",
+      "totalSpent": "number",
+
+      "members": {
+        "$uid": {
+          "id": "string ($uid)",
+          "fullname": "string",
+          "email": "string",
+          "photoURL": "string (URL, optional)",
+          "role": "string (owner | member)",
+          "joinedAt": "string (ISO date)"
+        }
+      },
+
+      "budget": {
+        "amount": "number",
+        "updatedBy": "string ($uid)",
+        "updatedAt": "string (ISO date)"
+      },
+
+      "expenses": {
+        "$expenseId": {
+          "id": "string",
+          "title": "string",
+          "amount": "number",
+          "category": "string (food | transport | stay | ...)",
+          "spentOn": "string (YYYY-MM-DD)",
+          "spentTime": "string (HH:mm, optional)",
+          "notes": "string (optional)",
+          "paidBy": {
+            "$uid": "number (amount this member paid)"
+          },
+          "shares": {
+            "$uid": "number (amount this member owes)"
+          },
+          "splitMode": "string (equal | percentage | custom)",
+          "splitDetail": {
+            "mode": "string (equal | percentage | custom)",
+            "input": {
+              "$uid": "number (percent or amount typed)"
+            }
+          },
+          "items": [
+            {
+              "id": "string",
+              "name": "string",
+              "amount": "number",
+              "sharedBy": ["string ($uid)"]
+            }
+          ],
+          "receiptUrl": "string (URL, optional)",
+          "receiptUrls": ["string (URL)"],
+          "reactions": {
+            "$emoji": ["string ($uid)"]
+          },
+          "createdBy": "string ($uid)",
+          "createdAt": "string (ISO date)",
+          "updatedAt": "string (ISO date)",
+          "history": {
+            "$entryId": {
+              "at": "string (ISO date)",
+              "by": "string ($uid)",
+              "byName": "string",
+              "changes": "string (JSON list of { label, from, to })"
+            }
+          }
+        }
+      },
+
+      "settlements": {
+        "$settlementId": {
+          "id": "string",
+          "from": "string ($uid of the payer)",
+          "to": "string ($uid of the payee)",
+          "amount": "number (in the trip currency)",
+          "kind": "string (full | partial)",
+          "settledOn": "string (YYYY-MM-DD)",
+          "status": "string (pending | confirmed | declined)",
+          "confirmedBy": "string ($uid, or paymongo)",
+          "confirmedAt": "string (ISO date)",
+          "isCash": "boolean",
+          "method": "string (e.g. PayMongo, optional)",
+          "proofUrls": ["string (URL)"],
+          "note": "string (optional)",
+          "paymongoRef": "string (PayMongo payment id, optional)",
+          "paymongo": {
+            "method": "string (qrph | gcash | paymaya | grab_pay | card | ...)",
+            "brand": "string (card brand, optional)",
+            "last4": "string (card last 4 digits, optional)",
+            "paymentId": "string (pay_...)",
+            "checkoutId": "string (cs_...)",
+            "reference": "string (TripSplit reference)",
+            "paidAt": "string (ISO date)",
+            "fee": "number (PayMongo fee in PHP)",
+            "chargedAmount": "number (PHP charged, non-PHP trips only)",
+            "chargedCurrency": "string (PHP, non-PHP trips only)",
+            "rate": "number (PHP per 1 trip currency, non-PHP trips only)"
+          },
+          "createdBy": "string ($uid)",
+          "createdAt": "string (ISO date)",
+          "updatedAt": "string (ISO date)",
+          "history": {
+            "$entryId": {
+              "at": "string (ISO date)",
+              "by": "string ($uid)",
+              "byName": "string",
+              "changes": "string (JSON list of { label, from, to })"
+            }
+          }
+        }
+      },
+
+      "itinerary": {
+        "$itemId": {
+          "id": "string",
+          "title": "string",
+          "day": "string (YYYY-MM-DD)",
+          "time": "string (HH:mm, optional)",
+          "endTime": "string (HH:mm, optional)",
+          "location": "string (optional)",
+          "notes": "string (optional)",
+          "attendeeIds": ["string ($uid)"],
+          "photoUrls": ["string (URL)"],
+          "createdBy": "string ($uid)",
+          "createdAt": "string (ISO date)",
+          "history": {
+            "$entryId": {
+              "at": "string (ISO date)",
+              "by": "string ($uid)",
+              "byName": "string",
+              "changes": "string (JSON list of { label, from, to })"
+            }
+          }
+        }
+      },
+
+      "recurring": {
+        "$recurringId": {
+          "id": "string",
+          "title": "string",
+          "amount": "number",
+          "category": "string",
+          "every": "string (daily | weekly | monthly)",
+          "nextDue": "string (YYYY-MM-DD)",
+          "spentTime": "string (HH:mm, optional)",
+          "notes": "string (optional)",
+          "paidBy": {
+            "$uid": "number"
+          },
+          "shares": {
+            "$uid": "number"
+          },
+          "splitMode": "string (equal | percentage | custom)",
+          "active": "boolean",
+          "createdBy": "string ($uid)",
+          "createdAt": "string (ISO date)"
+        }
+      },
+
+      "notes": {
+        "$noteId": {
+          "id": "string",
+          "body": "string (1 to 1000 characters)",
+          "photoUrls": ["string (URL)"],
+          "createdBy": "string ($uid)",
+          "createdAt": "string (ISO date)"
+        }
+      },
+
+      "tracks": {
+        "$trackId": {
+          "title": "string (song)",
+          "artist": "string",
+          "addedBy": "string ($uid)",
+          "addedAt": "string (ISO date)"
+        }
+      },
+
+      "guesses": {
+        "$uid": "number (guessed trip total)"
+      }
+    }
+  },
+
+  "friends": {
+    "$uid": {
+      "$friendUid": "boolean (true)"
+    }
+  },
+
+  "friendRequests": {
+    "incoming": {
+      "$toUid": {
+        "$fromUid": {
+          "fromId": "string ($uid)",
+          "fromName": "string",
+          "fromEmail": "string",
+          "fromPhotoURL": "string (URL, optional)",
+          "toId": "string ($uid)",
+          "toName": "string",
+          "toEmail": "string",
+          "toPhotoURL": "string (URL, optional)",
+          "createdAt": "string (ISO date)"
+        }
+      }
+    },
+    "outgoing": {
+      "$fromUid": {
+        "$toUid": {
+          "fromId": "string ($uid)",
+          "fromName": "string",
+          "fromEmail": "string",
+          "fromPhotoURL": "string (URL, optional)",
+          "toId": "string ($uid)",
+          "toName": "string",
+          "toEmail": "string",
+          "toPhotoURL": "string (URL, optional)",
+          "createdAt": "string (ISO date)"
+        }
+      }
+    }
+  },
+
+  "notifications": {
+    "$uid": {
+      "$noticeId": {
+        "id": "string",
+        "type": "string (tripInvites | friendRequests | paymentUpdates | ...)",
+        "title": "string",
+        "body": "string",
+        "from": "string ($uid of the sender)",
+        "tripId": "string (optional)",
+        "createdAt": "string (ISO date)",
+        "read": "boolean"
+      }
+    }
+  }
+}

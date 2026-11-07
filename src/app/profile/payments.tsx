@@ -1,5 +1,6 @@
 import ListSkeleton from '@/components/ui/list-skeleton';
 import { useCombinedTotal } from '@/services/currency/useCombinedTotal';
+import RatesCredit from '@/components/ui/rates-credit';
 import BackButton from '@/components/Button/back-button';
 import Avatar from '@/components/ui/avatar';
 import BottomSheet from '@/components/ui/bottom-sheet';
@@ -8,6 +9,7 @@ import DayDivider from '@/components/ui/day-divider';
 import EmptyState from '@/components/ui/empty-state';
 import FilterChips, { FilterOption } from '@/components/ui/filter-chips';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { countsTowardBalance } from '@/utils/balance';
 import { fetchSettlements } from '@/services/Firebase/settlementService';
 import { fetchUserTrips } from '@/services/Firebase/tripService';
 import { useAuth } from '@/services/Firebase/useAuth';
@@ -157,7 +159,7 @@ export default function PaymentsScreen() {
   // different trips, so a single figure would not mean anything.
   const dayGroups = useMemo(() => groupByDay(shown, (row) => row.settlement.settledOn), [shown]);
 
-  // Only confirmed payments count towards the totals.
+  // Every payment counts towards the totals except a declined one, matching the balances.
   const detail = (rows ?? []).find((row) => `${row.tripId}-${row.settlement.id}` === openKey);
   const timeOf = (iso?: string) => {
     const date = iso ? new Date(iso) : null;
@@ -169,7 +171,7 @@ export default function PaymentsScreen() {
   const totals = useMemo(() => {
     const byCurrency: Record<string, { made: number; received: number }> = {};
     (rows ?? []).forEach(({ settlement, currency }) => {
-      if (settlement.status === 'pending' || settlement.status === 'declined') return;
+      if (!countsTowardBalance(settlement)) return;
       const line = (byCurrency[currency] ??= { made: 0, received: 0 });
       if (settlement.from === uid) line.made += settlement.amount;
       else line.received += settlement.amount;
@@ -232,6 +234,7 @@ export default function PaymentsScreen() {
                   </View>
                 </View>
               )}
+              {madeTotal && receivedTotal && <RatesCredit align="right" />}
             </View>
           )}
 

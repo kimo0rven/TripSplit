@@ -32,7 +32,8 @@ const DOT_SIZE = 9;
 interface ItineraryTabProps {
   items: ItineraryItem[];
   currentUserId: string;
-  onDelete: (item: ItineraryItem) => void;
+  /** Left out on a closed trip, which hides deleting. */
+  onDelete?: (item: ItineraryItem) => void;
   /** Set for the trip owner, who may change anyone's plan. */
   isOwner?: boolean;
   onEdit?: (item: ItineraryItem) => void;
@@ -54,8 +55,10 @@ export default function ItineraryTab({
   // the itinerary is shared, so whoever notices a wrong time can fix it.
   const canEdit = !!onEdit;
   const canDelete = (item: ItineraryItem) =>
-    isOwner || (item.createdBy === currentUserId && !!onDelete);
+    !!onDelete && (isOwner || item.createdBy === currentUserId);
   const [openId, setOpenId] = useState<string | null>(null);
+  /** The plan whose card is being pressed, to dim the whole card. */
+  const [pressedId, setPressedId] = useState('');
   const [viewerUri, setViewerUri] = useState<string | null>(null);
   const open = items.find((item) => item.id === openId) ?? null;
 
@@ -104,76 +107,108 @@ export default function ItineraryTab({
                       />
                     </View>
 
-                    <Pressable
+                    {/* The card opens the plan, and the bin and the map are
+                        their own buttons. They sit beside the tappable parts
+                        rather than inside them: a button inside a button is
+                        invalid on the web. */}
+                    <View
                       style={[
                         styles.itemPress,
                         planTiming(item, now).state === 'past' && styles.done,
+                        pressedId === item.id && styles.itemPressed,
                       ]}
-                      onPress={() => setOpenId(item.id)}
-                      accessibilityRole="button"
                     >
                       <Card style={styles.itemCard}>
                         <View style={styles.itemTop}>
-                          <Text style={styles.itemTitle} numberOfLines={2}>
-                            {item.title}
-                          </Text>
+                          <Pressable
+                            style={styles.itemOpen}
+                            onPress={() => setOpenId(item.id)}
+                            onPressIn={() => setPressedId(item.id)}
+                            onPressOut={() => setPressedId('')}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Open ${item.title}`}
+                          >
+                            <Text style={styles.itemTitle} numberOfLines={2}>
+                              {item.title}
+                            </Text>
+                          </Pressable>
                           {canDelete(item) && (
-                            <Pressable onPress={() => onDelete(item)} hitSlop={8}>
+                            <Pressable
+                              onPress={() => onDelete?.(item)}
+                              hitSlop={8}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Delete ${item.title}`}
+                            >
                               <Trash2 size={14} color={BrandColors.secondary} />
                             </Pressable>
                           )}
                         </View>
 
-                        <View style={styles.metaRow}>
-                          {!!item.time && (
-                            <View style={styles.metaChip}>
-                              <Clock size={11} color={BrandColors.secondary} />
-                              <Text style={styles.metaText}>
-                                {formatTime(item.time)}
-                                {item.endTime ? ` – ${formatTime(item.endTime)}` : ''}
-                              </Text>
-                            </View>
-                          )}
-                          {!!item.location && (
-                            <Pressable
-                              style={styles.metaChip}
-                              onPress={(event) => {
-                                // The row itself opens the plan, so the map is
-                                // its own tap target.
-                                event.stopPropagation();
-                                const url = mapUrlFor(item.location || '');
-                                if (url) Linking.openURL(url).catch(() => {});
-                              }}
-                              hitSlop={6}
-                              accessibilityRole="button"
-                              accessibilityLabel={`Open ${item.location} in a map`}
-                            >
-                              <MapPin size={11} color={BrandColors.secondary} />
-                              <Text style={styles.metaLink} numberOfLines={1}>
-                                {item.location}
-                              </Text>
-                            </Pressable>
-                          )}
-                        </View>
-
-                        {!!item.notes && <Text style={styles.notes}>{item.notes}</Text>}
-
-                        {/* Faces only when a plan is for some of the trip rather
-                            than all of it - an untagged plan is everyone, and
-                            showing everyone on every row says nothing. */}
-                        {!!item.attendeeIds?.length && members.length > 0 && (
-                          <View style={styles.attendees}>
-                            <MemberFaces
-                              members={members.filter((member) =>
-                                item.attendeeIds?.includes(member.id),
-                              )}
-                              size={20}
-                              max={4}
-                            />
+                        {(!!item.time || !!item.location) && (
+                          <View style={styles.metaRow}>
+                            {!!item.time && (
+                              <Pressable
+                                style={styles.metaChip}
+                                onPress={() => setOpenId(item.id)}
+                                onPressIn={() => setPressedId(item.id)}
+                                onPressOut={() => setPressedId('')}
+                                accessible={false}
+                              >
+                                <Clock size={11} color={BrandColors.secondary} />
+                                <Text style={styles.metaText}>
+                                  {formatTime(item.time)}
+                                  {item.endTime ? ` – ${formatTime(item.endTime)}` : ''}
+                                </Text>
+                              </Pressable>
+                            )}
+                            {!!item.location && (
+                              <Pressable
+                                style={styles.metaChip}
+                                onPress={() => {
+                                  const url = mapUrlFor(item.location || '');
+                                  if (url) Linking.openURL(url).catch(() => {});
+                                }}
+                                hitSlop={6}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Open ${item.location} in a map`}
+                              >
+                                <MapPin size={11} color={BrandColors.secondary} />
+                                <Text style={styles.metaLink} numberOfLines={1}>
+                                  {item.location}
+                                </Text>
+                              </Pressable>
+                            )}
                           </View>
                         )}
+
+                        {(!!item.notes || (!!item.attendeeIds?.length && members.length > 0)) && (
+                          <Pressable
+                            style={styles.itemRest}
+                            onPress={() => setOpenId(item.id)}
+                            onPressIn={() => setPressedId(item.id)}
+                            onPressOut={() => setPressedId('')}
+                            accessible={false}
+                          >
+                            {!!item.notes && <Text style={styles.notes}>{item.notes}</Text>}
+
+                            {/* Faces only when a plan is for some of the trip rather
+                                than all of it - an untagged plan is everyone, and
+                                showing everyone on every row says nothing. */}
+                            {!!item.attendeeIds?.length && members.length > 0 && (
+                              <View style={styles.attendees}>
+                                <MemberFaces
+                                  members={members.filter((member) =>
+                                    item.attendeeIds?.includes(member.id),
+                                  )}
+                                  size={20}
+                                  max={4}
+                                />
+                              </View>
+                            )}
+                          </Pressable>
+                        )}
                       </Card>
-                    </Pressable>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -297,7 +332,7 @@ export default function ItineraryTab({
                 style={styles.editButton}
                 onPress={() => {
                   setOpenId(null);
-                  onEdit(open);
+                  onEdit?.(open);
                 }}
               >
                 <Pencil size={14} color={BrandColors.primary} />
@@ -310,7 +345,7 @@ export default function ItineraryTab({
                 style={styles.deleteButton}
                 onPress={() => {
                   setOpenId(null);
-                  onDelete(open);
+                  onDelete?.(open);
                 }}
               >
                 <Trash2 size={14} color={BrandColors.error} />
@@ -402,6 +437,9 @@ const styles = StyleSheet.create({
   itemPress: {
     flex: 1,
   },
+  itemPressed: { opacity: 0.7 },
+  itemOpen: { flex: 1 },
+  itemRest: { gap: Spacing.two },
   detailBody: { gap: Spacing.three, paddingBottom: Spacing.four },
   detailTitle: {
     fontFamily: 'PlusJakartaSans-Bold',

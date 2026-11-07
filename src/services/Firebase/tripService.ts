@@ -5,10 +5,15 @@ import { myName, notify, notifyMany } from '@/services/notifications/inbox';
 import { fetchExpenses } from '@/services/Firebase/expenseService';
 import { fetchSettlements } from '@/services/Firebase/settlementService';
 import { isConnected, newId, readPath, writeUpdates } from '@/services/offline/offlineStore';
+import { deleteTripFiles } from '@/services/Supabase/tripFiles';
+import { countsTowardBalance } from '@/utils/balance';
+import { buildInviteEntry, joinStepFor, readInviteEntry } from '@/utils/joinInvite';
 import { parseAmount, toAmount } from '@/utils/money';
 import {
   CreateTripInput,
   InviteResult,
+  JoinRequest,
+  JoinResult,
   LeaveTripResult,
   Trip,
   TripMember,
@@ -90,7 +95,8 @@ export const createTrip = async (input: CreateTripInput): Promise<Trip> => {
   const inviteCode = await reserveInviteCode();
   const createdAt = new Date().toISOString();
   // A key made on the device, so a trip can be created with no connection.
-  const tripId = newId();
+  // The caller may supply it, when plan photos were uploaded under it first.
+  const tripId = input.id || newId();
 
   const members: Record<string, TripMember> = {
     [input.owner.id]: {
@@ -117,6 +123,9 @@ export const createTrip = async (input: CreateTripInput): Promise<Trip> => {
       title: plan.title,
       day: plan.day,
       ...(plan.time?.trim() ? { time: plan.time.trim() } : {}),
+      ...(plan.time?.trim() && plan.endTime?.trim() ? { endTime: plan.endTime.trim() } : {}),
+      ...(plan.notes?.trim() ? { notes: plan.notes.trim() } : {}),
+      ...(plan.photoUrls?.length ? { photoUrls: plan.photoUrls } : {}),
       createdBy: input.owner.id,
       createdAt,
     }));
@@ -170,7 +179,14 @@ export const createTrip = async (input: CreateTripInput): Promise<Trip> => {
         ? { itinerary: Object.fromEntries(itinerary.map((item) => [item.id, item])) }
         : {}),
     },
-    [`inviteCodes/${inviteCode}`]: { tripId, name },
+    [`inviteCodes/${inviteCode}`]: buildInviteEntry({
+      id: tripId,
+      name,
+      createdBy: input.owner.id,
+      members,
+      startDate: input.startDate,
+      endDate: input.endDate,
+    }),
     [`userTrips/${input.owner.id}/${tripId}`]: true,
   };
 
@@ -247,12 +263,19 @@ export const fetchTripMembers = async (tripId: string): Promise<TripMember[]> =>
 export const addMemberToTrip = async (
   tripId: string,
   person: { id: string; fullname: string; email: string; photoURL?: string },
+  options?: { joinedWith?: string; addedBy?: string },
 ): Promise<void> => {
   if (!tripId || !person?.id) {
     throw new Error('A trip and a person are required.');
   }
 
-  const member = buildMember(person);
+  // The rules only let someone add themselves with a code that belongs to
+  // this trip, so the code goes on the member record.
+  const member: TripMember = {
+    ...buildMember(person),
+    ...(options?.joinedWith ? { joinedWith: options.joinedWith } : {}),
+    ...(options?.addedBy && options.addedBy !== person.id ? { addedBy: options.addedBy } : {}),
+  };
 
   const updates: Record<string, unknown> = {
     [`trips/${tripId}/members/${person.id}`]: member,
@@ -265,7 +288,74 @@ export const addMemberToTrip = async (
 const notifyInvited = async (tripId: string, userId: string): Promise<void> => {
   const name = ((await readPath(`trips/${tripId}/name`)) as string | null) ?? 'a trip';
   const who = auth.currentUser?.displayName || 'Someone';
-  await notify(userId, 'tripInvites', 'Added to a trip', who + ' added you to ' + name + '.', { tripId });
+  await notify(userId, 'tripInvites', 'Added to a trip', who + ' added you to ' + name + '.', {
+    tripId,
+  });
+};
+
+/**
+ * Adds someone to a trip from inside it. The owner adds them straight away.
+ * Anyone else's invite goes to the owner as a request, the same one a person
+ * holding the code would send, so the owner decides who is in.
+ */
+const addOrAskOwner = async (
+  tripId: string,
+  person: { id: string; fullname: string; email: string; photoURL?: string },
+): Promise<InviteResult> => {
+  const inviterId = auth.currentUser?.uid ?? '';
+  const trip = await fetchTrip(tripId, { preferCache: false });
+  if (!trip) return { success: false, message: 'This trip no longer exists.' };
+
+  if (trip.createdBy === inviterId) {
+    await addMemberToTrip(tripId, person, { addedBy: inviterId });
+    await notifyInvited(tripId, person.id);
+    return { success: true, message: `${person.fullname} was added to the trip.` };
+  }
+
+  requireConnection();
+  const path = `joinRequests/${tripId}/${person.id}`;
+  const existing = (await readPath(path, { preferCache: false }).catch(() => null)) as {
+    status?: string;
+  } | null;
+  if (existing && existing.status !== 'declined') {
+    return {
+      success: true,
+      requested: true,
+      message: `${person.fullname} is already waiting for the owner to approve.`,
+    };
+  }
+  if (existing) await writeUpdates({ [path]: null }).catch(() => undefined);
+
+  const ownerFirst = trip.members?.[trip.createdBy]?.fullname?.split(' ')[0] || 'The owner';
+  await writeUpdates({
+    [path]: {
+      fullname: person.fullname || 'Someone',
+      email: person.email || '',
+      ...(person.photoURL ? { photoURL: person.photoURL } : {}),
+      invitedBy: inviterId,
+      invitedByName: myName(),
+      requestedAt: new Date().toISOString(),
+    },
+  }).catch((err) => {
+    if (isRefusal(err)) {
+      throw new Error('Only members of this trip can invite people to it.');
+    }
+    throw err;
+  });
+
+  await notify(
+    trip.createdBy,
+    'tripActivity',
+    'Someone wants to join',
+    myName() + ' wants to add ' + (person.fullname || 'someone') + ' to ' + trip.name + '.',
+    { tripId },
+  ).catch((err) => console.warn('Could not tell the owner about the invite:', err));
+
+  return {
+    success: true,
+    requested: true,
+    message: `Sent to ${ownerFirst} to approve. ${person.fullname} joins once they do.`,
+  };
 };
 
 /** Adds a friend directly to a trip. */
@@ -282,9 +372,7 @@ export const inviteFriendToTrip = async (
     return { success: false, message: `${friend.fullname} is already in this trip.` };
   }
 
-  await addMemberToTrip(tripId, friend);
-  await notifyInvited(tripId, friend.id);
-  return { success: true, message: `${friend.fullname} was added to the trip.` };
+  return addOrAskOwner(tripId, friend);
 };
 
 /** Looks up a registered user by email and adds them to the trip. */
@@ -326,14 +414,8 @@ export const inviteByEmail = async (tripId: string, email: string): Promise<Invi
     photoURL: profile.photoURL,
   });
 
-  await addMemberToTrip(tripId, member);
-  await notifyInvited(tripId, uid);
-
-  return {
-    success: true,
-    message: `${member.fullname} was added to the trip.`,
-    member,
-  };
+  const result = await addOrAskOwner(tripId, member);
+  return result.requested ? result : { ...result, member };
 };
 
 /**
@@ -351,35 +433,67 @@ const readCodeEntry = (value: unknown): string => {
   return '';
 };
 
+/** Whether the signed-in person can already read this trip, which only members can. */
+const isMemberOf = async (tripId: string, uid: string): Promise<boolean> => {
+  try {
+    return (await readPath(`trips/${tripId}/members/${uid}`, { preferCache: false })) !== null;
+  } catch {
+    // Not a member: the rules refuse the read.
+    return false;
+  }
+};
+
+const readOwnRequest = async (tripId: string, uid: string): Promise<unknown> => {
+  try {
+    return await readPath(`joinRequests/${tripId}/${uid}`, { preferCache: false });
+  } catch {
+    return null;
+  }
+};
+
 /**
- * Looks up a trip by invite code without joining it, so the app can ask
- * "do you want to join this trip?" first. Returns null for a bad code.
+ * Looks up a trip by invite code without joining it, so the app can show what
+ * the trip is and ask first. Returns null for a bad code.
  *
- * The name comes from the invite-code record on purpose. The rules only let
- * the people already in a trip read it, so a stranger holding a code cannot
- * read the trip itself - that is why the name is copied next to the code.
+ * Everything shown comes from the copy beside the code: the rules only let
+ * members read a trip, so a stranger holding a code cannot read the trip itself.
  */
 export const fetchTripPreview = async (code: string): Promise<TripPreview | null> => {
   const cleanCode = normalizeCode(code);
   if (!cleanCode) return null;
 
-  const stored = await readPath(`inviteCodes/${cleanCode}`, { preferCache: false });
-  if (stored === null) return null;
+  const entry = readInviteEntry(await readPath(`inviteCodes/${cleanCode}`, { preferCache: false }));
+  if (!entry) return null;
 
-  const tripId = readCodeEntry(stored);
-  if (!tripId) return null;
+  const uid = auth.currentUser?.uid ?? '';
+  const [isMember, request] = uid
+    ? await Promise.all([isMemberOf(entry.tripId, uid), readOwnRequest(entry.tripId, uid)])
+    : [false, null];
 
-  // Codes made before the name was stored have no name to show.
-  const name = stored && typeof stored === 'object' ? (stored as { name?: string }).name : '';
-
-  return { tripId, name: name || 'This trip' };
+  return {
+    tripId: entry.tripId,
+    // Codes made before the name was stored have no name to show.
+    name: entry.name || 'This trip',
+    ...(entry.ownerName ? { ownerName: entry.ownerName } : {}),
+    ...(entry.startDate ? { startDate: entry.startDate } : {}),
+    ...(entry.endDate ? { endDate: entry.endDate } : {}),
+    requireApproval: entry.requireApproval === true,
+    step: joinStepFor(entry, { isMember, request }),
+  };
 };
 
-/** Joins the signed-in user to the trip that owns the given invite code. */
+const isRefusal = (err: unknown) =>
+  /permission|denied/i.test(String((err as { message?: string })?.message ?? err));
+
+/**
+ * Joins the trip behind an invite code, or, when its owner lets people in by
+ * hand, asks them to. A trip that switched to approval after the code was
+ * copied is caught too: the rules refuse the join, and a request goes instead.
+ */
 export const joinTripByCode = async (
   code: string,
   person: { id: string; fullname: string; email: string; photoURL?: string },
-): Promise<Trip> => {
+): Promise<JoinResult> => {
   const cleanCode = normalizeCode(code);
 
   if (!cleanCode) {
@@ -388,32 +502,232 @@ export const joinTripByCode = async (
 
   requireConnection();
 
-  const stored = await readPath(`inviteCodes/${cleanCode}`, { preferCache: false });
-  if (stored === null) {
+  const entry = readInviteEntry(await readPath(`inviteCodes/${cleanCode}`, { preferCache: false }));
+  if (!entry) {
     throw new Error('That invite code is not valid.');
   }
+  const { tripId } = entry;
+  const name = entry.name || 'the trip';
 
-  const tripId = readCodeEntry(stored);
-  if (!tripId) {
-    throw new Error('That invite code is not valid.');
+  // Already in: joining again would overwrite their member record.
+  if (await isMemberOf(tripId, person.id)) {
+    return { status: 'joined', tripId, name };
   }
 
-  await addMemberToTrip(tripId, person);
+  if (!entry.requireApproval) {
+    try {
+      await addMemberToTrip(tripId, person, { joinedWith: cleanCode });
+    } catch (err) {
+      if (!isRefusal(err)) throw err;
+      return requestToJoin(tripId, cleanCode, entry.name, entry.ownerId, entry.ownerName, person);
+    }
 
-  const trip = await fetchTrip(tripId);
-  if (!trip) {
-    throw new Error('That trip could not be found.');
+    const trip = await fetchTrip(tripId, { preferCache: false });
+    if (!trip) {
+      throw new Error('That trip could not be found.');
+    }
+
+    await notifyMany(
+      Object.keys(trip.members ?? {}).filter((id) => id !== person.id),
+      'tripActivity',
+      'Someone joined',
+      (person.fullname || 'Someone') + ' joined ' + trip.name + '.',
+      { tripId },
+    );
+
+    return { status: 'joined', tripId, name: trip.name };
   }
 
+  return requestToJoin(tripId, cleanCode, entry.name, entry.ownerId, entry.ownerName, person);
+};
+
+/** Leaves a request for the owner, who is told about it. */
+const requestToJoin = async (
+  tripId: string,
+  code: string,
+  tripName: string,
+  ownerId: string | undefined,
+  ownerName: string | undefined,
+  person: { id: string; fullname: string; email: string; photoURL?: string },
+): Promise<JoinResult> => {
+  const path = `joinRequests/${tripId}/${person.id}`;
+  const request: Omit<JoinRequest, 'id'> = {
+    fullname: person.fullname || 'Someone',
+    email: person.email || '',
+    ...(person.photoURL ? { photoURL: person.photoURL } : {}),
+    code,
+    requestedAt: new Date().toISOString(),
+  };
+
+  // A declined request is cleared first: asking again is a fresh request.
+  const existing = await readOwnRequest(tripId, person.id);
+  if (existing) await writeUpdates({ [path]: null });
+  await writeUpdates({ [path]: request }).catch((err) => {
+    if (isRefusal(err)) {
+      throw new Error('That invite code no longer works. Ask for a new one.');
+    }
+    throw err;
+  });
+
+  // Only the owner can let people in, so only the owner is asked. A stranger
+  // cannot read the trip, so the owner's id comes from beside the code.
+  if (ownerId) {
+    await notify(
+      ownerId,
+      'tripActivity',
+      'Someone wants to join',
+      request.fullname + ' asked to join ' + (tripName || 'your trip') + '.',
+      { tripId },
+    ).catch((err) => console.warn('Could not tell the owner about the request:', err));
+  }
+
+  return {
+    status: 'requested',
+    tripId,
+    name: tripName || 'the trip',
+    ...(ownerName ? { ownerName } : {}),
+  };
+};
+
+/** Takes back a request that is still waiting, or clears a declined one. */
+export const cancelJoinRequest = async (tripId: string, uid: string): Promise<void> => {
+  requireConnection();
+  await writeUpdates({ [`joinRequests/${tripId}/${uid}`]: null });
+};
+
+/** People waiting to be let into a trip, oldest first. Declined ones are left out. */
+export const fetchJoinRequests = async (tripId: string): Promise<JoinRequest[]> => {
+  if (!tripId) return [];
+  const stored = (await readPath(`joinRequests/${tripId}`, { preferCache: false }).catch(
+    () => null,
+  )) as Record<string, Omit<JoinRequest, 'id'>> | null;
+  return Object.entries(stored ?? {})
+    .map(([id, request]) => ({ ...request, id }))
+    .filter((request) => request.status !== 'declined')
+    .sort((a, b) => (a.requestedAt || '').localeCompare(b.requestedAt || ''));
+};
+
+/** Lets someone in: they become a member and are told so. Owner only. */
+export const approveJoinRequest = async (
+  tripId: string,
+  ownerId: string,
+  request: JoinRequest,
+): Promise<TripMember> => {
+  requireConnection();
+  const trip = await fetchTrip(tripId, { preferCache: false });
+  if (!trip) throw new Error('This trip no longer exists.');
+  if (trip.createdBy !== ownerId) throw new Error('Only the trip owner can let people in.');
+
+  const member: TripMember = {
+    ...buildMember({
+      id: request.id,
+      fullname: request.fullname,
+      email: request.email,
+      photoURL: request.photoURL,
+    }),
+    ...(request.code ? { joinedWith: request.code } : {}),
+    addedBy: ownerId,
+    ...(request.invitedBy ? { invitedBy: request.invitedBy } : {}),
+  };
+
+  await writeUpdates({
+    [`trips/${tripId}/members/${request.id}`]: member,
+    [`userTrips/${request.id}/${tripId}`]: true,
+    [`joinRequests/${tripId}/${request.id}`]: null,
+  });
+
+  await notify(
+    request.id,
+    'tripInvites',
+    request.invitedBy ? 'Added to a trip' : 'You’re in',
+    request.invitedBy
+      ? myName() +
+          ' added you to ' +
+          trip.name +
+          (request.invitedByName ? ', invited by ' + request.invitedByName : '') +
+          '.'
+      : myName() + ' let you into ' + trip.name + '.',
+    { tripId },
+  ).catch((err) => console.warn('Could not tell them they were let in:', err));
+
+  const others = Object.keys(trip.members ?? {}).filter((id) => id !== ownerId);
   await notifyMany(
-    Object.keys(trip.members ?? {}),
+    others,
     'tripActivity',
     'Someone joined',
-    (person.fullname || 'Someone') + ' joined ' + trip.name + '.',
+    member.fullname + ' joined ' + trip.name + '.',
     { tripId },
-  );
+  ).catch((err) => console.warn('Could not tell the members:', err));
 
-  return trip;
+  return member;
+};
+
+/** Turns someone away. They are told, and can ask again. Owner only. */
+export const declineJoinRequest = async (
+  tripId: string,
+  ownerId: string,
+  request: JoinRequest,
+): Promise<void> => {
+  requireConnection();
+  const trip = await fetchTrip(tripId, { preferCache: false });
+  if (!trip) throw new Error('This trip no longer exists.');
+  if (trip.createdBy !== ownerId) throw new Error('Only the trip owner can turn people away.');
+
+  // Someone a member suggested never asked themselves: the suggestion is
+  // dropped and the member who made it is told. Someone who asked with the
+  // code is told no, and can ask again.
+  if (request.invitedBy) {
+    await writeUpdates({ [`joinRequests/${tripId}/${request.id}`]: null });
+    await notify(
+      request.invitedBy,
+      'tripActivity',
+      'Invite not approved',
+      myName() + ' didn’t add ' + request.fullname + ' to ' + trip.name + '.',
+      { tripId },
+    ).catch((err) => console.warn('Could not tell the member about the decline:', err));
+    return;
+  }
+
+  await writeUpdates({ [`joinRequests/${tripId}/${request.id}/status`]: 'declined' });
+
+  // No tripId: they cannot open the trip, so the notice should not link to it.
+  await notify(
+    request.id,
+    'tripActivity',
+    'Request declined',
+    myName() + ' didn’t let you into ' + trip.name + '.',
+  ).catch((err) => console.warn('Could not tell them about the decline:', err));
+};
+
+/**
+ * Swaps the trip's invite code for a new one. The old code, its links and its
+ * QR stop working at once; members already in are not affected. Owner only.
+ */
+export const regenerateInviteCode = async (tripId: string, ownerId: string): Promise<string> => {
+  requireConnection();
+  const trip = await fetchTrip(tripId, { preferCache: false });
+  if (!trip) throw new Error('This trip no longer exists.');
+  if (trip.createdBy !== ownerId)
+    throw new Error('Only the trip owner can change the invite code.');
+
+  const code = await reserveInviteCode();
+  await writeUpdates({
+    [`inviteCodes/${code}`]: buildInviteEntry(trip),
+    [`trips/${tripId}/inviteCode`]: code,
+  });
+
+  if (trip.inviteCode && trip.inviteCode !== code) {
+    try {
+      const stored = await readPath(`inviteCodes/${trip.inviteCode}`, { preferCache: false });
+      if (readCodeEntry(stored) === tripId) {
+        await writeUpdates({ [`inviteCodes/${trip.inviteCode}`]: null });
+      }
+    } catch (err) {
+      console.warn('Could not retire the old invite code:', err);
+    }
+  }
+
+  return code;
 };
 
 /**
@@ -435,6 +749,10 @@ export const updateTripSettings = async (
     iconColor?: string;
     startDate?: string;
     endDate?: string;
+    /** True to let each new member in by hand. Left out = unchanged. */
+    requireApproval?: boolean;
+    /** True to allow expenses and payments before the trip starts. Left out = unchanged. */
+    allowEarlySpending?: boolean;
   },
 ): Promise<void> => {
   if (!tripId) {
@@ -478,6 +796,13 @@ export const updateTripSettings = async (
       settings.startDate && settings.endDate ? settings.endDate : null;
   }
 
+  if (settings.requireApproval !== undefined) {
+    updates[`trips/${tripId}/requireApproval`] = settings.requireApproval || null;
+  }
+  if (settings.allowEarlySpending !== undefined) {
+    updates[`trips/${tripId}/allowEarlySpending`] = settings.allowEarlySpending || null;
+  }
+
   // The trip fields are saved on their own, and the invite code's copy of the
   // name is saved afterwards. They used to travel as one multi-path write,
   // which meant a refusal on the code (for example when the code record is in
@@ -495,23 +820,27 @@ export const updateTripSettings = async (
     throw err;
   });
 
+  // The copy beside the invite code is what someone holding the code sees
+  // before joining: the name, dates, owner, and whether the owner approves.
   if (trip.inviteCode) {
     try {
       const stored = await readPath(`inviteCodes/${trip.inviteCode}`, { preferCache: false });
-
-      // Older codes hold just the trip id. Those are upgraded to the newer
-      // `{ tripId, name }` shape, which is what shows the name before joining.
       if (readCodeEntry(stored) === tripId) {
         await writeUpdates({
-          ...(stored && typeof stored === 'object'
-            ? { [`inviteCodes/${trip.inviteCode}/name`]: name }
-            : { [`inviteCodes/${trip.inviteCode}`]: { tripId, name } }),
+          [`inviteCodes/${trip.inviteCode}`]: buildInviteEntry({
+            ...trip,
+            name,
+            startDate: settings.startDate ?? trip.startDate,
+            endDate:
+              settings.startDate !== undefined ? settings.endDate || undefined : trip.endDate,
+            requireApproval: settings.requireApproval ?? trip.requireApproval,
+          }),
         });
       }
     } catch (err) {
-      // A stale name beside the invite code is not worth failing the save: the
+      // A stale copy beside the invite code is not worth failing the save: the
       // owner's own settings are already saved at this point.
-      console.warn('Could not update the invite code name:', err);
+      console.warn('Could not update the invite code details:', err);
     }
   }
 };
@@ -541,7 +870,7 @@ const memberNetCents = async (tripId: string, memberId: string): Promise<number>
     net += Math.round((paid - share) * 100);
   });
   settlements.forEach((settlement) => {
-    if (settlement?.status === 'pending' || settlement?.status === 'declined') return;
+    if (!settlement || !countsTowardBalance(settlement)) return;
     if (settlement?.from === memberId) net += Math.round(Number(settlement.amount) * 100);
     if (settlement?.to === memberId) net -= Math.round(Number(settlement.amount) * 100);
   });
@@ -593,6 +922,7 @@ export const leaveTrip = async (tripId: string, memberId: string): Promise<Leave
     await writeUpdates({
       [`trips/${tripId}`]: null,
       [`userTrips/${memberId}/${tripId}`]: null,
+      [`joinRequests/${tripId}`]: null,
     });
 
     return { tripDeleted: true };
@@ -611,6 +941,8 @@ export const leaveTrip = async (tripId: string, memberId: string): Promise<Leave
   const updates: Record<string, unknown> = {
     [`trips/${tripId}/members/${memberId}`]: null,
     [`userTrips/${memberId}/${tripId}`]: null,
+    // Their payment details leave with them.
+    [`trips/${tripId}/payDetails/${memberId}`]: null,
   };
 
   // An owner leaving must leave an owner behind. The rules let a member write
@@ -620,11 +952,107 @@ export const leaveTrip = async (tripId: string, memberId: string): Promise<Leave
     newOwner = [...others].sort((a, b) => ((a.joinedAt || '') <= (b.joinedAt || '') ? -1 : 1))[0];
     updates[`trips/${tripId}/createdBy`] = newOwner.id;
     updates[`trips/${tripId}/members/${newOwner.id}/role`] = 'owner';
+
+    // Requests to join go to whoever runs the trip, so the copy beside the
+    // code names the new owner. Written while the leaver still counts as a member.
+    if (trip.inviteCode) {
+      try {
+        const stored = await readPath(`inviteCodes/${trip.inviteCode}`, { preferCache: false });
+        if (readCodeEntry(stored) === tripId) {
+          updates[`inviteCodes/${trip.inviteCode}`] = buildInviteEntry({
+            ...trip,
+            createdBy: newOwner.id,
+          });
+        }
+      } catch (err) {
+        console.warn('Could not read the invite code:', err);
+      }
+    }
   }
 
   await writeUpdates(updates);
 
   return { tripDeleted: false, newOwner };
+};
+
+/**
+ * Deletes a whole trip for everyone: its expenses, payments, plans and notes
+ * all live under the trip, so they go with it, and the photos uploaded for it
+ * are removed from storage afterwards. Only the owner may do this.
+ *
+ * The other members' "my trips" entries are cleared first, while the owner
+ * still counts as a member of the trip (that is what the rules check). The
+ * trip itself goes last, together with the owner's own entry.
+ */
+export const deleteTrip = async (tripId: string, ownerId: string): Promise<void> => {
+  if (!tripId || !ownerId) {
+    throw new Error('A trip is required.');
+  }
+
+  // Deleting for everyone must reach the server now, not sit in a queue.
+  requireConnection();
+
+  const trip = await fetchTrip(tripId);
+  if (!trip) {
+    throw new Error('This trip no longer exists.');
+  }
+  if (trip.createdBy !== ownerId) {
+    throw new Error('Only the trip owner can delete this trip.');
+  }
+
+  const memberIds = Object.keys(trip.members ?? {}).filter((id) => id !== ownerId);
+
+  // Tell people before the trip is gone, so the notice can still name it.
+  try {
+    await notifyMany(
+      memberIds,
+      'tripActivity',
+      'Trip deleted',
+      myName() + ' deleted ' + trip.name + '.',
+    );
+  } catch (err) {
+    console.warn('Could not tell the members about the deleted trip:', err);
+  }
+
+  if (memberIds.length > 0) {
+    const memberUpdates: Record<string, unknown> = {};
+    memberIds.forEach((uid) => {
+      memberUpdates[`userTrips/${uid}/${tripId}`] = null;
+    });
+    try {
+      await writeUpdates(memberUpdates);
+    } catch (err) {
+      // A leftover entry points at a trip that no longer exists, and the trip
+      // list already skips those. Not worth stopping the delete.
+      console.warn('Could not clear every member trip list:', err);
+    }
+  }
+
+  if (trip.inviteCode) {
+    try {
+      const stored = await readPath(`inviteCodes/${trip.inviteCode}`, { preferCache: false });
+      if (stored !== null && readCodeEntry(stored) === tripId) {
+        await writeUpdates({ [`inviteCodes/${trip.inviteCode}`]: null });
+      }
+    } catch (err) {
+      console.warn('Could not retire the invite code:', err);
+    }
+  }
+
+  await writeUpdates({
+    [`trips/${tripId}`]: null,
+    [`userTrips/${ownerId}/${tripId}`]: null,
+    [`joinRequests/${tripId}`]: null,
+  }).catch((err) => {
+    if (/permission|denied/i.test(String(err?.message ?? ''))) {
+      throw new Error('The database refused to delete this trip. Only its owner can delete it.');
+    }
+    throw err;
+  });
+
+  // The photos go last, once the trip is surely gone: deleting them first and
+  // then failing the delete would leave a trip with broken pictures.
+  await deleteTripFiles(tripId);
 };
 
 /**
@@ -674,8 +1102,66 @@ export const removeMemberFromTrip = async (
   await writeUpdates({
     [`trips/${tripId}/members/${memberId}`]: null,
     [`userTrips/${memberId}/${tripId}`]: null,
+    [`trips/${tripId}/payDetails/${memberId}`]: null,
   });
 
   // tripId is left off so a muted trip cannot hide the news that you were removed.
-  await notify(memberId, 'tripActivity', 'Removed from a trip', myName() + ' removed you from ' + trip.name + '.');
+  await notify(
+    memberId,
+    'tripActivity',
+    'Removed from a trip',
+    myName() + ' removed you from ' + trip.name + '.',
+  );
+};
+
+/**
+ * Closes a finished trip: its expenses and plans can no longer change, and its
+ * invite code stops working. Payments can still be recorded, so anyone still
+ * owing can settle. Owner only; it can be reopened.
+ */
+export const closeTrip = async (tripId: string, ownerId: string): Promise<void> => {
+  requireConnection();
+  const trip = await fetchTrip(tripId, { preferCache: false });
+  if (!trip) throw new Error('This trip no longer exists.');
+  if (trip.createdBy !== ownerId) throw new Error('Only the trip owner can close this trip.');
+
+  // The code goes first, while it is still the trip's own.
+  if (trip.inviteCode) {
+    try {
+      const stored = await readPath(`inviteCodes/${trip.inviteCode}`, { preferCache: false });
+      if (readCodeEntry(stored) === tripId) {
+        await writeUpdates({ [`inviteCodes/${trip.inviteCode}`]: null });
+      }
+    } catch (err) {
+      console.warn('Could not retire the invite code:', err);
+    }
+  }
+
+  await writeUpdates({
+    [`trips/${tripId}/closedAt`]: new Date().toISOString(),
+    [`trips/${tripId}/closedBy`]: ownerId,
+    [`joinRequests/${tripId}`]: null,
+  });
+
+  await notifyMany(
+    Object.keys(trip.members ?? {}).filter((id) => id !== ownerId),
+    'tripActivity',
+    'Trip closed',
+    myName() + ' closed ' + trip.name + '. Expenses are final; you can still settle up.',
+    { tripId },
+  ).catch((err) => console.warn('Could not tell the members:', err));
+};
+
+/** Opens a closed trip again, with a new invite code. Owner only. */
+export const reopenTrip = async (tripId: string, ownerId: string): Promise<string> => {
+  requireConnection();
+  const trip = await fetchTrip(tripId, { preferCache: false });
+  if (!trip) throw new Error('This trip no longer exists.');
+  if (trip.createdBy !== ownerId) throw new Error('Only the trip owner can reopen this trip.');
+
+  await writeUpdates({
+    [`trips/${tripId}/closedAt`]: null,
+    [`trips/${tripId}/closedBy`]: null,
+  });
+  return regenerateInviteCode(tripId, ownerId);
 };

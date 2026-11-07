@@ -19,21 +19,58 @@ if (supported) {
   });
 }
 
-/** Saves this phone's push address on the user so friends can send it a reminder. */
-export async function registerPushToken(userId: string): Promise<void> {
-  if (!supported || !userId) return;
+/** What happened when the app tried to turn on push for this phone. */
+export type PushPermission = 'granted' | 'denied' | 'blocked' | 'unsupported';
+
+/**
+ * Saves this phone's push address on the user so friends can send it a reminder.
+ *
+ * With `ask` false it never shows the system prompt: it only registers a phone
+ * that already allowed notifications. The prompt belongs on a screen that
+ * explains why (the setup step, or settings), not out of nowhere at sign-up.
+ */
+export async function registerPushToken(
+  userId: string,
+  { ask = true }: { ask?: boolean } = {},
+): Promise<PushPermission> {
+  if (!supported || !userId) return 'unsupported';
   try {
+    // Android 13+ only shows the permission prompt once a channel exists, and
+    // every push lands in a channel; this is the one Expo's push service uses.
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'TripSplit',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 200, 120, 200],
+        lightColor: '#FEBB1B',
+      });
+    }
+
     const current = await Notifications.getPermissionsAsync();
-    const granted = current.granted || (await Notifications.requestPermissionsAsync()).granted;
-    if (!granted) return;
+    let granted = current.granted;
+    let canAskAgain = current.canAskAgain;
+    if (!granted && ask && canAskAgain) {
+      const answer = await Notifications.requestPermissionsAsync();
+      granted = answer.granted;
+      canAskAgain = answer.canAskAgain;
+    }
+    // Android stops showing the prompt after it is refused; only Settings can
+    // turn notifications back on then.
+    if (!granted) return canAskAgain ? 'denied' : 'blocked';
 
     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    const { data } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    const { data } = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
     const stored = await readPath('users/' + userId + '/pushToken');
     if (stored !== data) await writeUpdates({ ['users/' + userId + '/pushToken']: data });
+    return 'granted';
   } catch (error) {
     // Push is a nicety; a phone that cannot register just gets reminders by message.
     console.warn('Could not register for push notifications:', error);
+    // Permission may well have been given; only the push address failed.
+    const after = await Notifications.getPermissionsAsync().catch(() => null);
+    return after?.granted ? 'granted' : 'denied';
   }
 }
 
@@ -71,7 +108,12 @@ export async function remindDebtor(reminder: Reminder): Promise<'pushed' | 'shar
   if (result === 'off') return 'declined';
 
   const message =
-    'Hi ' + first + ', a friendly reminder: you owe ' + money + trip + '.' +
+    'Hi ' +
+    first +
+    ', a friendly reminder: you owe ' +
+    money +
+    trip +
+    '.' +
     (link ? ' Settle up: ' + link : '');
   if (Platform.OS === 'web' && !(navigator as any).share) {
     await (navigator as any).clipboard?.writeText(message);

@@ -68,8 +68,10 @@ export function ActiveTripCard({
   const hasTrips = tripCount > 0;
   const emptyHint = hasTrips ? 'Pick a trip to show it here' : 'Create a trip to start splitting';
 
+  const qrShown = !!onShowQr && !!activeTrip?.inviteCode;
+
   return (
-    <>
+    <View style={styles.wrap}>
       <Pressable
         style={[styles.card, !activeTrip && styles.cardNoTrip]}
         onPress={activeTrip ? onOpen : onManageTrips}
@@ -126,22 +128,28 @@ export function ActiveTripCard({
             </View>
           </View>
         </View>
-        {/* Its own button, so tapping it does not also open the trip. */}
-        {onShowQr && !!activeTrip?.inviteCode && (
+        {/* Room for the QR button, which floats above the card below. */}
+        {qrShown && <View style={styles.cardActionSpace} />}
+
+        <ChevronRight size={18} color={activeTrip ? BrandColors.secondary : BrandColors.disabled} />
+      </Pressable>
+
+      {/* Its own button beside the card, not inside it, so tapping it does not
+          also open the trip (and the web does not get a button in a button). */}
+      {qrShown && (
+        <View style={styles.cardActionLayer} pointerEvents="box-none">
           <Pressable
             style={({ pressed }) => [styles.cardAction, pressed && styles.cardActionPressed]}
             onPress={onShowQr}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={`Show ${activeTrip.name}'s invite code and QR code`}
+            accessibilityLabel={`Show ${activeTrip!.name}'s invite code and QR code`}
           >
             <QrCode size={17} color={BrandColors.primary} />
           </Pressable>
-        )}
-
-        <ChevronRight size={18} color={activeTrip ? BrandColors.secondary : BrandColors.disabled} />
-      </Pressable>
-    </>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -199,6 +207,16 @@ const styles = StyleSheet.create({
   },
   cardHintNoTrip: {
     color: BrandColors.disabled,
+  },
+  wrap: { position: 'relative' },
+  cardActionSpace: { width: 32, height: 32 },
+  cardActionLayer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    // The card's padding, the chevron and the gap before it.
+    right: Spacing.three + 18 + Spacing.three,
+    justifyContent: 'center',
   },
   cardAction: {
     width: 32,

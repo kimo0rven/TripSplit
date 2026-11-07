@@ -248,6 +248,8 @@ export default function AllPaymentsScreen() {
                 <PaymentsList
                   grouped
                   settlements={visible}
+                  allSettlements={payments}
+                  expenses={expenses}
                   members={members}
                   currency={currency}
                   currentUserId={currentUserId}
@@ -309,6 +311,8 @@ export default function AllPaymentsScreen() {
           edges={edges}
           currentUserId={currentUserId}
           settlement={editing}
+          expenses={expenses}
+          settlements={payments}
           onSaved={(saved) =>
             setPayments((previous) =>
               previous.some((item) => item.id === saved.id)

@@ -1,6 +1,7 @@
 import BackButton from '@/components/Button/back-button';
 import ErrorState from '@/components/ui/error-state';
 import ListSkeleton from '@/components/ui/list-skeleton';
+import ExportButtons from '@/components/trip/export-buttons';
 import TripRecap from '@/components/trip/trip-recap';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { fetchExpenses } from '@/services/Firebase/expenseService';
@@ -100,14 +101,20 @@ export default function TripRecapScreen() {
           ) : error ? (
             <ErrorState message={error} onRetry={load} />
           ) : trip ? (
-            <TripRecap
-              trip={trip}
-              members={members}
-              expenses={expenses}
-              settlements={settlements}
-              itinerary={itinerary}
-              currency={currency}
-            />
+            <>
+              <TripRecap
+                trip={trip}
+                members={members}
+                expenses={expenses}
+                settlements={settlements}
+                itinerary={itinerary}
+                currency={currency}
+              />
+              {/* The end of a trip is when people want it on paper. */}
+              <ExportButtons
+                data={{ tripName: trip.name, currency, members, expenses, settlements }}
+              />
+            </>
           ) : null}
         </View>
       </ScrollView>

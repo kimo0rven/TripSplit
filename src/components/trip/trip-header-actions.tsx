@@ -1,5 +1,5 @@
 import { BrandColors, Spacing } from '@/constants/theme';
-import { Bell, BellOff, Ellipsis, Settings, Star, X } from 'lucide-react-native';
+import { Bell, BellOff, Ellipsis, History, Settings, Star, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
@@ -20,6 +20,8 @@ interface TripHeaderActionsProps {
   onSettings: () => void;
   muted: boolean;
   onToggleMute: () => void;
+  /** Opens the trip's activity log. */
+  onActivity?: () => void;
 }
 
 /** One round button, and the space between two of them. */
@@ -49,6 +51,7 @@ export default function TripHeaderActions({
   onSettings,
   muted,
   onToggleMute,
+  onActivity,
 }: TripHeaderActionsProps) {
   const [open, setOpen] = useState(false);
 
@@ -56,7 +59,7 @@ export default function TripHeaderActions({
   // it, so the row grows leftwards from behind the trigger.
   const progress = useSharedValue(0);
 
-  const count = (showStar ? 1 : 0) + 1 + (isOwner ? 1 : 0);
+  const count = (showStar ? 1 : 0) + 1 + (onActivity ? 1 : 0) + (isOwner ? 1 : 0);
 
   // The buttons alone, then the gap that separates them from the trigger.
   const rowWidth = count * BUTTON + (count - 1) * GAP;
@@ -120,6 +123,16 @@ export default function TripHeaderActions({
               <Bell size={16} color={BrandColors.primary} />
             )}
           </Pressable>
+          {!!onActivity && (
+            <Pressable
+              style={styles.headerAction}
+              onPress={onActivity}
+              accessibilityRole="button"
+              accessibilityLabel="Trip activity"
+            >
+              <History size={16} color={BrandColors.primary} />
+            </Pressable>
+          )}
           {/* Last in the row, so settings end up nearest the cross. */}
           {isOwner && (
             <Pressable

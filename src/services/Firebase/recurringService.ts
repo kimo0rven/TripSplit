@@ -45,6 +45,8 @@ export const stopRecurring = async (tripId: string, id: string): Promise<void> =
  * Returns how many were added.
  */
 export const runDueRecurring = async (tripId: string, userId: string): Promise<number> => {
+  // A closed trip takes no new expenses, repeating ones included.
+  if (await readPath(`trips/${tripId}/closedAt`).catch(() => null)) return 0;
   const list = (await fetchRecurring(tripId)).filter((item) => item.active);
   const today = todayKey();
   let added = 0;

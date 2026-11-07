@@ -1,24 +1,24 @@
 import BackButton from '@/components/Button/back-button';
 import PrimaryButton from '@/components/Button/primary-button';
 import Avatar from '@/components/ui/avatar';
-import BigButtonOptions from '@/components/ui/big-button-options';
-import DateCalendar from '@/components/ui/date-calendar';
+import PlanDrafts, { type DraftPlan } from '@/components/trip/plan-drafts';
 import { TextField } from '@/components/ui/text-input-field';
-import TimeField from '@/components/ui/time-field';
+import CurrencyField from '@/components/ui/currency-field';
 import TripDatesField from '@/components/ui/trip-dates-field';
 import TripIconPicker from '@/components/ui/trip-icon-picker';
 import { TripIconBadge } from '@/components/ui/trip-icon';
-import { currencies } from '@/constants/currencies';
 import { DEFAULT_TRIP_COLOR } from '@/constants/trip-colors';
 import { DEFAULT_TRIP_ICON } from '@/constants/trip-icons';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { fetchUserFriends } from '@/services/Firebase/friendService';
 import { createTrip } from '@/services/Firebase/tripService';
+import { newId } from '@/services/offline/offlineStore';
+import { uploadItineraryPhoto } from '@/services/Supabase/receiptService';
 import { useAuth } from '@/services/Firebase/useAuth';
 import { FriendProfile } from '@/types/friends';
-import { formatDay, formatTime, parseAmount, todayKey } from '@/utils/money';
+import { parseAmount } from '@/utils/money';
 import { useRouter } from 'expo-router';
-import { Check, Plus, Trash2, UserPlus } from 'lucide-react-native';
+import { Check, UserPlus } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -31,31 +31,22 @@ import {
   View,
 } from 'react-native';
 
-const TRIP_CURRENCIES = currencies;
-
-/** A plan being typed on the create screen, before the trip exists. */
-interface DraftPlan {
-  title: string;
-  day: string;
-  time?: string;
-}
+/** Most trips are in pesos; a trip abroad can pick its own currency. */
+const DEFAULT_CURRENCY = 'PHP';
 
 export default function CreateTripScreen() {
   const router = useRouter();
   const { currentUser } = useAuth();
 
   const [name, setName] = useState('');
-  const [currency, setCurrency] = useState('PHP');
   const [icon, setIcon] = useState(DEFAULT_TRIP_ICON);
   const [iconColor, setIconColor] = useState(DEFAULT_TRIP_COLOR);
   const [budget, setBudget] = useState('');
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   /** Starting plans; each needs a name and a day, the time is optional. */
   const [plans, setPlans] = useState<DraftPlan[]>([]);
-  const [planTitle, setPlanTitle] = useState('');
-  const [planDay, setPlanDay] = useState(todayKey());
-  const [planTime, setPlanTime] = useState('');
   const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(true);
@@ -86,16 +77,6 @@ export default function CreateTripScreen() {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  const addPlan = () => {
-    if (!planTitle.trim()) return;
-    setPlans((previous) => [
-      ...previous,
-      { title: planTitle.trim(), day: planDay, time: planTime || undefined },
-    ]);
-    setPlanTitle('');
-    setPlanTime('');
-  };
-
   const handleCreate = async () => {
     if (!name.trim() || !startDate || saving) return;
 
@@ -121,7 +102,36 @@ export default function CreateTripScreen() {
           photoURL: friend.photoURL,
         }));
 
+      // Plan photos are uploaded under the trip's own folder, so the trip's id is
+      // made here first. A photo that cannot be uploaded stops the save, the same
+      // as on an expense: a plan quietly missing its photos would be worse.
+      const tripId = newId();
+      const itinerary = [];
+      for (const plan of plans) {
+        const photoUrls: string[] = [];
+        for (const uri of plan.photoUris ?? []) {
+          try {
+            photoUrls.push(await uploadItineraryPhoto(uri, tripId));
+          } catch (uploadError: any) {
+            throw new Error(
+              `A photo for "${plan.title}" could not be uploaded, so the trip was not created. (${
+                uploadError?.message || 'Upload failed'
+              })`,
+            );
+          }
+        }
+        itinerary.push({
+          title: plan.title,
+          day: plan.day,
+          ...(plan.time ? { time: plan.time } : {}),
+          ...(plan.time && plan.endTime ? { endTime: plan.endTime } : {}),
+          ...(plan.notes ? { notes: plan.notes } : {}),
+          ...(photoUrls.length ? { photoUrls } : {}),
+        });
+      }
+
       const trip = await createTrip({
+        id: tripId,
         name,
         currency,
         icon,
@@ -129,11 +139,7 @@ export default function CreateTripScreen() {
         startDate,
         endDate,
         budget: parseAmount(budget) > 0 ? parseAmount(budget) / 100 : undefined,
-        itinerary: plans.map((plan) => ({
-          title: plan.title,
-          day: plan.day,
-          ...(plan.time ? { time: plan.time } : {}),
-        })),
+        itinerary,
         owner,
         members,
       });
@@ -187,16 +193,6 @@ export default function CreateTripScreen() {
             />
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Currency</Text>
-            <BigButtonOptions
-              choices={TRIP_CURRENCIES}
-              selectedValue={currency}
-              onSelect={(choice) => setCurrency(choice.value)}
-              maxHeight={220}
-            />
-          </View>
-
           <TripDatesField
             startDate={startDate}
             endDate={endDate}
@@ -206,9 +202,20 @@ export default function CreateTripScreen() {
             }}
           />
 
+          <CurrencyField
+            value={currency}
+            onChange={setCurrency}
+            hint={
+              <Text style={styles.sectionHint}>
+                What the trip’s amounts are kept in. Expenses paid in another currency can still be
+                entered and are converted at that day’s rate.
+              </Text>
+            }
+          />
+
           <View style={styles.section}>
             <TextField
-              title="Budget (optional)"
+              title={`Budget in ${currency} (optional)`}
               placeholder="e.g. 15000"
               value={budget}
               onChangeText={setBudget}
@@ -222,62 +229,7 @@ export default function CreateTripScreen() {
           {/* Plans can be typed in now, so the trip's itinerary starts with a
               plan rather than an empty page. They are saved with the trip. */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Plans (optional)</Text>
-              {plans.length > 0 && (
-                <Text style={styles.selectedCount}>
-                  {plans.length} {plans.length === 1 ? 'plan' : 'plans'} added
-                </Text>
-              )}
-            </View>
-
-            {plans.map((plan, index) => (
-              <View key={`${plan.title}-${index}`} style={styles.planRow}>
-                <View style={styles.planBody}>
-                  <Text style={styles.planTitle} numberOfLines={1}>
-                    {plan.title}
-                  </Text>
-                  <Text style={styles.planMeta} numberOfLines={1}>
-                    {formatDay(plan.day)}
-                    {plan.time ? ` · ${formatTime(plan.time)}` : ''}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => setPlans((previous) => previous.filter((_, i) => i !== index))}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${plan.title}`}
-                >
-                  <Trash2 size={16} color={BrandColors.error} />
-                </Pressable>
-              </View>
-            ))}
-
-            <TextField
-              title="What is the plan?"
-              placeholder="e.g. Burnham Park picnic"
-              value={planTitle}
-              onChangeText={setPlanTitle}
-            />
-
-            <View style={styles.group}>
-              <Text style={styles.fieldLabel}>Which day?</Text>
-              <DateCalendar value={planDay} onChange={setPlanDay} />
-            </View>
-
-            <View style={styles.group}>
-              <Text style={styles.fieldLabel}>Time (optional)</Text>
-              <TimeField value={planTime} onChange={setPlanTime} />
-            </View>
-
-            <Pressable
-              style={[styles.addPlanButton, !planTitle.trim() && styles.addPlanButtonOff]}
-              onPress={addPlan}
-              disabled={!planTitle.trim()}
-            >
-              <Plus size={16} color={BrandColors.primary} />
-              <Text style={styles.addPlanText}>Add this plan</Text>
-            </Pressable>
+            <PlanDrafts plans={plans} onChange={setPlans} startDate={startDate} endDate={endDate} />
           </View>
 
           <View style={styles.section}>
@@ -402,57 +354,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 12,
     color: BrandColors.secondary,
-  },
-  group: {
-    gap: Spacing.two,
-  },
-  fieldLabel: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 13,
-    color: BrandColors.primary,
-  },
-  planRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    backgroundColor: BrandColors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 12,
-    padding: Spacing.three,
-  },
-  planBody: {
-    flex: 1,
-    gap: 2,
-  },
-  planTitle: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 13,
-    color: BrandColors.primary,
-  },
-  planMeta: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 11,
-    color: BrandColors.secondary,
-  },
-  addPlanButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-    backgroundColor: BrandColors.base50,
-    borderRadius: 12,
-    paddingVertical: Spacing.three,
-  },
-  addPlanButtonOff: {
-    // Kept visible so the button does not jump around while a name is typed,
-    // but clearly not pressable until there is something to add.
-    opacity: 0.45,
-  },
-  addPlanText: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 13,
-    color: BrandColors.primary,
   },
   selectedCount: {
     fontFamily: 'PlusJakartaSans-Medium',

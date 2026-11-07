@@ -1,3 +1,5 @@
+import type { OriginalAmount } from '@/utils/foreignAmount';
+import type { PayMongoReceipt } from '@/utils/paymongo';
 export type SplitMode = 'equal' | 'percentage' | 'custom';
 
 /** How an expense's total was split between members. */
@@ -58,6 +60,8 @@ export interface Expense {
    * draw its reactions without a second read. It never affects a balance.
    */
   reactions?: Record<string, string[]>;
+  /** Set when it was paid in another currency: what was paid, and the rate used. */
+  original?: OriginalAmount;
 }
 
 export interface Settlement {
@@ -74,6 +78,10 @@ export interface Settlement {
   /** Who confirmed it: 'pending' until the receiver agrees. Older payments have no status and count. */
   status?: 'pending' | 'confirmed' | 'declined';
   confirmedBy?: string;
+  /** The PayMongo payment this came from, when it was paid through PayMongo. */
+  paymongoRef?: string;
+  /** PayMongo's transaction details, kept in place of a proof photo. */
+  paymongo?: PayMongoReceipt;
   confirmedAt?: string;
   isCash?: boolean;
   /** How a non-cash payment was made, e.g. GCash or bank transfer. */

@@ -1,11 +1,11 @@
 import { BrandColors, Spacing } from '@/constants/theme';
-import { LogOut, Trash2, UserMinus } from 'lucide-react-native';
+import { Lock, LogOut, Trash2, UserMinus } from 'lucide-react-native';
 import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import BottomSheet from './bottom-sheet';
 
 /** The small red badge at the top of the sheet, chosen to match the action. */
-export type ConfirmIcon = 'delete' | 'remove' | 'leave';
+export type ConfirmIcon = 'delete' | 'remove' | 'leave' | 'lock';
 
 interface ConfirmSheetProps {
   visible: boolean;
@@ -28,6 +28,7 @@ const ICONS = {
   delete: Trash2,
   remove: UserMinus,
   leave: LogOut,
+  lock: Lock,
 } as const;
 
 /**

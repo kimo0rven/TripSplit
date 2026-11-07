@@ -8,7 +8,6 @@ import NavBar from '@/components/Navbar/Nav';
 import ConfirmSheet from '@/components/ui/confirm-sheet';
 import TabSlider from '@/components/ui/tab-slider';
 import TripScreenHeader from '@/components/ui/trip-screen-header';
-import { TripIconBadge } from '@/components/ui/trip-icon';
 import BudgetSheet from '@/components/trip/budget-sheet';
 import BalancesTab from '@/components/trip/balances-tab';
 import ExpenseForm from '@/components/trip/expense-form';
@@ -20,6 +19,10 @@ import ReportsTab from '@/components/trip/reports-tab';
 import ExpenseDetailSheet from '@/components/trip/expense-detail-sheet';
 import SettleSheet from '@/components/trip/settle-sheet';
 import TripMembersSheet from '@/components/trip/trip-members-sheet';
+import JoinRequests from '@/components/trip/join-requests';
+import { restoreFromTrash } from '@/services/Firebase/trashService';
+import { publishPayDetailsTo } from '@/services/Firebase/payDetailsService';
+import SettleAllSheet from '@/components/trip/settle-all-sheet';
 import TripSettingsSheet from '@/components/trip/trip-settings-sheet';
 import TripShareSheet from '@/components/trip/trip-share-sheet';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -34,21 +37,29 @@ import {
   fetchTripBudget,
   respondToSettlement,
 } from '@/services/Firebase/settlementService';
-import { fetchTrip, leaveTrip, removeMemberFromTrip } from '@/services/Firebase/tripService';
+import {
+  closeTrip,
+  deleteTrip,
+  reopenTrip,
+  fetchTrip,
+  leaveTrip,
+  removeMemberFromTrip,
+} from '@/services/Firebase/tripService';
 import { fetchDelivery, setTripMuted } from '@/services/notifications/inbox';
 import { useAuth } from '@/services/Firebase/useAuth';
 import { Expense, ItineraryItem } from '@/types/expenses';
 import { Trip, TripMember } from '@/types/trips';
 import { TabKey, TRIP_TABS } from '@/types/trip-view';
 import { computeTripTotals, simplifyDebts } from '@/utils/balance';
-import { parseAmount, todayKey } from '@/utils/money';
-import { tripIsOver } from '@/utils/tripList';
+import { formatDay, parseAmount, todayKey } from '@/utils/money';
+import { canRecordMoney, tripIsOver } from '@/utils/tripList';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   CalendarRange,
   CheckCircle2,
   ChevronRight,
   LogOut,
+  Lock,
   Plus,
   Scale,
   Trophy,
@@ -140,7 +151,14 @@ export default function TripDetailScreen() {
   const [shareOpen, setShareOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settleAllOpen, setSettleAllOpen] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [closeError, setCloseError] = useState('');
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [leaving, setLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState('');
   /** The expense whose detail sheet is open, by id. */
@@ -165,6 +183,9 @@ export default function TripDetailScreen() {
       // A trip already saved on the phone is shown at once; readPath asks the
       // server in the background and re-paints if anything really changed.
       const tripData = await fetchTrip(tripId);
+
+      // Your payment details, copied in if you joined after saving them.
+      if (tripData && currentUser?.uid) void publishPayDetailsTo(tripId, currentUser.uid);
 
       // Repeating expenses that came due while nobody had the trip open.
       if (tripData && currentUser?.uid) {
@@ -293,6 +314,15 @@ export default function TripDetailScreen() {
    * up and fix old expenses after they get home.
    */
   const isOver = !!trip && tripIsOver(trip, todayKey());
+  /** A closed trip's expenses and plans are read-only; payments still work. */
+  const isClosed = !!trip?.closedAt;
+  /** Before the first day, money waits unless the owner allowed it early. */
+  const notStarted = !!trip && !canRecordMoney(trip, todayKey());
+  const notStartedText = notStarted
+    ? `The trip starts on ${formatDay(trip!.startDate ?? '')}. Expenses and payments open then${
+        isOwner ? '; you can allow them earlier in trip settings' : ''
+      }.`
+    : '';
 
   const handleDeleteItinerary = (item: ItineraryItem) => {
     setPendingConfirm({ kind: 'plan', id: item.id, title: item.title });
@@ -346,6 +376,44 @@ export default function TripDetailScreen() {
     [tripId],
   );
 
+  /** The last thing deleted here, offered back for a few seconds. */
+  const [undo, setUndo] = useState<
+    { kind: 'expense'; item: Expense } | { kind: 'plan'; item: ItineraryItem } | null
+  >(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const offerUndo = (deleted: NonNullable<typeof undo>) => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo(deleted);
+    undoTimer.current = setTimeout(() => setUndo(null), 8000);
+  };
+  useEffect(
+    () => () => {
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+    },
+    [],
+  );
+
+  /** Puts the last deleted expense or plan back. */
+  const handleUndo = async () => {
+    if (!undo || !tripId) return;
+    const deleted = undo;
+    setUndo(null);
+    try {
+      await restoreFromTrash(tripId as string, {
+        id: deleted.item.id,
+        kind: deleted.kind,
+        item: deleted.item,
+        deletedAt: '',
+        deletedBy: currentUserId,
+      });
+      if (deleted.kind === 'expense') setExpenses((previous) => [deleted.item, ...previous]);
+      else setItinerary((previous) => [...previous, deleted.item]);
+      loadTrip();
+    } catch (err) {
+      console.error('Failed to undo the delete:', err);
+    }
+  };
+
   /** Runs the delete the user just said yes to. */
   const runPendingConfirm = async () => {
     const request = pendingConfirm;
@@ -355,11 +423,15 @@ export default function TripDetailScreen() {
 
     try {
       if (request.kind === 'expense') {
+        const doomed = expenses.find((entry) => entry.id === request.id);
         await deleteExpense(tripId as string, request.id);
         setExpenses((previous) => previous.filter((entry) => entry.id !== request.id));
+        if (doomed) offerUndo({ kind: 'expense', item: doomed });
       } else {
+        const doomed = itinerary.find((entry) => entry.id === request.id);
         await deleteItineraryItem(tripId as string, request.id);
         setItinerary((previous) => previous.filter((entry) => entry.id !== request.id));
+        if (doomed) offerUndo({ kind: 'plan', item: doomed });
       }
       setPendingConfirm(null);
     } catch (err) {
@@ -391,6 +463,55 @@ export default function TripDetailScreen() {
       setLeaveError(err?.message || 'Could not leave this trip. Please try again.');
     } finally {
       setLeaving(false);
+    }
+  };
+
+  /** Deletes the whole trip, once the owner has confirmed. */
+  const handleDeleteTrip = async () => {
+    if (!tripId || !currentUserId || deleting) return;
+
+    setDeleting(true);
+    setDeleteError('');
+
+    try {
+      await deleteTrip(tripId as string, currentUserId);
+      setDeleteOpen(false);
+      router.replace('/trips' as any);
+    } catch (err: any) {
+      console.error('Failed to delete trip:', err);
+      setDeleteError(err?.message || 'Could not delete this trip. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  /** Closes the trip, or reopens a closed one, once the owner confirms. */
+  const handleToggleClosed = async () => {
+    if (!tripId || !currentUserId || closing || !trip) return;
+    setClosing(true);
+    setCloseError('');
+    try {
+      if (trip.closedAt) {
+        const code = await reopenTrip(tripId as string, currentUserId);
+        setTrip((previous) =>
+          previous
+            ? { ...previous, closedAt: undefined, closedBy: undefined, inviteCode: code }
+            : previous,
+        );
+      } else {
+        await closeTrip(tripId as string, currentUserId);
+        setTrip((previous) =>
+          previous
+            ? { ...previous, closedAt: new Date().toISOString(), closedBy: currentUserId }
+            : previous,
+        );
+      }
+      setCloseOpen(false);
+    } catch (err: any) {
+      console.error('Failed to close or reopen the trip:', err);
+      setCloseError(err?.message || 'Could not change this trip. Please try again.');
+    } finally {
+      setClosing(false);
     }
   };
 
@@ -431,10 +552,12 @@ export default function TripDetailScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View style={styles.container}>
+          {/* The trip card below already shows the name and icon, so the bar
+              keeps only the back arrow and actions. While loading or after an
+              error there is no card, so the bar names the screen then. */}
           <TripScreenHeader
-            title={trip?.name || 'Trip'}
+            title={trip ? '' : 'Trip'}
             onBack={() => router.replace('/trips' as any)}
-            leading={<TripIconBadge name={trip?.icon} colorKey={trip?.iconColor} size={28} />}
             right={
               <TripHeaderActions
                 showStar={tab === 'expenses' && !tripsLoading && !isOver}
@@ -445,6 +568,7 @@ export default function TripDetailScreen() {
                 onSettings={() => setSettingsOpen(true)}
                 muted={muted}
                 onToggleMute={toggleMute}
+                onActivity={() => router.push(`/trips/${tripId}/activity` as any)}
               />
             }
           />
@@ -468,7 +592,42 @@ export default function TripDetailScreen() {
                 onOpenNotes={() => router.push(`/trips/${tripId}/notes` as any)}
               />
 
-              {isOver && (
+              {isOwner && (
+                <JoinRequests
+                  tripId={tripId as string}
+                  ownerId={currentUserId}
+                  onApproved={(member) =>
+                    setTrip((previous) =>
+                      previous
+                        ? { ...previous, members: { ...previous.members, [member.id]: member } }
+                        : previous,
+                    )
+                  }
+                />
+              )}
+
+              {isClosed && (
+                <View style={styles.closedNotice}>
+                  <Lock size={15} color={BrandColors.primary} />
+                  <Text style={styles.overText}>
+                    {members
+                      .find((member) => member.id === trip.closedBy)
+                      ?.fullname.split(' ')[0] || 'The owner'}{' '}
+                    closed this trip
+                    {trip.closedAt ? ` on ${formatDay(trip.closedAt.slice(0, 10))}` : ''}. Expenses
+                    and plans are final; payments can still be recorded.
+                  </Text>
+                </View>
+              )}
+
+              {notStarted && (tab === 'expenses' || tab === 'balances') && (
+                <View style={styles.closedNotice}>
+                  <CalendarRange size={15} color={BrandColors.primary} />
+                  <Text style={styles.overText}>{notStartedText}</Text>
+                </View>
+              )}
+
+              {isOver && !isClosed && (
                 <Pressable
                   style={styles.overNotice}
                   onPress={() => router.push(`/trips/${tripId}/payments` as any)}
@@ -526,7 +685,7 @@ export default function TripDetailScreen() {
                   members={members}
                   currency={currency}
                   currentUserId={currentUserId}
-                  onAdd={handleAddExpense}
+                  onAdd={isClosed || notStarted ? undefined : handleAddExpense}
                   onViewAll={handleViewAllExpenses}
                   onOpenExpense={handleOpenExpense}
                   onReact={handleReact}
@@ -554,6 +713,8 @@ export default function TripDetailScreen() {
                   currentUserId={currentUserId}
                   tripId={tripId as string}
                   tripName={trip?.name}
+                  onSettleAll={() => setSettleAllOpen(true)}
+                  settleLocked={notStarted ? notStartedText : undefined}
                   onRespond={async (payment, accept) => {
                     try {
                       const result = await respondToSettlement(
@@ -588,13 +749,17 @@ export default function TripDetailScreen() {
                 <ItineraryTab
                   items={itinerary}
                   currentUserId={currentUserId}
-                  onDelete={handleDeleteItinerary}
+                  onDelete={isClosed ? undefined : handleDeleteItinerary}
                   isOwner={isOwner}
                   members={members}
-                  onEdit={(plan) => {
-                    setEditingPlan(plan);
-                    setItineraryFormOpen(true);
-                  }}
+                  onEdit={
+                    isClosed
+                      ? undefined
+                      : (plan) => {
+                          setEditingPlan(plan);
+                          setItineraryFormOpen(true);
+                        }
+                  }
                 />
               )}
 
@@ -607,6 +772,10 @@ export default function TripDetailScreen() {
                   settledTotal={totals.settled}
                   tripName={trip?.name ?? ''}
                   settlements={settlements}
+                  startDate={trip?.startDate}
+                  endDate={trip?.endDate}
+                  budget={budget}
+                  currentUserId={currentUserId}
                 />
               )}
 
@@ -616,7 +785,6 @@ export default function TripDetailScreen() {
                   members={members}
                   expenses={expenses}
                   settlements={settlements}
-                  balances={visibleBalances}
                   currency={currency}
                   currentUserId={currentUserId}
                   today={todayKey()}
@@ -641,33 +809,52 @@ export default function TripDetailScreen() {
         </View>
       </ScrollView>
 
+      {!!undo && (
+        <View style={styles.undoBar} pointerEvents="box-none">
+          <View style={styles.undoInner}>
+            <Text style={styles.undoText} numberOfLines={1}>
+              Deleted {undo.item.title}
+            </Text>
+            <Pressable onPress={handleUndo} hitSlop={10} accessibilityRole="button">
+              <Text style={styles.undoAction}>Undo</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       {/* Floating action button: the main thing people do on a trip. The Fun
           tab is read-only, so it has none. */}
-      {!loading && !error && trip && tab !== 'reports' && tab !== 'fun' && (
-        <Pressable
-          style={styles.fab}
-          onPress={() => {
-            if (tab === 'itinerary') {
-              setItineraryDay(undefined);
-              setItineraryFormOpen(true);
-            } else if (tab === 'balances') {
-              setSettlePreset(undefined);
-              setEditingSettlement(null);
-              setSettleOpen(true);
-            } else {
-              setExpenseFormOpen(true);
-            }
-          }}
-        >
-          {tab === 'itinerary' ? (
-            <CalendarRange size={22} color={BrandColors.primary} />
-          ) : tab === 'balances' ? (
-            <Scale size={22} color={BrandColors.primary} />
-          ) : (
-            <Plus size={24} color={BrandColors.primary} />
-          )}
-        </Pressable>
-      )}
+      {!loading &&
+        !error &&
+        trip &&
+        tab !== 'reports' &&
+        tab !== 'fun' &&
+        (!isClosed || tab === 'balances') &&
+        !(notStarted && (tab === 'expenses' || tab === 'balances')) && (
+          <Pressable
+            style={styles.fab}
+            onPress={() => {
+              if (tab === 'itinerary') {
+                setItineraryDay(undefined);
+                setItineraryFormOpen(true);
+              } else if (tab === 'balances') {
+                setSettlePreset(undefined);
+                setEditingSettlement(null);
+                setSettleOpen(true);
+              } else {
+                setExpenseFormOpen(true);
+              }
+            }}
+          >
+            {tab === 'itinerary' ? (
+              <CalendarRange size={22} color={BrandColors.primary} />
+            ) : tab === 'balances' ? (
+              <Scale size={22} color={BrandColors.primary} />
+            ) : (
+              <Plus size={24} color={BrandColors.primary} />
+            )}
+          </Pressable>
+        )}
 
       {!!trip && (
         <>
@@ -702,7 +889,6 @@ export default function TripDetailScreen() {
             tripId={tripId as string}
             currentUserId={currentUserId}
             memberNames={Object.fromEntries(members.map((member) => [member.id, member.fullname]))}
-            members={members}
             defaultDay={itineraryDay}
             item={editingPlan}
             onSaved={(saved) => {
@@ -717,6 +903,22 @@ export default function TripDetailScreen() {
             }}
           />
 
+          <SettleAllSheet
+            visible={settleAllOpen}
+            onClose={() => setSettleAllOpen(false)}
+            tripId={tripId as string}
+            currency={currency}
+            members={members}
+            edges={edges}
+            currentUserId={currentUserId}
+            onSaved={(saved) =>
+              setSettlements((previous) => [
+                ...saved,
+                ...previous.filter((item) => !saved.some((made) => made.id === item.id)),
+              ])
+            }
+          />
+
           <SettleSheet
             visible={settleOpen}
             onClose={() => setSettleOpen(false)}
@@ -727,6 +929,8 @@ export default function TripDetailScreen() {
             currentUserId={currentUserId}
             preselect={settlePreset}
             settlement={editingSettlement}
+            expenses={expenses}
+            settlements={settlements}
             onSaved={(saved) => {
               setSettlements((previous) =>
                 previous.some((item) => item.id === saved.id)
@@ -760,11 +964,15 @@ export default function TripDetailScreen() {
             members={members}
             currency={currency}
             currentUserId={currentUserId}
-            onEdit={(expense) => {
-              setEditingExpense(expense);
-              setExpenseFormOpen(true);
-            }}
-            onDelete={handleDeleteExpense}
+            onEdit={
+              isClosed
+                ? undefined
+                : (expense) => {
+                    setEditingExpense(expense);
+                    setExpenseFormOpen(true);
+                  }
+            }
+            onDelete={isClosed ? undefined : handleDeleteExpense}
           />
 
           <TripMembersSheet
@@ -797,10 +1005,24 @@ export default function TripDetailScreen() {
               currentIconColor={trip.iconColor}
               currentStartDate={trip.startDate}
               currentEndDate={trip.endDate}
+              currentRequireApproval={trip.requireApproval === true}
+              currentAllowEarlySpending={trip.allowEarlySpending === true}
               currentBudget={budget}
               onEditBudget={() => {
                 setSettingsOpen(false);
                 setBudgetOpen(true);
+              }}
+              onDelete={() => {
+                // One sheet at a time: a second sheet can open behind the first on iOS.
+                setSettingsOpen(false);
+                setDeleteError('');
+                setDeleteOpen(true);
+              }}
+              closed={isClosed}
+              onToggleClosed={() => {
+                setSettingsOpen(false);
+                setCloseError('');
+                setCloseOpen(true);
               }}
               onSaved={(settings) => {
                 // Keep the screen in step with the save, so the header title, the
@@ -816,6 +1038,8 @@ export default function TripDetailScreen() {
                         iconColor: settings.iconColor,
                         startDate: settings.startDate || undefined,
                         endDate: settings.endDate || undefined,
+                        requireApproval: settings.requireApproval,
+                        allowEarlySpending: settings.allowEarlySpending,
                       }
                     : previous,
                 );
@@ -850,6 +1074,50 @@ export default function TripDetailScreen() {
         }}
       >
         {!!removeError && <Text style={styles.leaveError}>{removeError}</Text>}
+      </ConfirmSheet>
+
+      <ConfirmSheet
+        visible={closeOpen}
+        icon="lock"
+        title={isClosed ? 'Reopen this trip?' : 'Close this trip?'}
+        message={
+          isClosed
+            ? 'Expenses and plans can be changed again, and the trip gets a new invite code. The old code stays off.'
+            : `Expenses and plans become final and the invite code stops working.${
+                edges.length
+                  ? ` ${edges.length} ${edges.length === 1 ? 'payment is' : 'payments are'} still open; they can still be settled after closing.`
+                  : ' Everyone is settled up.'
+              } You can reopen it later.`
+        }
+        confirmLabel={isClosed ? 'Reopen trip' : 'Close trip'}
+        cancelLabel="Not now"
+        busy={closing}
+        onConfirm={handleToggleClosed}
+        onCancel={() => {
+          if (!closing) setCloseOpen(false);
+        }}
+      >
+        {!!closeError && <Text style={styles.leaveError}>{closeError}</Text>}
+      </ConfirmSheet>
+
+      <ConfirmSheet
+        visible={deleteOpen}
+        icon="delete"
+        title={`Delete ${trip?.name ? `"${trip.name}"` : 'this trip'}?`}
+        message={
+          members.length > 1
+            ? `The trip and all its expenses, payments, plans, notes and photos will be removed for all ${members.length} members. This cannot be undone.`
+            : 'The trip and all its expenses, payments, plans, notes and photos will be removed. This cannot be undone.'
+        }
+        confirmLabel="Delete trip"
+        cancelLabel="Keep trip"
+        busy={deleting}
+        onConfirm={handleDeleteTrip}
+        onCancel={() => {
+          if (!deleting) setDeleteOpen(false);
+        }}
+      >
+        {!!deleteError && <Text style={styles.leaveError}>{deleteError}</Text>}
       </ConfirmSheet>
 
       <ConfirmSheet
@@ -981,6 +1249,41 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Medium',
     fontSize: 13,
     color: BrandColors.error,
+  },
+  undoBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 100,
+    alignItems: 'center',
+    paddingHorizontal: 25,
+  },
+  undoInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    maxWidth: 480,
+    width: '100%',
+    backgroundColor: BrandColors.primary,
+    borderRadius: 14,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+  },
+  undoText: {
+    flex: 1,
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 14,
+    color: BrandColors.background,
+  },
+  undoAction: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.base50 },
+  closedNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    backgroundColor: BrandColors.base400,
+    borderRadius: 12,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
   },
   overNotice: {
     flexDirection: 'row',

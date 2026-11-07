@@ -5,6 +5,7 @@ import { ThemedView } from '@/components/themed-view';
 import { EmailField, PasswordField } from '@/components/ui/text-input-field';
 import { BottomTabInset, BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { signIn } from '@/services/Firebase/authService';
+import { mustVerify } from '@/services/Firebase/useAuth';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -28,8 +29,8 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      await signIn(email, password);
-      router.replace('/dashboard');
+      const user = await signIn(email, password);
+      router.replace((mustVerify(user) ? '/verify-email' : '/dashboard') as any);
     } catch (err: any) {
       console.warn('Login failed:', err?.code ?? err);
       setError(mapFirebaseError(err?.code));

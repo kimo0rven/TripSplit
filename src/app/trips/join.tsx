@@ -1,9 +1,11 @@
 import BackButton from '@/components/Button/back-button';
 import PrimaryButton from '@/components/Button/primary-button';
-import ConfirmDialog from '@/components/ui/confirm-dialog';
+import JoinTripSheet from '@/components/trip/join-trip-sheet';
 import { TextField } from '@/components/ui/text-input-field';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
-import { fetchTripPreview, joinTripByCode } from '@/services/Firebase/tripService';
+import { fetchTripPreview } from '@/services/Firebase/tripService';
+import { savePendingJoinCode } from '@/services/joining/pendingJoinCodes';
+import { isConnected } from '@/services/offline/offlineStore';
 import { useAuth } from '@/services/Firebase/useAuth';
 import { TripPreview } from '@/types/trips';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -20,6 +22,8 @@ export default function JoinTripScreen() {
   const [code, setCode] = useState((codeParam || '').toUpperCase());
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState('');
+  /** Said when a code was kept for later because the phone is offline. */
+  const [saved, setSaved] = useState('');
   const [preview, setPreview] = useState<TripPreview | null>(null);
 
   /**
@@ -34,8 +38,20 @@ export default function JoinTripScreen() {
       return;
     }
 
-    setJoining(true);
     setError('');
+    setSaved('');
+
+    // A code can only be looked up on the server. Offline, it is kept and
+    // offered again on the dashboard once the phone is back online.
+    if (!isConnected()) {
+      await savePendingJoinCode(code);
+      setSaved(
+        `You’re offline, so ${code.trim().toUpperCase()} was saved. Once you’re back online, it shows up on your dashboard to look up and join.`,
+      );
+      return;
+    }
+
+    setJoining(true);
 
     try {
       const found = await fetchTripPreview(code);
@@ -66,35 +82,6 @@ export default function JoinTripScreen() {
     // handleLookUp only reads state that is settled by this point.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codeParam, currentUser?.uid]);
-
-  /** Step two: the person confirmed, so actually join. */
-  const handleConfirmJoin = async () => {
-    if (!preview || joining) return;
-    if (!currentUser?.uid) {
-      setError('You need to be signed in.');
-      return;
-    }
-
-    setJoining(true);
-    setError('');
-
-    try {
-      const trip = await joinTripByCode(code, {
-        id: currentUser.uid,
-        fullname: currentUser.displayName || currentUser.email?.split('@')[0] || 'You',
-        email: currentUser.email || '',
-        ...(currentUser.photoURL ? { photoURL: currentUser.photoURL } : {}),
-      });
-
-      setPreview(null);
-      router.replace(`/trips/${trip.id}` as any);
-    } catch (err: any) {
-      console.error('Failed to join trip:', err);
-      setPreview(null);
-      setError(err?.message || 'Could not join that trip. Please check the code.');
-      setJoining(false);
-    }
-  };
 
   return (
     <KeyboardAvoidingView
@@ -128,6 +115,7 @@ export default function JoinTripScreen() {
         />
 
         {!!error && <Text style={styles.errorText}>{error}</Text>}
+        {!!saved && <Text style={styles.savedText}>{saved}</Text>}
 
         <PrimaryButton
           title={joining ? 'Checking…' : 'Find trip'}
@@ -140,16 +128,14 @@ export default function JoinTripScreen() {
         />
       </View>
 
-      <ConfirmDialog
-        visible={!!preview}
-        title={`Join "${preview?.name ?? 'this trip'}"?`}
-        message="You will be added to this trip and can see and split its expenses with everyone in it."
-        confirmLabel="Join trip"
-        cancelLabel="Not now"
-        busy={joining}
-        onConfirm={handleConfirmJoin}
-        onCancel={() => {
-          if (!joining) setPreview(null);
+      {/* Step two: what the trip is, then join or ask the owner. */}
+      <JoinTripSheet
+        preview={preview}
+        code={code}
+        onClose={() => setPreview(null)}
+        onJoined={(tripId) => {
+          setPreview(null);
+          router.replace(`/trips/${tripId}` as any);
         }}
       />
     </KeyboardAvoidingView>
@@ -212,6 +198,12 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 14,
     color: BrandColors.secondary,
+    textAlign: 'center',
+  },
+  savedText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 13,
+    color: BrandColors.primary,
     textAlign: 'center',
   },
   errorText: {

@@ -16,5 +16,5 @@
     "src/config/firebase.ts",
     "src/config/supabase.js"
   ],
-  "exclude": ["node_modules", "tests"]
+  "exclude": ["node_modules", "tests", "supabase/functions"]
 }

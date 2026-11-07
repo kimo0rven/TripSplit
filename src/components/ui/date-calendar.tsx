@@ -1,4 +1,5 @@
 import { BrandColors, Spacing } from '@/constants/theme';
+import { placeInRange, type DayRange } from '@/utils/dateRange';
 import { formatDay, isValidDayKey, parseDayKey, todayKey } from '@/utils/money';
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
@@ -35,6 +36,12 @@ interface DateCalendarProps {
   minDay?: string;
   /** Latest day that can be picked, as YYYY-MM-DD. */
   maxDay?: string;
+  /**
+   * Shows a start-to-end range instead of one day: both ends are circled and
+   * the days between are joined by a band. `onChange` still reports the day
+   * tapped; the caller decides what that does to the range.
+   */
+  range?: DayRange;
 }
 
 /** Pads a month and day to two digits and joins them into YYYY-MM-DD. */
@@ -50,7 +57,13 @@ const toDayKey = (year: number, monthIndex: number, dayOfMonth: number): string 
  * Days are compared as YYYY-MM-DD strings: because the format is fixed width,
  * plain string comparison already puts them in date order.
  */
-export default function DateCalendar({ value, onChange, minDay, maxDay }: DateCalendarProps) {
+export default function DateCalendar({
+  value,
+  onChange,
+  minDay,
+  maxDay,
+  range,
+}: DateCalendarProps) {
   const selectedKey = isValidDayKey(value) ? value : todayKey();
   const today = todayKey();
 
@@ -187,7 +200,10 @@ export default function DateCalendar({ value, onChange, minDay, maxDay }: DateCa
                   return <View key={`blank-${rowIndex}-${columnIndex}`} style={styles.dayCell} />;
                 }
 
-                const isSelected = key === selectedKey;
+                const place = range ? placeInRange(range, key) : null;
+                const isSelected = range
+                  ? place === 'start' || place === 'end' || place === 'single'
+                  : key === selectedKey;
                 const isToday = key === today;
                 const disabled = isOutOfRange(key);
 
@@ -201,6 +217,17 @@ export default function DateCalendar({ value, onChange, minDay, maxDay }: DateCa
                     accessibilityLabel={formatDay(key)}
                     accessibilityState={{ selected: isSelected, disabled }}
                   >
+                    {/* The band behind the circles: half a cell at each end,
+                        a whole cell for the days between. */}
+                    {(place === 'start' || place === 'end' || place === 'inside') && (
+                      <View
+                        style={[
+                          styles.band,
+                          place === 'start' && styles.bandStart,
+                          place === 'end' && styles.bandEnd,
+                        ]}
+                      />
+                    )}
                     <View
                       style={[
                         styles.dayCircle,
@@ -225,14 +252,17 @@ export default function DateCalendar({ value, onChange, minDay, maxDay }: DateCa
             </View>
           ))}
 
-          <View style={styles.footer}>
-            <Text style={styles.selectedLabel}>{formatDay(selectedKey)}</Text>
-            {!isOutOfRange(today) && (
-              <Pressable onPress={() => onChange(today)} hitSlop={8}>
-                <Text style={styles.todayAction}>Jump to today</Text>
-              </Pressable>
-            )}
-          </View>
+          {/* A range shows its own summary above the calendar instead. */}
+          {!range && (
+            <View style={styles.footer}>
+              <Text style={styles.selectedLabel}>{formatDay(selectedKey)}</Text>
+              {!isOutOfRange(today) && (
+                <Pressable onPress={() => onChange(today)} hitSlop={8}>
+                  <Text style={styles.todayAction}>Jump to today</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
         </>
       )}
     </View>
@@ -323,6 +353,20 @@ const styles = StyleSheet.create({
     height: 38,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  band: {
+    position: 'absolute',
+    top: 3,
+    bottom: 3,
+    left: 0,
+    right: 0,
+    backgroundColor: BrandColors.base200,
+  },
+  bandStart: {
+    left: '50%',
+  },
+  bandEnd: {
+    right: '50%',
   },
   dayCircle: {
     width: 32,

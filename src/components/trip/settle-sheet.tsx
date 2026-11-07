@@ -1,20 +1,55 @@
 import PrimaryButton from '@/components/Button/primary-button';
-import Avatar from '@/components/ui/avatar';
+import { AmountPicker } from '@/components/trip/settle/amount-picker';
+import { CoversList } from '@/components/trip/settle/covers-list';
+import { PayToCard } from '@/components/trip/settle/pay-to-card';
+import { DebtSwitcher, PartiesHeader } from '@/components/trip/settle/parties-header';
+import { PaymentMethodCard, type MethodKey } from '@/components/trip/settle/payment-method-card';
+import { ProofPicker } from '@/components/trip/settle/proof-picker';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { HelperText } from '@/components/ui/card';
-import { FieldLabel } from '@/components/ui/choice-chips';
 import { TextField } from '@/components/ui/text-input-field';
 import { BrandColors, Spacing } from '@/constants/theme';
-import { createSettlement, updateSettlement } from '@/services/Firebase/settlementService';
-import { DebtEdge, Settlement } from '@/types/expenses';
-import { TripMember } from '@/types/trips';
-import { formatMoney, parseAmount, todayKey } from '@/utils/money';
+import { usePayMongoCheckout, type PayOutcome } from '@/hooks/use-paymongo-checkout';
+import { payMongoConfigured } from '@/services/Firebase/paymongoService';
+import { fetchExpenses } from '@/services/Firebase/expenseService';
+import {
+  createSettlement,
+  fetchSettlements,
+  updateSettlement,
+} from '@/services/Firebase/settlementService';
+import { isConnected } from '@/services/offline/offlineStore';
 import { uploadReceipt } from '@/services/Supabase/receiptService';
-import { pickImage, takePhoto } from '@/utils/imagePicker';
-import { Image } from 'expo-image';
-import { Camera, Check, Images, Trash2 } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { DebtEdge, Expense, Settlement } from '@/types/expenses';
+import { TripMember } from '@/types/trips';
+import { computeBalances, simplifyDebts } from '@/utils/balance';
+import { coverageFor, previewCoverage } from '@/utils/coverage';
+import { formatMoney, parseAmount, todayKey } from '@/utils/money';
+import { choiceFor, PAYMENT_CHOICES, storedPayment } from '@/utils/paymentMethod';
+import {
+  amountFor,
+  amountProblem,
+  choiceForAmount,
+  debtBetween,
+  debtsWithMe,
+  findDuplicatePayment,
+  fullDebtFor,
+  kindFor,
+  type AmountChoice,
+} from '@/utils/settle';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet } from 'react-native';
+
+/** The clock, read only when a payment is about to be saved. */
+const nowMs = () => Date.now();
+
+/** "5 min ago", for a payment that may have been recorded twice. */
+const agoText = (iso?: string) => {
+  const minutes = Math.round((nowMs() - Date.parse(iso ?? '')) / 60000);
+  if (!Number.isFinite(minutes) || minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return hours === 1 ? 'an hour ago' : `${hours} hours ago`;
+};
 
 interface SettleSheetProps {
   visible: boolean;
@@ -27,13 +62,20 @@ interface SettleSheetProps {
   /** When set, the sheet edits this payment instead of recording a new one. */
   settlement?: Settlement | null;
   preselect?: { from?: string; to?: string; amount?: number };
+  /**
+   * The trip's expenses and payments. With them, the sheet lists which
+   * expenses the payment pays for; without them that list is left out.
+   */
+  expenses?: Expense[];
+  settlements?: Settlement[];
   onSaved: (settlement: Settlement) => void;
 }
 
 /**
- * Records a part payment or a full payment between two members.
- * The suggested debts come from the simplified list, so the amount starts
- * at what is actually owed.
+ * Records a payment between two members, by cash or through PayMongo.
+ *
+ * The pieces live in `./settle/`; this file holds the state and decides what
+ * the one button at the bottom does.
  */
 export default function SettleSheet({
   visible,
@@ -45,82 +87,264 @@ export default function SettleSheet({
   currentUserId,
   preselect,
   settlement,
+  expenses,
+  settlements,
   onSaved,
 }: SettleSheetProps) {
-  const defaultFrom = preselect?.from || currentUserId || members[0]?.id || '';
-  const [from, setFrom] = useState(defaultFrom);
-  const [to, setTo] = useState(preselect?.to || '');
-  const [amountText, setAmountText] = useState('');
+  const [from, setFrom] = useState(currentUserId);
+  const [to, setTo] = useState('');
+  const [choice, setChoice] = useState<AmountChoice>('full');
+  const [typed, setTyped] = useState('');
   const [note, setNote] = useState('');
-  const [isCash, setIsCash] = useState<boolean | null>(null);
-  const [method, setMethod] = useState('');
+  const [method, setMethod] = useState<MethodKey>('cash');
+  /** Kept as is, so editing an older GCash or bank payment does not lose its name. */
+  const [savedMethod, setSavedMethod] = useState('');
   const [proofUris, setProofUris] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  /** A likely repeat of a payment already recorded, waiting for a second tap. */
+  const [repeat, setRepeat] = useState<{ key: string; text: string } | null>(null);
 
-  // The debt between the two chosen people, straight from the simplifier.
-  const owed = useMemo(() => {
-    const direct = edges.find((edge) => edge.from === from && edge.to === to);
-    if (direct) return direct.amount;
-    const reverse = edges.find((edge) => edge.from === to && edge.to === from);
-    return reverse ? -reverse.amount : 0;
-  }, [edges, from, to]);
+  const checkout = usePayMongoCheckout({ visible, tripId, currency, currentUserId });
 
+  // Start from the payment being edited, the debt picked elsewhere, or the
+  // first debt you are part of (one you owe first, then one owed to you).
   useEffect(() => {
     if (!visible) return;
     if (settlement) {
+      const debt = fullDebtFor(
+        debtBetween(edges, settlement.from, settlement.to),
+        settlement,
+        settlement,
+      );
+      const picked = choiceForAmount(settlement.amount, debt);
       setFrom(settlement.from);
       setTo(settlement.to);
-      setAmountText(String(settlement.amount));
+      setChoice(picked);
+      setTyped(picked === 'custom' ? String(settlement.amount) : '');
       setNote(settlement.note ?? '');
-      setIsCash(settlement.isCash ?? null);
-      setMethod(settlement.method ?? '');
+      const saved = choiceFor({ isCash: settlement.isCash, method: settlement.method });
+      setMethod(saved && !saved.cash ? 'other' : 'cash');
+      setSavedMethod(saved && !saved.cash ? (settlement.method ?? '') : '');
       setProofUris(settlement.proofUrls ?? []);
     } else {
-      setFrom(preselect?.from || currentUserId || members[0]?.id || '');
-      setTo(preselect?.to || '');
-      setAmountText(preselect?.amount ? String(preselect.amount) : '');
+      const fallback = preselect?.to ? null : debtsWithMe(edges, currentUserId)[0];
+      const nextFrom = preselect?.from || fallback?.from || currentUserId || '';
+      const nextTo = preselect?.to || fallback?.to || '';
+      const debt = Math.max(0, debtBetween(edges, nextFrom, nextTo));
+      const start = preselect?.amount || fallback?.amount || debt;
+      const picked = choiceForAmount(start, debt);
+      setFrom(nextFrom);
+      setTo(nextTo);
+      setChoice(picked);
+      setTyped(picked === 'custom' && start > 0 ? String(start) : '');
       setNote('');
-      setIsCash(null);
-      setMethod('');
+      // Cash is the everyday case; switching to Other brings up PayMongo.
+      setMethod('cash');
+      setSavedMethod('');
       setProofUris([]);
     }
     setError('');
+    setRepeat(null);
     setSaving(false);
+    // Only a fresh open resets the form; later debt updates must not wipe it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, settlement?.id, preselect?.from, preselect?.to, preselect?.amount, currentUserId]);
 
-  const amountValue = parseAmount(amountText) / 100;
-  const nameOf = (id: string) => members.find((member) => member.id === id)?.fullname ?? 'Member';
+  // A checkout left unfinished last time brings the sheet straight back to it.
+  useEffect(() => {
+    if (visible && !settlement && checkout.pending) setMethod('other');
+  }, [visible, settlement, checkout.pending]);
 
-  const suggestions = edges.filter((edge) => edge.from === from || edge.to === from);
+  const memberOf = (id: string) => members.find((member) => member.id === id);
+  const nameOf = (id: string) => memberOf(id)?.fullname ?? 'Member';
+  /** "You" for the signed-in person, their first name for anyone else. */
+  const labelOf = (id: string) =>
+    id === currentUserId ? 'You' : nameOf(id).split(' ')[0] || 'Member';
+  const personOf = (id: string) =>
+    id ? { id, label: labelOf(id), fullname: nameOf(id), photoURL: memberOf(id)?.photoURL } : null;
+
+  const owed = debtBetween(edges, from, to);
+  const debt = fullDebtFor(owed, settlement, { from, to });
+  const amount = amountFor(choice, debt, parseAmount(typed) / 100);
+  const kind = kindFor(amount, debt);
+  const money = (value: number) => formatMoney(value, currency);
+
+  // Which of the payer's expense shares this money pays for. A new payment
+  // takes the oldest shares still open; an edit is worked out in its place
+  // among the payer's payments, at the amount it is being changed to.
+  const covers = (() => {
+    if (!expenses || !from || amount <= 0) return null;
+    const all = settlements ?? [];
+    if (settlement) {
+      const edited = all.some((item) => item.id === settlement.id)
+        ? all.map((item) => (item.id === settlement.id ? { ...item, from, to, amount } : item))
+        : [...all, { ...settlement, from, to, amount }];
+      return coverageFor(from, expenses, edited).byPayment[settlement.id] ?? [];
+    }
+    return previewCoverage(coverageFor(from, expenses, all).open, amount);
+  })();
+
+  /**
+   * Payer and payee are fixed once the sheet knows them: an edit keeps its own
+   * pair, and a debt tapped elsewhere arrives already chosen. Only the plain
+   * "Settle up" button can switch between your debts.
+   */
+  const locked = !!settlement || !!preselect?.to;
+  const myDebts = debtsWithMe(edges, currentUserId);
+  const headline = !to
+    ? 'Nobody to pay right now'
+    : from === currentUserId
+      ? `You are paying ${labelOf(to)}`
+      : to === currentUserId
+        ? `${labelOf(from)} is paying you`
+        : `${labelOf(from)} is paying ${labelOf(to)}`;
+
+  /**
+   * "Other" on a new payment, made by you, means paying through PayMongo here -
+   * when PayMongo is switched on. Off, Other is recorded like cash, with proof.
+   */
+  const onlineAvailable = payMongoConfigured();
+  const payOnline = onlineAvailable && !settlement && method === 'other' && from === currentUserId;
+  const checkingPending = payOnline && !!checkout.pending;
+
+  const problemNow = () =>
+    !to
+      ? 'There is nobody to pay right now.'
+      : amountProblem(amount, debt, { from: nameOf(from), to: nameOf(to), money });
+
+  const repeatKey = `${from}>${to}:${Math.round(amount * 100)}`;
+  const repeatShown = repeat?.key === repeatKey ? repeat.text : '';
+
+  /**
+   * Before a new payment is saved, checks it against the latest payments on
+   * the server, not just what this phone last loaded. Two things go wrong
+   * otherwise: both people record the same cash, which counts it twice and
+   * flips the debt; or someone else paid in the meantime, so the amount is now
+   * more than is owed. Returns true when it is fine to go ahead.
+   */
+  const checkAgainstLatest = async (): Promise<boolean> => {
+    let latest = settlements ?? [];
+    let freshProblem = '';
+    if (isConnected()) {
+      try {
+        const [freshExpenses, freshPayments] = await Promise.all([
+          fetchExpenses(tripId, { preferCache: false }),
+          fetchSettlements(tripId, { preferCache: false }),
+        ]);
+        latest = freshPayments;
+        const freshEdges = simplifyDebts(
+          computeBalances(
+            members.map((member) => member.id),
+            freshExpenses,
+            freshPayments,
+          ),
+        );
+        freshProblem = amountProblem(amount, debtBetween(freshEdges, from, to), {
+          from: nameOf(from),
+          to: nameOf(to),
+          money,
+        });
+      } catch (err) {
+        // Slow or refused: fall back to what the sheet already has.
+        console.warn('Could not check the latest payments:', err);
+      }
+    }
+
+    const twin = findDuplicatePayment(latest, { from, to, amount }, nowMs());
+    const twinText = twin
+      ? `${twin.createdBy === currentUserId ? 'You' : labelOf(twin.createdBy || twin.to)} already recorded ${money(
+          twin.amount,
+        )} from ${labelOf(from)} to ${labelOf(to)} ${agoText(twin.createdAt)}.`
+      : '';
+
+    if (freshProblem) {
+      setError(
+        twin
+          ? `${twinText} ${freshProblem}`
+          : `The balances changed since this opened. ${freshProblem}`,
+      );
+      return false;
+    }
+    if (twin && repeat?.key !== repeatKey) {
+      setRepeat({
+        key: repeatKey,
+        text: `${twinText} If this is the same payment, close this sheet. If it is a second one, tap Record anyway.`,
+      });
+      return false;
+    }
+    return true;
+  };
+
+  const afterPayMongo = (outcome: PayOutcome) => {
+    if (outcome.kind === 'saved') {
+      onSaved(outcome.settlement);
+      onClose();
+      return;
+    }
+    setError(outcome.message);
+  };
+
+  const handlePay = async () => {
+    if (checkout.busy || saving) return;
+    setError('');
+
+    if (checkout.pending) {
+      // A checkout is already out there. Ask about it rather than charging again.
+      afterPayMongo(await checkout.check(note, kind));
+      return;
+    }
+
+    const problem = problemNow();
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    if (!(await checkAgainstLatest())) return;
+    const pesos = amount * (checkout.pesoRate ?? 1);
+    if (checkout.pesoRate && pesos < checkout.minimum) {
+      setError(`PayMongo payments start at ${formatMoney(checkout.minimum, 'PHP')}.`);
+      return;
+    }
+
+    afterPayMongo(
+      await checkout.pay({
+        from,
+        to,
+        amount,
+        kind,
+        note,
+        title: `${nameOf(from)} pays ${nameOf(to)}`,
+        description: `${money(amount)} settled through TripSplit`,
+      }),
+    );
+  };
 
   const handleSave = async () => {
     if (saving) return;
     setError('');
 
-    if (!from || !to) {
-      setError('Pick who is paying and who receives it.');
-      return;
-    }
-    if (from === to) {
-      setError('Pick two different people.');
-      return;
-    }
-    if (amountValue <= 0) {
-      setError('Enter an amount greater than zero.');
-      return;
-    }
-
-    if (isCash === null) {
-      setError('Tell us if this was paid in cash.');
-      return;
-    }
-    if (!isCash && !method.trim()) {
-      setError('Tell us how it was paid, e.g. GCash.');
+    // An edit is left alone here: its own amount is already inside the balances.
+    const problem = settlement
+      ? amount > 0
+        ? ''
+        : 'Enter an amount greater than zero.'
+      : problemNow();
+    if (problem) {
+      setError(problem);
       return;
     }
 
-    const kind: 'full' | 'partial' = owed > 0 && amountValue >= owed - 0.01 ? 'full' : 'partial';
+    if (!settlement) {
+      setSaving(true);
+      const fine = await checkAgainstLatest();
+      setSaving(false);
+      if (!fine) return;
+    }
+
+    const paid = storedPayment(PAYMENT_CHOICES[method === 'cash' ? 0 : 1], savedMethod);
+    // A non-cash payment must name how it was paid; "Other" is the honest answer.
+    if (!paid.isCash && !paid.method) paid.method = 'Other';
 
     setSaving(true);
     try {
@@ -143,26 +367,37 @@ export default function SettleSheet({
           return;
         }
       }
+
       if (settlement) {
         const names = Object.fromEntries(members.map((m) => [m.id, m.fullname]));
         const { settlement: updated } = await updateSettlement(
           tripId,
           settlement,
-          { from, to, amount: amountValue, kind, isCash, method, proofUrls, note },
+          {
+            from,
+            to,
+            amount,
+            kind,
+            isCash: paid.isCash,
+            method: paid.method,
+            proofUrls,
+            note,
+          },
           { currency, names, by: currentUserId, byName: names[currentUserId] || 'Someone' },
         );
         onSaved(updated);
         onClose();
         return;
       }
+
       const saved = await createSettlement(tripId, {
         from,
         to,
-        amount: amountValue,
+        amount,
         kind,
         settledOn: todayKey(),
-        isCash,
-        method,
+        isCash: paid.isCash,
+        method: paid.method,
         proofUrls,
         note,
         createdBy: currentUserId,
@@ -176,36 +411,34 @@ export default function SettleSheet({
     }
   };
 
-  const handlePickProof = async (source: 'camera' | 'library') => {
-    try {
-      const result =
-        source === 'camera'
-          ? await takePhoto({ quality: 0.7 })
-          : await pickImage({ includeBase64: false, quality: 0.7 });
-      if (result.denied) {
-        setError(
-          source === 'camera'
-            ? 'Camera access is off. Turn it on in your phone settings.'
-            : 'Photo access is off. Turn it on in your phone settings.',
-        );
-        return;
-      }
-      const uri = result.asset?.uri;
-      if (uri) setProofUris((previous) => [...previous, uri]);
-    } catch (err) {
-      console.error('Failed to pick a proof photo:', err);
-      setError('Could not open your camera or photos.');
-    }
-  };
+  const footerTitle = payOnline
+    ? checkout.stage === 'checkout'
+      ? 'Opening PayMongo…'
+      : checkout.stage === 'confirming'
+        ? 'Confirming payment…'
+        : checkingPending
+          ? 'Check payment'
+          : repeatShown
+            ? 'Pay anyway'
+            : `Pay ${amount > 0 ? money(amount) : ''}`.trim()
+    : saving
+      ? 'Saving…'
+      : settlement
+        ? 'Save changes'
+        : repeatShown
+          ? 'Record anyway'
+          : 'Record payment';
 
-  const fillFull = () => {
-    if (owed <= 0) return;
-    setAmountText(String(owed));
-  };
+  const footerDisabled = payOnline
+    ? checkout.busy || saving || !checkout.ready || (!to && !checkingPending)
+    : saving || !to;
 
-  const fillHalf = () => {
-    if (owed <= 0) return;
-    setAmountText((Math.round((owed / 2) * 100) / 100).toString());
+  const pickDebt = (edge: DebtEdge) => {
+    setFrom(edge.from);
+    setTo(edge.to);
+    setChoice('full');
+    setTyped('');
+    setError('');
   };
 
   return (
@@ -216,14 +449,15 @@ export default function SettleSheet({
       footer={
         <>
           {!!error && <HelperText tone="error">{error}</HelperText>}
+          {!error && !!repeatShown && <HelperText tone="error">{repeatShown}</HelperText>}
           <PrimaryButton
-            title={saving ? 'Saving…' : settlement ? 'Save changes' : 'Record payment'}
-            onPress={handleSave}
+            title={footerTitle}
+            onPress={payOnline ? handlePay : handleSave}
             buttonColor={BrandColors.base50}
             textColor={BrandColors.primary}
             borderColor={BrandColors.base50}
             borderWidth={0}
-            disabled={saving}
+            disabled={footerDisabled}
           />
         </>
       }
@@ -233,174 +467,65 @@ export default function SettleSheet({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scroll}
       >
-        <View style={styles.group}>
-          <FieldLabel>Who is paying?</FieldLabel>
-          <View style={styles.peopleRow}>
-            {members.map((member) => {
-              const isOn = member.id === from;
-              return (
-                <Pressable
-                  key={member.id}
-                  style={[styles.person, isOn && styles.personOn]}
-                  onPress={() => {
-                    setFrom(member.id);
-                    if (member.id === to) setTo('');
-                  }}
-                >
-                  <Avatar name={member.fullname} size={26} photoURL={member.photoURL} />
-                  <Text style={[styles.personName, isOn && styles.personNameOn]} numberOfLines={1}>
-                    {member.fullname.split(' ')[0]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+        <PartiesHeader headline={headline} payer={personOf(from)} payee={personOf(to)} />
 
-        <View style={styles.group}>
-          <FieldLabel>Who receives it?</FieldLabel>
-          <View style={styles.peopleRow}>
-            {members
-              .filter((member) => member.id !== from)
-              .map((member) => {
-                const isOn = member.id === to;
-                return (
-                  <Pressable
-                    key={member.id}
-                    style={[styles.person, isOn && styles.personOn]}
-                    onPress={() => setTo(member.id)}
-                  >
-                    <Avatar name={member.fullname} size={26} photoURL={member.photoURL} />
-                    <Text
-                      style={[styles.personName, isOn && styles.personNameOn]}
-                      numberOfLines={1}
-                    >
-                      {member.fullname.split(' ')[0]}
-                    </Text>
-                    {isOn && <Check size={12} color={BrandColors.primary} />}
-                  </Pressable>
-                );
-              })}
-          </View>
-        </View>
-
-        {suggestions.length > 0 && (
-          <View style={styles.suggestions}>
-            <FieldLabel>Suggested from the current debts</FieldLabel>
-            {suggestions.map((edge) => (
-              <Pressable
-                key={`${edge.from}-${edge.to}`}
-                style={({ pressed }) => [styles.suggestionRow, pressed && styles.pressed]}
-                onPress={() => {
-                  setFrom(edge.from);
-                  setTo(edge.to);
-                  setAmountText(String(edge.amount));
-                }}
-              >
-                <Text style={styles.suggestionText}>
-                  {nameOf(edge.from)} → {nameOf(edge.to)}
-                </Text>
-                <Text style={styles.suggestionAmount}>{formatMoney(edge.amount, currency)}</Text>
-              </Pressable>
-            ))}
-          </View>
+        {!locked && myDebts.length > 1 && (
+          <DebtSwitcher
+            debts={myDebts}
+            from={from}
+            to={to}
+            currency={currency}
+            labelOf={labelOf}
+            onPick={pickDebt}
+          />
         )}
 
-        {to ? (
-          <HelperText tone={owed > 0 ? 'muted' : 'success'}>
-            {owed > 0
-              ? `${nameOf(from)} still owes ${nameOf(to)} ${formatMoney(owed, currency)}.`
-              : `There is no open debt between ${nameOf(from)} and ${nameOf(to)}.`}
-          </HelperText>
-        ) : null}
+        <AmountPicker
+          currency={currency}
+          debt={debt}
+          choice={choice}
+          amount={amount}
+          typed={typed}
+          onChoice={(next) => {
+            setChoice(next);
+            // Switching to Other amount starts from the current amount.
+            if (next === 'custom' && !typed && amount > 0) setTyped(String(amount));
+          }}
+          onTyped={setTyped}
+        />
 
-        <View style={styles.group}>
-          <TextField
-            title={`Amount (${currency})`}
-            placeholder="0.00"
-            value={amountText}
-            onChangeText={setAmountText}
-            keyboardType="numeric"
+        {covers && (
+          <CoversList
+            title={settlement ? 'This payment covers' : 'This payment will cover'}
+            owner={from === currentUserId ? 'your' : `${labelOf(from)}’s`}
+            items={covers}
+            currency={currency}
+            empty={`No expense shares left to pay. This amount is extra and goes on ${
+              from === currentUserId ? 'your' : `${labelOf(from)}’s`
+            } balance.`}
           />
-          <View style={styles.quickRow}>
-            <Pressable style={styles.quickChip} onPress={fillFull}>
-              <Text style={styles.quickText}>
-                Full {owed > 0 ? formatMoney(owed, currency) : ''}
-              </Text>
-            </Pressable>
-            <Pressable style={styles.quickChip} onPress={fillHalf}>
-              <Text style={styles.quickText}>Half</Text>
-            </Pressable>
-          </View>
-          <HelperText>
-            Pay less than the full debt and it is saved as a part payment. The rest stays owed.
-          </HelperText>
-        </View>
+        )}
 
-        <View style={styles.group}>
-          <FieldLabel>Is this paid in cash?</FieldLabel>
-          <View style={styles.peopleRow}>
-            {[
-              { label: 'Cash', value: true },
-              { label: 'Not cash', value: false },
-            ].map((option) => {
-              const isOn = isCash === option.value;
-              return (
-                <Pressable
-                  key={option.label}
-                  style={[styles.person, isOn && styles.personOn]}
-                  onPress={() => setIsCash(option.value)}
-                >
-                  <Text style={[styles.personName, isOn && styles.personNameOn]}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {isCash === false && (
-            <TextField
-              title="How was it paid?"
-              placeholder="e.g. GCash, bank transfer"
-              value={method}
-              onChangeText={setMethod}
-            />
-          )}
-        </View>
+        <PaymentMethodCard
+          method={method}
+          onMethod={setMethod}
+          payOnline={payOnline}
+          onlineAvailable={onlineAvailable}
+          editing={!!settlement}
+          payerLabel={labelOf(from)}
+          amount={amount}
+          currency={currency}
+          checkout={checkout}
+          pendingPayee={checkout.pending ? labelOf(checkout.pending.to) : ''}
+        />
 
-        <View style={styles.group}>
-          <FieldLabel>Proof of payment (optional)</FieldLabel>
-          {proofUris.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.proofStrip}>
-                {proofUris.map((uri, index) => (
-                  <View key={uri + index} style={styles.proofItem}>
-                    <Image source={{ uri }} style={styles.proofImage} contentFit="cover" />
-                    <Pressable
-                      style={styles.proofRemove}
-                      onPress={() => setProofUris((prev) => prev.filter((_, i) => i !== index))}
-                      accessibilityLabel="Remove photo"
-                    >
-                      <Trash2 size={14} color={BrandColors.background} />
-                    </Pressable>
-                  </View>
-                ))}
-              </View>
-            </ScrollView>
-          )}
-          <View style={styles.peopleRow}>
-            <Pressable style={styles.person} onPress={() => handlePickProof('camera')}>
-              <Camera size={16} color={BrandColors.primary} />
-              <Text style={styles.personName}>Take photo</Text>
-            </Pressable>
-            <Pressable style={styles.person} onPress={() => handlePickProof('library')}>
-              <Images size={16} color={BrandColors.primary} />
-              <Text style={styles.personName}>
-                {proofUris.length > 0 ? 'Add another' : 'Choose photo'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
+        {/* Their GCash, Maya or bank details, when you are the one paying. */}
+        {!settlement && !payOnline && from === currentUserId && !!to && (
+          <PayToCard tripId={tripId} payeeId={to} payeeLabel={labelOf(to)} />
+        )}
+
+        {/* PayMongo keeps its own receipt, so there is no photo to add. */}
+        {!payOnline && <ProofPicker uris={proofUris} onChange={setProofUris} onError={setError} />}
 
         <TextField
           title="Note (optional)"
@@ -416,97 +541,8 @@ export default function SettleSheet({
 }
 
 const styles = StyleSheet.create({
-  proofStrip: { flexDirection: 'row', gap: Spacing.two },
-  proofItem: { width: 96, height: 96 },
-  proofImage: {
-    width: 96,
-    height: 96,
-    borderRadius: 12,
-    backgroundColor: BrandColors.inputField,
-  },
-  proofRemove: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: BrandColors.error,
-    borderRadius: 8,
-    padding: 5,
-  },
   scroll: {
     gap: Spacing.four,
     paddingBottom: Spacing.four,
-  },
-  group: {
-    gap: Spacing.two,
-  },
-  peopleRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  person: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 20,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    maxWidth: '48%',
-  },
-  personOn: {
-    borderColor: BrandColors.base50,
-    backgroundColor: BrandColors.base200,
-  },
-  personName: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 12,
-    color: BrandColors.secondary,
-  },
-  personNameOn: {
-    color: BrandColors.primary,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  suggestions: {
-    gap: Spacing.two,
-  },
-  suggestionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: BrandColors.surfaceAlt,
-    borderRadius: 10,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  suggestionText: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 12,
-    color: BrandColors.primary,
-  },
-  suggestionAmount: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 12,
-    color: BrandColors.primary,
-  },
-  quickRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  quickChip: {
-    borderWidth: 1,
-    borderColor: BrandColors.base50,
-    borderRadius: 20,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-  },
-  quickText: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 12,
-    color: BrandColors.primary,
   },
 });

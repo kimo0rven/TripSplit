@@ -148,23 +148,30 @@ export default function NotificationsScreen() {
             notices.map((notice) => {
               const Icon = ICONS[notice.type] ?? Bell;
               return (
-                <Pressable key={notice.id} style={styles.row} onPress={() => open(notice)}>
-                  <View style={styles.iconCircle}>
-                    <Icon size={18} color={BrandColors.primary} />
-                  </View>
-                  <View style={styles.text}>
-                    <Text style={styles.title}>{notice.title}</Text>
-                    <Text style={styles.body}>{notice.body}</Text>
-                    <Text style={styles.time}>{ago(notice.createdAt)}</Text>
-                  </View>
+                // The dismiss button sits beside the row, not inside it: a tap
+                // area inside another is a button inside a button on the web.
+                <View key={notice.id} style={styles.rowWrap}>
+                  <Pressable style={styles.row} onPress={() => open(notice)}>
+                    <View style={styles.iconCircle}>
+                      <Icon size={18} color={BrandColors.primary} />
+                    </View>
+                    <View style={styles.text}>
+                      <Text style={styles.title}>{notice.title}</Text>
+                      <Text style={styles.body}>{notice.body}</Text>
+                      <Text style={styles.time}>{ago(notice.createdAt)}</Text>
+                    </View>
+                    <View style={styles.dismissSpace} />
+                  </Pressable>
                   <Pressable
+                    style={styles.dismiss}
                     onPress={() => remove(notice.id)}
                     hitSlop={10}
+                    accessibilityRole="button"
                     accessibilityLabel="Dismiss"
                   >
                     <X size={16} color={BrandColors.secondary} />
                   </Pressable>
-                </Pressable>
+                </View>
               );
             })
           )}
@@ -192,6 +199,9 @@ const styles = StyleSheet.create({
   clear: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 14, color: BrandColors.secondary },
   scroll: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.five },
   container: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', gap: Spacing.two },
+  rowWrap: { position: 'relative' },
+  dismissSpace: { width: 16, height: 16 },
+  dismiss: { position: 'absolute', top: Spacing.three, right: Spacing.three },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',

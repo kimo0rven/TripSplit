@@ -25,8 +25,14 @@ const time = (value?: string) => {
   return Number.isNaN(ms) ? 0 : ms;
 };
 
-/** Looks into each trip for what the list needs: recent activity and whether it is settled. */
-export async function loadTripSummaries(trips: Trip[]): Promise<Record<string, TripSummary>> {
+/**
+ * Looks into each trip for what the list needs: recent activity, whether it is
+ * settled, what was spent, and where `uid` stands in it.
+ */
+export async function loadTripSummaries(
+  trips: Trip[],
+  uid?: string,
+): Promise<Record<string, TripSummary>> {
   const entries = await Promise.all(
     trips.map(async (trip): Promise<[string, TripSummary]> => {
       try {
@@ -47,6 +53,11 @@ export async function loadTripSummaries(trips: Trip[]): Promise<Record<string, T
             lastActivity,
             hasExpenses: expenses.length > 0,
             settled: expenses.length > 0 && balances.every((b) => Math.abs(b.net) < 0.01),
+            spent:
+              Math.round(expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0) * 100) / 100,
+            ...(uid
+              ? { myNet: balances.find((balance) => balance.memberId === uid)?.net ?? 0 }
+              : {}),
           },
         ];
       } catch {

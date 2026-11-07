@@ -1,26 +1,21 @@
-import Avatar from '@/components/ui/avatar';
 import { Card, HelperText, SectionTitle } from '@/components/ui/card';
 import GuessCard from '@/components/trip/guess-card';
 import SoundtrackCard from '@/components/trip/soundtrack-card';
 import SpinWheel from '@/components/trip/spin-wheel';
 import SplitRoulette from '@/components/trip/split-roulette';
 import { BrandColors, Spacing } from '@/constants/theme';
-import { Expense, MemberBalance, Settlement } from '@/types/expenses';
+import { Expense, Settlement } from '@/types/expenses';
 import { Trip, TripMember } from '@/types/trips';
-import { categoryLabel, simplifyDebts } from '@/utils/balance';
-import { lastPayerOf, pickRandomPayer, tripAwards, tripCountdown, yearInReview } from '@/utils/fun';
-import { formatDay, formatMoney } from '@/utils/money';
-import { firstName, memberLookup } from '@/utils/memberLookup';
+import { lastPayerOf, pickRandomPayer, tripAwards, tripCountdown } from '@/utils/fun';
+import { formatMoney } from '@/utils/money';
 import { ReactNode, useMemo, useState } from 'react';
 import {
   ArrowLeftRight,
   Cake,
-  Clapperboard,
   Crown,
   Dices,
   Flame,
   Gift,
-  HeartHandshake,
   Medal,
   PartyPopper,
   Sparkles,
@@ -34,8 +29,6 @@ interface FunTabProps {
   members: TripMember[];
   expenses: Expense[];
   settlements: Settlement[];
-  /** Balances for the people still in the trip, for the debts web. */
-  balances: MemberBalance[];
   currency: string;
   currentUserId: string;
   /** Today, as YYYY-MM-DD, so the countdown is settled at render time. */
@@ -70,7 +63,6 @@ export default function FunTab({
   members,
   expenses,
   settlements,
-  balances,
   currency,
   currentUserId,
   today,
@@ -88,38 +80,10 @@ export default function FunTab({
     [trip.startDate, trip.endDate, today],
   );
 
-  const lookup = useMemo(() => memberLookup(members), [members]);
-  const nameOf = (id: string) => firstName(lookup.get(id)?.fullname, 'Someone who left');
-  const photoOf = lookup.photoOf;
-
   const awards = useMemo(
     () => tripAwards(members, expenses, settlements, (amount) => formatMoney(amount, currency)),
     [members, expenses, settlements, currency],
   );
-
-  const review = useMemo(() => yearInReview(members, expenses), [members, expenses]);
-
-  /*
-    The debts as a web: every creditor once, with everyone paying into them
-    underneath. The Balances tab lists the same payments one edge at a time,
-    which is right for acting on them; this reads as the shape of the trip.
-  */
-  const web = useMemo(() => {
-    const edges = simplifyDebts(balances);
-    const byCreditor = new Map<string, { from: string; amount: number }[]>();
-    edges.forEach((edge) => {
-      const list = byCreditor.get(edge.to) ?? [];
-      list.push({ from: edge.from, amount: edge.amount });
-      byCreditor.set(edge.to, list);
-    });
-    return [...byCreditor.entries()]
-      .map(([creditor, payers]) => ({
-        creditor,
-        payers: payers.sort((a, b) => b.amount - a.amount),
-        total: payers.reduce((sum, payer) => sum + payer.amount, 0),
-      }))
-      .sort((a, b) => b.total - a.total);
-  }, [balances]);
 
   const [picked, setPicked] = useState<TripMember | null>(null);
   const [spinning, setSpinning] = useState(false);
@@ -264,52 +228,6 @@ export default function FunTab({
         </HelperText>
       )}
 
-      <SectionTitle>Who owes whom</SectionTitle>
-
-      {web.length === 0 ? (
-        <Card style={styles.emptyCard}>
-          <HeartHandshake size={22} color={BrandColors.secondary} />
-          <Text style={styles.emptyTitle}>Everyone is even</Text>
-          <HelperText>No payments are waiting. Nothing to chase.</HelperText>
-        </Card>
-      ) : (
-        <View style={styles.webWrap}>
-          {web.map((group) => (
-            <View key={group.creditor} style={styles.webGroup}>
-              <View style={styles.webHead}>
-                <Avatar
-                  name={nameOf(group.creditor)}
-                  size={34}
-                  photoURL={photoOf(group.creditor)}
-                />
-                <View style={styles.webHeadBody}>
-                  <Text style={styles.webName} numberOfLines={1}>
-                    {nameOf(group.creditor)}
-                    {group.creditor === currentUserId ? ' (you)' : ''}
-                  </Text>
-                  <Text style={styles.webSub}>receives {formatMoney(group.total, currency)}</Text>
-                </View>
-              </View>
-
-              {/* A rail down the left of the payers, so the arrows read as
-                  separate lines into the same person. */}
-              <View style={styles.webPayers}>
-                {group.payers.map((payer) => (
-                  <View key={payer.from} style={styles.webPayerRow}>
-                    <View style={styles.webRail} />
-                    <Avatar name={nameOf(payer.from)} size={22} photoURL={photoOf(payer.from)} />
-                    <Text style={styles.webPayerName} numberOfLines={1}>
-                      {nameOf(payer.from)}
-                    </Text>
-                    <Text style={styles.webAmount}>{formatMoney(payer.amount, currency)}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
-
       <SectionTitle>Sounds and games</SectionTitle>
 
       <SoundtrackCard
@@ -329,63 +247,6 @@ export default function FunTab({
         actual={spentTotal}
         tripEnded={tripEnded}
       />
-
-      <SectionTitle>Trip in review</SectionTitle>
-
-      {review.expenses === 0 ? (
-        <Card style={styles.emptyCard}>
-          <Clapperboard size={22} color={BrandColors.secondary} />
-          <Text style={styles.emptyTitle}>Nothing to review yet</Text>
-          <HelperText>The story writes itself once expenses are added.</HelperText>
-        </Card>
-      ) : (
-        <Card style={styles.reviewCard}>
-          <View style={styles.reviewTop}>
-            <Sparkles size={16} color={BrandColors.base700} />
-            <Text style={styles.reviewTitle}>
-              {review.expenses} {review.expenses === 1 ? 'expense' : 'expenses'}, one trip
-            </Text>
-          </View>
-
-          <Text style={styles.reviewBig}>{formatMoney(review.spent, currency)}</Text>
-          <Text style={styles.reviewHint}>spent by {review.people} people</Text>
-
-          <View style={styles.reviewFacts}>
-            {review.topCategory && (
-              <Fact label="Most of it went to" value={categoryLabel(review.topCategory.key)} />
-            )}
-            {review.mostGenerous && (
-              <Fact
-                label="Covered the most"
-                value={`${nameOf(review.mostGenerous.memberId)} · ${formatMoney(
-                  review.mostGenerous.amount,
-                  currency,
-                )}`}
-              />
-            )}
-            {review.busiestDay && (
-              <Fact
-                label="Busiest day"
-                value={`${formatDay(review.busiestDay.day)} · ${formatMoney(
-                  review.busiestDay.amount,
-                  currency,
-                )}`}
-              />
-            )}
-          </View>
-        </Card>
-      )}
-    </View>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.factRow}>
-      <Text style={styles.factLabel}>{label}</Text>
-      <Text style={styles.factValue} numberOfLines={1}>
-        {value}
-      </Text>
     </View>
   );
 }
@@ -556,117 +417,5 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 11,
     color: BrandColors.secondary,
-  },
-
-  webWrap: {
-    gap: Spacing.two,
-  },
-  webGroup: {
-    backgroundColor: BrandColors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 15,
-    padding: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    gap: Spacing.one,
-  },
-  webHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  webHeadBody: {
-    flex: 1,
-    gap: 1,
-  },
-  webName: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 13,
-    color: BrandColors.primary,
-  },
-  webSub: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 11,
-    color: BrandColors.secondary,
-  },
-  webPayers: {
-    gap: 2,
-  },
-  webPayerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    paddingLeft: Spacing.three,
-  },
-  /* The elbow into the creditor: a thin line, not a box, so the row reads as
-     part of the person above it. */
-  webRail: {
-    width: 12,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: BrandColors.base50,
-  },
-  webPayerName: {
-    flex: 1,
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 12,
-    color: BrandColors.primary,
-  },
-  webAmount: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 12,
-    color: BrandColors.primary,
-  },
-
-  reviewCard: {
-    backgroundColor: BrandColors.infoBg,
-    borderColor: BrandColors.infoBg,
-    gap: Spacing.one,
-  },
-  reviewTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  reviewTitle: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 11,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: BrandColors.primary,
-    opacity: 0.7,
-  },
-  reviewBig: {
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    fontSize: 30,
-    color: BrandColors.primary,
-    letterSpacing: -0.5,
-  },
-  reviewHint: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 12,
-    color: BrandColors.secondary,
-  },
-  reviewFacts: {
-    gap: 4,
-    marginTop: Spacing.one,
-  },
-  factRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  factLabel: {
-    flex: 1,
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 12,
-    color: BrandColors.secondary,
-  },
-  factValue: {
-    fontFamily: 'PlusJakartaSans-SemiBold',
-    fontSize: 12,
-    color: BrandColors.primary,
-    maxWidth: '62%',
-    textAlign: 'right',
   },
 });

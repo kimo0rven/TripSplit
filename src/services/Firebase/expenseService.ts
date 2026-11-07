@@ -3,12 +3,14 @@ import { EditContext, buildEntry, serializeEntry, diffExpense, historyOf } from 
 import { EditLogEntry, Expense, ExpenseItem, SplitDetail, SplitMode } from '@/types/expenses';
 import { myName, notify, notifyMany, tripLabel } from '@/services/notifications/inbox';
 import { formatMoney, parseAmount, todayKey, toAmount } from '@/utils/money';
+import { assertTripOpen, assertTripStarted, trashEntry } from '@/services/Firebase/tripGuard';
+import type { OriginalAmount } from '@/utils/foreignAmount';
 
 /**
  * Keeps `trips/{tripId}/totalSpent` in step so the trips list can show a
  * total without loading every expense. Called after each change.
  */
-const refreshTripTotal = async (tripId: string): Promise<void> => {
+export const refreshTripTotal = async (tripId: string): Promise<void> => {
   try {
     const data = (await readPath(`trips/${tripId}/expenses`)) as Record<
       string,
@@ -37,6 +39,8 @@ export interface ExpenseInput {
   splitDetail?: SplitDetail;
   items?: ExpenseItem[];
   receiptUrls?: string[];
+  /** Set when it was paid in another currency. `amount` is then the converted total. */
+  original?: OriginalAmount;
   createdBy: string;
 }
 
@@ -66,6 +70,8 @@ export const createExpense = async (
   fixedId?: string,
 ): Promise<Expense> => {
   if (!tripId) throw new Error('No trip was selected.');
+  await assertTripOpen(tripId);
+  await assertTripStarted(tripId);
 
   const title = (input.title || '').trim();
   if (!title) throw new Error('Give this expense a name.');
@@ -111,6 +117,7 @@ export const createExpense = async (
     ...(input.receiptUrls?.length
       ? { receiptUrls: input.receiptUrls, receiptUrl: input.receiptUrls[0] }
       : {}),
+    ...(input.original ? { original: input.original } : {}),
     createdBy: input.createdBy,
     createdAt: new Date().toISOString(),
   };
@@ -163,6 +170,7 @@ export const updateExpense = async (
   audit?: { before: Expense; context: EditContext },
 ): Promise<EditLogEntry | null> => {
   if (!tripId || !expenseId) throw new Error('No expense was selected.');
+  await assertTripOpen(tripId);
 
   const title = (input.title || '').trim();
   if (!title) throw new Error('Give this expense a name.');
@@ -231,6 +239,7 @@ export const updateExpense = async (
       ? input.receiptUrls
       : null,
     [`trips/${tripId}/expenses/${expenseId}/receiptUrl`]: input.receiptUrls?.[0] || null,
+    [`trips/${tripId}/expenses/${expenseId}/original`]: input.original ?? null,
     [`trips/${tripId}/expenses/${expenseId}/updatedAt`]: new Date().toISOString(),
   });
 
@@ -283,10 +292,18 @@ export const fetchExpenses = async (
     });
 };
 
+/**
+ * Deletes an expense into the trip's trash, where anyone in the trip can
+ * restore it for 30 days.
+ */
 export const deleteExpense = async (tripId: string, expenseId: string): Promise<void> => {
   if (!tripId || !expenseId) throw new Error('No expense was selected.');
+  await assertTripOpen(tripId);
   const doomed = (await readPath(`trips/${tripId}/expenses/${expenseId}`)) as Expense | null;
-  await removeAt(`trips/${tripId}/expenses/${expenseId}`);
+  await writeUpdates({
+    [`trips/${tripId}/expenses/${expenseId}`]: null,
+    ...(doomed ? { [`trips/${tripId}/trash/${expenseId}`]: trashEntry('expense', doomed) } : {}),
+  });
   await refreshTripTotal(tripId);
   if (doomed) {
     const { name } = await tripLabel(tripId);

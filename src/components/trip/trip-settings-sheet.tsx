@@ -1,19 +1,20 @@
 import PrimaryButton from '@/components/Button/primary-button';
-import BigButtonOptions from '@/components/ui/big-button-options';
+import { switchColors } from '@/components/settings/settings-rows';
+import CurrencyField from '@/components/ui/currency-field';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { HelperText } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-input-field';
 import TripDatesField from '@/components/ui/trip-dates-field';
 import TripIconPicker from '@/components/ui/trip-icon-picker';
 import { TripIconBadge } from '@/components/ui/trip-icon';
-import { currencies } from '@/constants/currencies';
 import { DEFAULT_TRIP_COLOR } from '@/constants/trip-colors';
 import { DEFAULT_TRIP_ICON } from '@/constants/trip-icons';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { updateTripSettings } from '@/services/Firebase/tripService';
 import { formatMoney } from '@/utils/money';
+import { Lock, LockOpen, Trash2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 interface TripSettingsSheetProps {
   visible: boolean;
@@ -31,8 +32,18 @@ interface TripSettingsSheetProps {
   currentIconColor?: string;
   currentStartDate?: string;
   currentEndDate?: string;
+  /** Whether the owner lets each new member in by hand right now. */
+  currentRequireApproval?: boolean;
+  /** Whether money can be recorded before the trip starts right now. */
+  currentAllowEarlySpending?: boolean;
   currentBudget?: number;
   onEditBudget?: () => void;
+  /** Asks to delete the whole trip. The screen confirms before anything goes. */
+  onDelete?: () => void;
+  /** Whether the trip is closed right now. */
+  closed?: boolean;
+  /** Asks to close or reopen the trip. The screen confirms first. */
+  onToggleClosed?: () => void;
   onSaved: (settings: {
     name: string;
     currency: string;
@@ -40,6 +51,8 @@ interface TripSettingsSheetProps {
     iconColor: string;
     startDate: string;
     endDate: string;
+    requireApproval: boolean;
+    allowEarlySpending: boolean;
   }) => void;
 }
 
@@ -61,8 +74,13 @@ export default function TripSettingsSheet({
   currentIconColor,
   currentStartDate,
   currentEndDate,
+  currentRequireApproval = false,
+  currentAllowEarlySpending = false,
   currentBudget = 0,
   onEditBudget,
+  onDelete,
+  closed = false,
+  onToggleClosed,
   onSaved,
 }: TripSettingsSheetProps) {
   const [name, setName] = useState('');
@@ -71,6 +89,8 @@ export default function TripSettingsSheet({
   const [iconColor, setIconColor] = useState(DEFAULT_TRIP_COLOR);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [requireApproval, setRequireApproval] = useState(false);
+  const [allowEarly, setAllowEarly] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -83,6 +103,8 @@ export default function TripSettingsSheet({
     setIconColor(currentIconColor || DEFAULT_TRIP_COLOR);
     setStartDate(currentStartDate || '');
     setEndDate(currentEndDate || '');
+    setRequireApproval(currentRequireApproval);
+    setAllowEarly(currentAllowEarlySpending);
     setError('');
     setSaving(false);
   }, [
@@ -93,6 +115,8 @@ export default function TripSettingsSheet({
     currentIconColor,
     currentStartDate,
     currentEndDate,
+    currentRequireApproval,
+    currentAllowEarlySpending,
   ]);
 
   const trimmedName = name.trim();
@@ -104,7 +128,9 @@ export default function TripSettingsSheet({
     icon !== savedIcon ||
     iconColor !== savedColor ||
     startDate !== (currentStartDate || '') ||
-    endDate !== (currentEndDate || '');
+    endDate !== (currentEndDate || '') ||
+    requireApproval !== currentRequireApproval ||
+    allowEarly !== currentAllowEarlySpending;
 
   const handleSave = async () => {
     if (!trimmedName || !startDate || saving) return;
@@ -120,8 +146,19 @@ export default function TripSettingsSheet({
         iconColor,
         startDate,
         endDate,
+        requireApproval,
+        allowEarlySpending: allowEarly,
       });
-      onSaved({ name: trimmedName, currency, icon, iconColor, startDate, endDate });
+      onSaved({
+        name: trimmedName,
+        currency,
+        icon,
+        iconColor,
+        startDate,
+        endDate,
+        requireApproval,
+        allowEarlySpending: allowEarly,
+      });
       onClose();
     } catch (err: any) {
       console.error('Failed to save trip settings:', err);
@@ -196,25 +233,109 @@ export default function TripSettingsSheet({
           </View>
         )}
 
+        <CurrencyField
+          value={currency}
+          onChange={setCurrency}
+          hint={
+            currency !== currentCurrency ? (
+              <HelperText>
+                Amounts already in this trip keep their numbers. Only the currency shown changes. To
+                add an expense paid in another currency, pick it on the expense instead.
+              </HelperText>
+            ) : undefined
+          }
+        />
+
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Currency</Text>
-          <BigButtonOptions
-            choices={currencies}
-            selectedValue={currency}
-            onSelect={(choice) => setCurrency(choice.value)}
-            maxHeight={220}
-          />
-          {currency !== currentCurrency && (
-            <HelperText>
-              Amounts already in this trip keep their numbers. Only the currency shown changes.
-            </HelperText>
-          )}
+          <Text style={styles.sectionTitle}>Before the trip</Text>
+          <View style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <Text style={styles.switchTitle}>Allow spending before the trip starts</Text>
+              <Text style={styles.switchHint}>
+                {allowEarly
+                  ? 'Expenses and payments can be recorded any time, for flights, deposits and tickets paid ahead.'
+                  : 'Expenses and payments open on the first day of the trip.'}
+              </Text>
+            </View>
+            <Switch
+              value={allowEarly}
+              onValueChange={setAllowEarly}
+              {...switchColors(allowEarly)}
+              accessibilityLabel="Allow spending before the trip starts"
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Joining</Text>
+          <View style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <Text style={styles.switchTitle}>Approve new members</Text>
+              <Text style={styles.switchHint}>
+                {requireApproval
+                  ? 'People with the invite code ask to join, and you let each one in.'
+                  : 'Anyone with the invite code joins straight away.'}
+              </Text>
+            </View>
+            <Switch
+              value={requireApproval}
+              onValueChange={setRequireApproval}
+              {...switchColors(requireApproval)}
+              accessibilityLabel="Approve new members"
+            />
+          </View>
         </View>
 
         <HelperText>
           Everyone in the trip sees the new name and currency. The invite code stays the same, so
-          people you already invited can still join.
+          people you already invited can still use it. You can get a new code on the invite page.
         </HelperText>
+
+        {!!onToggleClosed && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{closed ? 'Trip is closed' : 'Close trip'}</Text>
+            <Pressable
+              style={({ pressed }) => [styles.budgetRow, pressed && styles.pressed]}
+              onPress={onToggleClosed}
+              disabled={saving}
+              accessibilityRole="button"
+            >
+              <Text style={styles.budgetText}>
+                {closed ? 'Reopen this trip' : 'Close this trip'}
+              </Text>
+              {closed ? (
+                <LockOpen size={16} color={BrandColors.primary} />
+              ) : (
+                <Lock size={16} color={BrandColors.primary} />
+              )}
+            </Pressable>
+            <HelperText>
+              {closed
+                ? 'Expenses and plans are locked and the invite code is off. Reopening gives the trip a new code.'
+                : 'For a finished trip: expenses and plans are locked and the invite code stops working. Payments can still be recorded, so everyone can settle up.'}
+            </HelperText>
+          </View>
+        )}
+
+        {!!onDelete && (
+          <View style={styles.dangerZone}>
+            <Text style={styles.sectionTitle}>Delete trip</Text>
+            <Pressable
+              style={({ pressed }) => [styles.deleteRow, pressed && styles.pressed]}
+              onPress={onDelete}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel="Delete this trip"
+            >
+              <Trash2 size={18} color={BrandColors.error} strokeWidth={2.2} />
+              <Text style={styles.deleteText}>Delete this trip</Text>
+            </Pressable>
+            <HelperText>
+              Removes the trip and all its expenses, payments, plans, notes and photos for everyone.
+              This cannot be undone.
+            </HelperText>
+          </View>
+        )}
       </ScrollView>
     </BottomSheet>
   );
@@ -252,6 +373,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.primary,
   },
+  dangerZone: {
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+    paddingTop: Spacing.four,
+    borderTopWidth: 1,
+    borderTopColor: BrandColors.border,
+  },
+  deleteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    backgroundColor: BrandColors.errorBg,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+  },
+  deleteText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 14,
+    color: BrandColors.error,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    backgroundColor: BrandColors.inputField,
+    borderRadius: 15,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+  },
+  switchText: { flex: 1, gap: 2 },
+  switchTitle: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
+  switchHint: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
   iconHeader: {
     flexDirection: 'row',
     alignItems: 'center',

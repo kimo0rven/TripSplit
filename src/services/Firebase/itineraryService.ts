@@ -2,6 +2,7 @@ import { newId, readPath, removeAt, writeAt, writeUpdates } from '@/services/off
 import { EditLogEntry, ItineraryItem } from '@/types/expenses';
 import { EditContext, buildEntry, diffItinerary, historyOf, serializeEntry } from '@/utils/editLog';
 import { todayKey } from '@/utils/money';
+import { assertTripOpen, trashEntry } from '@/services/Firebase/tripGuard';
 
 export interface ItineraryInput {
   title: string;
@@ -20,6 +21,7 @@ export const createItineraryItem = async (
   input: ItineraryInput,
 ): Promise<ItineraryItem> => {
   if (!tripId) throw new Error('No trip was selected.');
+  await assertTripOpen(tripId);
 
   const title = (input.title || '').trim();
   if (!title) throw new Error('Give this plan a name.');
@@ -56,6 +58,7 @@ export const updateItineraryItem = async (
   context?: EditContext,
 ): Promise<EditLogEntry | null> => {
   if (!tripId || !itemId) throw new Error('No plan was selected.');
+  await assertTripOpen(tripId);
 
   const updates: Record<string, unknown> = {
     [`trips/${tripId}/itinerary/${itemId}/time`]: input.time?.trim() || null,
@@ -124,9 +127,17 @@ export const fetchItinerary = async (tripId: string): Promise<ItineraryItem[]> =
     });
 };
 
+/** Deletes a plan into the trip's trash, where it can be restored for 30 days. */
 export const deleteItineraryItem = async (tripId: string, itemId: string): Promise<void> => {
   if (!tripId || !itemId) throw new Error('No plan was selected.');
-  await removeAt(`trips/${tripId}/itinerary/${itemId}`);
+  await assertTripOpen(tripId);
+  const doomed = await readPath(`trips/${tripId}/itinerary/${itemId}`);
+  await writeUpdates({
+    [`trips/${tripId}/itinerary/${itemId}`]: null,
+    ...(doomed && typeof doomed === 'object'
+      ? { [`trips/${tripId}/trash/${itemId}`]: trashEntry('plan', doomed as { id?: string }) }
+      : {}),
+  });
 };
 
 /** Groups itinerary items by day, keeping the order the service returns. */

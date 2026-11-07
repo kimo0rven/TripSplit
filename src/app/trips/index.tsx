@@ -6,9 +6,8 @@ import ErrorState from '@/components/ui/error-state';
 import ListSkeleton from '@/components/ui/list-skeleton';
 import PrimaryButton from '@/components/Button/primary-button';
 import NavBar from '@/components/Navbar/Nav';
-import MemberFaces from '@/components/ui/member-faces';
 import PageHeader from '@/components/ui/page-header';
-import { TripIconBadge } from '@/components/ui/trip-icon';
+import TripListCard from '@/components/trip/trip-list-card';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { useActiveTrip } from '@/hooks/use-active-trip';
 import { useAuth } from '@/services/Firebase/useAuth';
@@ -20,7 +19,6 @@ import {
 import { leaveTrip } from '@/services/Firebase/tripService';
 import { fetchDelivery, setTripMuted } from '@/services/notifications/inbox';
 import { Trip } from '@/types/trips';
-import { shortName } from '@/utils/format';
 import { formatDay, todayKey } from '@/utils/money';
 import {
   TripFilter,
@@ -30,7 +28,6 @@ import {
   pinActiveTrip,
   sortTrips,
   tripIsOver,
-  tripStatus,
 } from '@/utils/tripList';
 import { useRouter } from 'expo-router';
 import {
@@ -38,9 +35,7 @@ import {
   ArrowUpDown,
   Bell,
   BellOff,
-  Check,
   LogOut,
-  MoreHorizontal,
   Search,
   Star,
   StarOff,
@@ -49,29 +44,6 @@ import {
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-
-/**
- * When the trip was made, as "Aug 14 2025 - 2:35 PM".
- * Days are padded to two digits so a column of these lines up neatly.
- */
-function formatTripDate(value?: string) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-
-  const month = date.toLocaleDateString('en-US', { month: 'short' });
-  const day = String(date.getDate()).padStart(2, '0');
-  const year = date.getFullYear();
-  const hours = date.getHours();
-  // Midnight and noon are both 12 in a 12-hour clock, not 0.
-  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const suffix = hours < 12 ? 'AM' : 'PM';
-
-  return `${month} ${day} ${year} - ${hour12}:${minutes} ${suffix}`;
-}
-
-const STATUS_LABEL = { upcoming: 'Upcoming', ongoing: 'Ongoing', past: 'Finished' } as const;
 
 /** The filter chips above the list, in the order they are shown. */
 const CHIPS: { value: TripFilter; label: string }[] = [
@@ -92,7 +64,13 @@ const SORTS = [
 
 /** The trip's own dates when it has them, otherwise when it was made. */
 function tripDates(trip: Trip) {
-  if (!trip.startDate) return formatTripDate(trip.createdAt);
+  if (!trip.startDate) {
+    const made = new Date(trip.createdAt);
+    return Number.isNaN(made.getTime())
+      ? 'No dates yet'
+      : 'Created ' +
+          made.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
   return trip.endDate && trip.endDate !== trip.startDate
     ? formatDay(trip.startDate) + ' – ' + formatDay(trip.endDate)
     : formatDay(trip.startDate);
@@ -124,7 +102,7 @@ export default function TripsScreen() {
   useEffect(() => {
     if (!uid || trips.length === 0) return;
     let active = true;
-    loadTripSummaries(trips).then((result) => active && setSummaries(result));
+    loadTripSummaries(trips, uid).then((result) => active && setSummaries(result));
     fetchArchivedTrips(uid)
       .then((result) => active && setArchived(result))
       .catch((err) => console.warn('Could not load archived trips:', err));
@@ -377,99 +355,19 @@ export default function TripsScreen() {
           ) : (
             <View style={styles.tripList}>
               {visible.map((trip) => {
-                const isActive = trip.id === activeTrip?.id;
-                const members = memberList(trip);
-                const summary = summaries[trip.id];
-                const status = tripStatus(trip, today);
-
                 return (
-                  <Pressable
+                  <TripListCard
                     key={trip.id}
-                    style={({ pressed }) => [
-                      styles.tripCard,
-                      isActive && styles.tripCardActive,
-                      pressed && styles.tripCardPressed,
-                    ]}
-                    onPress={() => router.push(`/trips/${trip.id}` as any)}
-                    onLongPress={() => setMenuTrip(trip)}
-                  >
-                    {/* Left group: icon, name, when it started. Right group:
-                        the actions and the faces. */}
-                    <View style={styles.tripRow}>
-                      <TripIconBadge name={trip.icon} colorKey={trip.iconColor} size={38} />
-
-                      <View style={styles.tripInfo}>
-                        <Text style={styles.tripName} numberOfLines={1}>
-                          {shortName(trip.name)}
-                        </Text>
-                        <View style={styles.badgeRow}>
-                          {isActive && (
-                            <View style={styles.activeBadge}>
-                              <Check size={11} color={BrandColors.primary} strokeWidth={3} />
-                              <Text style={styles.activeBadgeText}>Active</Text>
-                            </View>
-                          )}
-                          {summary?.settled && (
-                            <View style={[styles.badge, styles.settledBadge]}>
-                              <Text style={[styles.badgeText, { color: BrandColors.success }]}>
-                                Settled up
-                              </Text>
-                            </View>
-                          )}
-                          {!!status && (
-                            <View
-                              style={[styles.badge, status === 'ongoing' && styles.ongoingBadge]}
-                            >
-                              <Text
-                                style={[
-                                  styles.badgeText,
-                                  status === 'ongoing' && styles.ongoingBadgeText,
-                                ]}
-                              >
-                                {STATUS_LABEL[status]}
-                              </Text>
-                            </View>
-                          )}
-                          {!!archived[trip.id] && (
-                            <View style={styles.badge}>
-                              <Text style={styles.badgeText}>Archived</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={styles.tripDate} numberOfLines={1}>
-                          {tripDates(trip)}
-                        </Text>
-                      </View>
-
-                      <View style={styles.tripSide}>
-                        <View style={styles.iconRow}>
-                          {!isActive && !tripIsOver(trip, today) && (
-                            <Pressable
-                              hitSlop={8}
-                              onPress={() => selectTrip(trip.id)}
-                              accessibilityRole="button"
-                              accessibilityLabel={'Show ' + trip.name + ' on the dashboard'}
-                            >
-                              <Star size={18} color={BrandColors.secondary} />
-                            </Pressable>
-                          )}
-                          <Pressable
-                            hitSlop={8}
-                            onPress={() => setMenuTrip(trip)}
-                            accessibilityRole="button"
-                            accessibilityLabel={'More actions for ' + trip.name}
-                          >
-                            <MoreHorizontal size={18} color={BrandColors.secondary} />
-                          </Pressable>
-                        </View>
-                        <MemberFaces
-                          members={members}
-                          size={24}
-                          ringColor={BrandColors.background}
-                        />
-                      </View>
-                    </View>
-                  </Pressable>
+                    trip={trip}
+                    members={memberList(trip)}
+                    summary={summaries[trip.id]}
+                    isActive={trip.id === activeTrip?.id}
+                    isArchived={!!archived[trip.id]}
+                    dateText={tripDates(trip)}
+                    today={today}
+                    onOpen={() => router.push(`/trips/${trip.id}` as any)}
+                    onMore={() => setMenuTrip(trip)}
+                  />
                 );
               })}
             </View>
@@ -619,47 +517,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.secondary,
   },
-  tripSide: {
-    alignItems: 'flex-end',
-    gap: Spacing.two,
-  },
-  iconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
-  badge: {
-    // A grey pill, not the near-white surfaceAlt it used to be: that sat on a
-    // white card and read as nothing at all.
-    backgroundColor: BrandColors.inputField,
-    borderRadius: 20,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 2,
-  },
   // Ongoing is the status worth spotting at a glance, so it wears the theme's
   // info blue instead of the neutral grey - and blue never collides with the
   // amber "Active" chip that sits right beside it.
-  ongoingBadge: {
-    backgroundColor: BrandColors.infoBg,
-  },
-  ongoingBadgeText: {
-    color: BrandColors.info,
-  },
-  settledBadge: {
-    backgroundColor: '#E6F6EC',
-  },
-  badgeText: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 10,
-    letterSpacing: 0.3,
-    color: BrandColors.secondary,
-  },
   menu: {
     gap: Spacing.one,
     paddingBottom: Spacing.three,
@@ -683,60 +543,5 @@ const styles = StyleSheet.create({
   },
   tripList: {
     gap: Spacing.three,
-  },
-  tripCard: {
-    backgroundColor: BrandColors.background,
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 15,
-    padding: Spacing.three,
-  },
-  tripCardActive: {
-    borderWidth: 1,
-    borderColor: BrandColors.base200,
-    backgroundColor: BrandColors.base200,
-  },
-  tripCardPressed: {
-    opacity: 0.75,
-  },
-  tripRow: {
-    flexDirection: 'row',
-    // Centres the icon, the text block and the faces on one line.
-    alignItems: 'center',
-    gap: Spacing.three,
-  },
-  tripInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  tripName: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 16,
-    color: BrandColors.primary,
-    flexShrink: 1,
-  },
-  activeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: BrandColors.base50,
-    borderRadius: 20,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 2,
-  },
-  activeBadgeText: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 10,
-    letterSpacing: 0.3,
-    color: BrandColors.primary,
-  },
-  tripDate: {
-    // The light weight keeps the date quiet, so the trip name stays the
-    // thing your eye lands on first.
-    fontFamily: 'PlusJakartaSans-Light',
-    fontSize: 11,
-    lineHeight: 14,
-    includeFontPadding: false,
-    color: BrandColors.secondary,
   },
 });

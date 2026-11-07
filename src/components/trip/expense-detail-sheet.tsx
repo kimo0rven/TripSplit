@@ -1,3 +1,4 @@
+import { rateText, readOriginal } from '@/utils/foreignAmount';
 import Avatar from '@/components/ui/avatar';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { categoryLook } from '@/constants/expense-categories';
@@ -99,6 +100,12 @@ export default function ExpenseDetailSheet({
             </View>
             <View style={styles.heroInfo}>
               <Text style={styles.heroAmount}>{formatMoney(expense.amount, currency)}</Text>
+              {!!readOriginal(expense.original) && (
+                <Text style={styles.heroOriginal}>
+                  Paid as {formatMoney(expense.original!.amount, expense.original!.currency)} · 1{' '}
+                  {expense.original!.currency} = {rateText(expense.original!.rate)} {currency}
+                </Text>
+              )}
               <Text style={styles.heroMeta} numberOfLines={1}>
                 {categoryLabel(expense.category)}
               </Text>
@@ -324,6 +331,11 @@ const styles = StyleSheet.create({
   heroInfo: {
     flex: 1,
     gap: 2,
+  },
+  heroOriginal: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    color: BrandColors.secondary,
   },
   heroAmount: {
     fontFamily: 'PlusJakartaSans-ExtraBold',

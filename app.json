@@ -24,7 +24,8 @@
         "backgroundColor": "#FEBB1B"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.keons.Trip_Split"
+      "package": "com.keons.Trip_Split",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",

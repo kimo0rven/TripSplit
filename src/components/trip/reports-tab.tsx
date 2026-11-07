@@ -1,13 +1,28 @@
 import Avatar from '@/components/ui/avatar';
 import { Card, HelperText, ProgressBar, SectionTitle } from '@/components/ui/card';
 import { BrandColors, Spacing } from '@/constants/theme';
-import { categoryLook } from '@/constants/expense-categories';
 import { Expense, Settlement } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
-import { categoryLabel } from '@/utils/balance';
+import { categoryLabel, computeBalances } from '@/utils/balance';
 import ExportButtons from '@/components/trip/export-buttons';
-import { formatLongDay, formatMoney } from '@/utils/money';
-import { Users } from 'lucide-react-native';
+import TripReviewCard from '@/components/trip/trip-review-card';
+import BalanceBars from '@/components/charts/balance-bars';
+import BudgetChart from '@/components/charts/budget-chart';
+import CategoryDonut from '@/components/charts/category-donut';
+import { chartStyles } from '@/components/charts/chart-kit';
+import DailyBarsChart from '@/components/charts/daily-bars-chart';
+import SettleChart from '@/components/charts/settle-chart';
+import TimeGridChart from '@/components/charts/time-grid-chart';
+import {
+  budgetLine,
+  categorySlices,
+  chartDays,
+  dailyBars,
+  settleProgress,
+  timeGrid,
+  topCategories,
+} from '@/utils/charts';
+import { formatMoney, todayKey } from '@/utils/money';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -19,6 +34,12 @@ interface ReportsTabProps {
   settledTotal: number;
   tripName: string;
   settlements: Settlement[];
+  /** The trip's dates, so every day gets a bar even with nothing spent. */
+  startDate?: string;
+  endDate?: string;
+  /** The trip's budget, 0 when none was set. */
+  budget?: number;
+  currentUserId?: string;
 }
 
 type Range = 'trip' | 'today' | 'week';
@@ -45,7 +66,37 @@ export default function ReportsTab({
   settledTotal,
   tripName,
   settlements,
+  startDate,
+  endDate,
+  budget = 0,
+  currentUserId = '',
 }: ReportsTabProps) {
+  const today = todayKey();
+  // The whole trip's charts: one shared set of days and category colours.
+  const days = useMemo(
+    () => chartDays({ startDate, endDate }, expenses),
+    [startDate, endDate, expenses],
+  );
+  const top = useMemo(() => topCategories(expenses), [expenses]);
+  const bars = useMemo(() => dailyBars(expenses, days, top), [expenses, days, top]);
+  const line = useMemo(() => budgetLine(expenses, days, today), [expenses, days, today]);
+  const grid = useMemo(() => timeGrid(expenses, days), [expenses, days]);
+  const progress = useMemo(
+    () => settleProgress(expenses, settlements, days, today),
+    [expenses, settlements, days, today],
+  );
+  const nets = useMemo(() => {
+    const balances = computeBalances(
+      members.map((member) => member.id),
+      expenses,
+      settlements,
+    );
+    return members.map((member) => ({
+      member,
+      net: balances.find((balance) => balance.memberId === member.id)?.net ?? 0,
+    }));
+  }, [members, expenses, settlements]);
+
   const [range, setRange] = useState<Range>('trip');
 
   const filtered = useMemo(() => {
@@ -57,33 +108,6 @@ export default function ReportsTab({
   const spent = filtered.reduce((sum, expense) => sum + expense.amount, 0);
   const memberCount = Math.max(members.length, 1);
   const perPerson = spent / memberCount;
-
-  const byCategory = useMemo(() => {
-    const totals: Record<string, number> = {};
-    filtered.forEach((expense) => {
-      const key = expense.category || 'other';
-      totals[key] = (totals[key] ?? 0) + expense.amount;
-    });
-    return Object.entries(totals)
-      .map(([value, total]) => ({ value, label: categoryLabel(value), total }))
-      .sort((a, b) => b.total - a.total);
-  }, [filtered]);
-
-  const topCategory = byCategory[0];
-
-  // Most recent days first, with the running total per day.
-  const byDay = useMemo(() => {
-    const totals: Record<string, number> = {};
-    filtered.forEach((expense) => {
-      totals[expense.spentOn] = (totals[expense.spentOn] ?? 0) + expense.amount;
-    });
-    return Object.entries(totals)
-      .map(([day, total]) => ({ day, total }))
-      .sort((a, b) => (a.day < b.day ? 1 : -1))
-      .slice(0, 7);
-  }, [filtered]);
-
-  const maxDay = byDay.reduce((max, entry) => Math.max(max, entry.total), 0);
 
   const rankedMembers = useMemo(() => {
     const paid: Record<string, number> = {};
@@ -151,60 +175,39 @@ export default function ReportsTab({
         </Card>
       </View>
 
+      <SectionTitle>Each day</SectionTitle>
+      <View style={chartStyles.card}>
+        <Text style={chartStyles.sub}>Every day of the trip, split by what the money went on.</Text>
+        <DailyBarsChart
+          bars={bars}
+          top={top}
+          currency={currency}
+          labelOf={categoryLabel}
+          today={today}
+        />
+      </View>
+
+      <SectionTitle>Spending against the budget</SectionTitle>
+      <View style={chartStyles.card}>
+        <BudgetChart line={line} days={days} budget={budget} currency={currency} />
+      </View>
+
       <SectionTitle>By category</SectionTitle>
+      <View style={chartStyles.card}>
+        <CategoryDonut
+          slices={categorySlices(filtered, top)}
+          top={top}
+          total={spent}
+          currency={currency}
+          labelOf={categoryLabel}
+        />
+      </View>
 
-      {byCategory.length === 0 ? (
-        <HelperText>No expenses in this range yet.</HelperText>
-      ) : (
-        <View style={styles.list}>
-          {byCategory.map((entry) => {
-            const look = categoryLook(entry.value);
-            const CategoryIcon = look.icon;
-            return (
-              <View key={entry.value} style={styles.categoryRow}>
-                <View style={styles.categoryTop}>
-                  <View style={styles.categoryLabelRow}>
-                    <View style={[styles.categoryIcon, { backgroundColor: look.bg }]}>
-                      <CategoryIcon size={12} color={look.tint} />
-                    </View>
-                    <Text style={styles.categoryName}>{entry.label}</Text>
-                  </View>
-                  <Text style={styles.categoryAmount}>
-                    {formatMoney(entry.total, currency)}
-                    <Text style={styles.categoryPercent}>
-                      {'  '}
-                      {spent > 0 ? Math.round((entry.total / spent) * 100) : 0}%
-                    </Text>
-                  </Text>
-                </View>
-                <ProgressBar ratio={spent > 0 ? entry.total / spent : 0} height={6} />
-              </View>
-            );
-          })}
-        </View>
-      )}
-
-      <SectionTitle>Daily spend</SectionTitle>
-
-      {byDay.length === 0 ? (
-        <HelperText>Nothing recorded for these days.</HelperText>
-      ) : (
-        <View style={styles.list}>
-          {byDay.map((entry) => (
-            <View key={entry.day} style={styles.categoryRow}>
-              <View style={styles.categoryTop}>
-                <Text style={styles.categoryName}>{formatLongDay(entry.day)}</Text>
-                <Text style={styles.categoryAmount}>{formatMoney(entry.total, currency)}</Text>
-              </View>
-              <ProgressBar
-                ratio={maxDay > 0 ? entry.total / maxDay : 0}
-                height={6}
-                color={BrandColors.info}
-              />
-            </View>
-          ))}
-        </View>
-      )}
+      <SectionTitle>Who is ahead</SectionTitle>
+      <View style={chartStyles.card}>
+        <Text style={chartStyles.sub}>Where everyone stands right now, for the whole trip.</Text>
+        <BalanceBars nets={nets} currency={currency} currentUserId={currentUserId} />
+      </View>
 
       <SectionTitle>Who has paid what</SectionTitle>
 
@@ -240,23 +243,31 @@ export default function ReportsTab({
         ))}
       </View>
 
-      <Card style={styles.highlights}>
-        <View style={styles.highlightRow}>
-          <Users size={14} color={BrandColors.secondary} />
-          <Text style={styles.highlightText}>
-            {topCategory
-              ? `Biggest category: ${topCategory.label} at ${formatMoney(topCategory.total, currency)}.`
-              : 'Add expenses to see highlights.'}
-          </Text>
-        </View>
-        <View style={styles.highlightRow}>
-          <Users size={14} color={BrandColors.secondary} />
-          <Text style={styles.highlightText}>
-            {paidBackPercent}% of the trip's spending has already been settled up.
-            {totalSpent > spent ? ` Whole trip total: ${formatMoney(totalSpent, currency)}.` : ''}
-          </Text>
-        </View>
-      </Card>
+      <SectionTitle>When the money goes</SectionTitle>
+      <View style={chartStyles.card}>
+        <TimeGridChart grid={grid} days={days} currency={currency} />
+      </View>
+
+      <SectionTitle>Settling up</SectionTitle>
+      <View style={chartStyles.card}>
+        <Text style={chartStyles.sub}>
+          What is still owed between people, and what has been paid back, day by day.
+        </Text>
+        <SettleChart points={progress} currency={currency} />
+      </View>
+
+      {/* The trip summed up, in the same card the Fun tab used to show. */}
+      <TripReviewCard
+        members={members}
+        expenses={filtered}
+        currency={currency}
+        extraFacts={[
+          { label: 'Settled up so far', value: `${paidBackPercent}%` },
+          ...(totalSpent > spent
+            ? [{ label: 'Whole trip total', value: formatMoney(totalSpent, currency) }]
+            : []),
+        ]}
+      />
 
       <HelperText>
         Reports use the trip's own currency ({currency}) and count every recorded payment.
@@ -382,22 +393,5 @@ const styles = StyleSheet.create({
   memberBar: {
     flex: 1,
     gap: 3,
-  },
-  highlights: {
-    backgroundColor: BrandColors.infoBg,
-    borderColor: BrandColors.infoBg,
-    gap: Spacing.two,
-  },
-  highlightRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.two,
-  },
-  highlightText: {
-    flex: 1,
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 12,
-    color: BrandColors.primary,
-    lineHeight: 17,
   },
 });

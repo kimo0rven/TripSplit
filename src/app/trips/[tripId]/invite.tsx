@@ -1,12 +1,14 @@
 import BackButton from '@/components/Button/back-button';
 import PrimaryButton from '@/components/Button/primary-button';
 import Avatar from '@/components/ui/avatar';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 import { TextfieldLeftIcon } from '@/components/ui/text-input-field';
 import TripShareSheet from '@/components/trip/trip-share-sheet';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { fetchUserFriends } from '@/services/Firebase/friendService';
 import {
   fetchTrip,
+  regenerateInviteCode,
   fetchTripMembers,
   inviteByEmail,
   inviteFriendToTrip,
@@ -15,7 +17,17 @@ import { useAuth } from '@/services/Firebase/useAuth';
 import { FriendProfile } from '@/types/friends';
 import { buildTripQr } from '@/utils/qr';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Check, Copy, Mail, QrCode as QrIcon, Search, Share2, UserPlus } from 'lucide-react-native';
+import {
+  Check,
+  Copy,
+  Mail,
+  QrCode as QrIcon,
+  RefreshCw,
+  Search,
+  Share2,
+  ShieldCheck,
+  UserPlus,
+} from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -36,8 +48,14 @@ export default function InviteMembersScreen() {
 
   const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [memberIds, setMemberIds] = useState<string[]>([]);
+  /** Friends a member invited, waiting for the owner to approve. */
+  const [askedIds, setAskedIds] = useState<string[]>([]);
   const [inviteCode, setInviteCode] = useState('');
   const [tripName, setTripName] = useState('');
+  const [isOwner, setIsOwner] = useState(false);
+  const [requireApproval, setRequireApproval] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -67,6 +85,8 @@ export default function InviteMembersScreen() {
       setMemberIds(members.map((member) => member.id));
       setInviteCode(trip?.inviteCode || '');
       setTripName(trip?.name || '');
+      setIsOwner(!!trip && trip.createdBy === currentUser.uid);
+      setRequireApproval(trip?.requireApproval === true);
     } catch (err) {
       console.error('Failed to load invite data:', err);
       setError('Could not load your friends right now.');
@@ -125,8 +145,28 @@ export default function InviteMembersScreen() {
     }
   };
 
+  /** Swaps the code for a new one, so the old code, links and QR stop working. */
+  const handleResetCode = async () => {
+    if (!currentUser?.uid || resetting) return;
+    setResetting(true);
+    setError('');
+    setStatus('');
+    try {
+      const code = await regenerateInviteCode(tripId as string, currentUser.uid);
+      setInviteCode(code);
+      setResetOpen(false);
+      setStatus('New invite code ready. The old one no longer works.');
+    } catch (err: any) {
+      console.error('Failed to get a new invite code:', err);
+      setResetOpen(false);
+      setError(err?.message || 'Could not get a new invite code.');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const handleInviteFriend = async (friend: FriendProfile) => {
-    if (busyId || memberIds.includes(friend.id)) return;
+    if (busyId || memberIds.includes(friend.id) || askedIds.includes(friend.id)) return;
 
     setBusyId(friend.id);
     setStatus('');
@@ -143,7 +183,8 @@ export default function InviteMembersScreen() {
       if (!result.success) {
         setError(result.message);
       } else {
-        setMemberIds((prev) => [...prev, friend.id]);
+        if (result.requested) setAskedIds((prev) => [...prev, friend.id]);
+        else setMemberIds((prev) => [...prev, friend.id]);
         setStatus(result.message);
       }
     } catch (err) {
@@ -222,6 +263,30 @@ export default function InviteMembersScreen() {
                 </Pressable>
               </View>
             )}
+            {!!inviteCode && (
+              <View style={styles.codeRule}>
+                <ShieldCheck size={13} color={BrandColors.secondary} />
+                <Text style={styles.codeRuleText}>
+                  {requireApproval
+                    ? isOwner
+                      ? 'You approve each person who uses this code.'
+                      : 'The owner approves each person who uses this code.'
+                    : 'Anyone with this code joins straight away.'}
+                </Text>
+              </View>
+            )}
+            {isOwner && !!inviteCode && (
+              <Pressable
+                style={styles.resetLink}
+                onPress={() => setResetOpen(true)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Get a new invite code"
+              >
+                <RefreshCw size={13} color={BrandColors.info} />
+                <Text style={styles.resetText}>Get a new code</Text>
+              </Pressable>
+            )}
           </View>
 
           <View style={styles.byEmailSection}>
@@ -291,6 +356,7 @@ export default function InviteMembersScreen() {
             <View style={styles.friendList}>
               {visibleFriends.map((friend) => {
                 const isMember = memberIds.includes(friend.id);
+                const isAsked = askedIds.includes(friend.id);
                 const isBusy = busyId === friend.id;
 
                 return (
@@ -309,6 +375,10 @@ export default function InviteMembersScreen() {
                       <View style={styles.addedBadge}>
                         <Check size={14} color={BrandColors.success} />
                         <Text style={styles.addedText}>Added</Text>
+                      </View>
+                    ) : isAsked ? (
+                      <View style={styles.addedBadge}>
+                        <Text style={styles.addedText}>Waiting for owner</Text>
                       </View>
                     ) : (
                       <Pressable
@@ -349,6 +419,18 @@ export default function InviteMembersScreen() {
         onClose={() => setQrOpen(false)}
         tripName={tripName}
         inviteCode={inviteCode}
+      />
+      <ConfirmDialog
+        visible={resetOpen}
+        title="Get a new invite code?"
+        message="The current code, its link and its QR stop working straight away. People already in the trip stay in. Share the new code with anyone still to join."
+        confirmLabel="Get new code"
+        cancelLabel="Keep this one"
+        busy={resetting}
+        onConfirm={handleResetCode}
+        onCancel={() => {
+          if (!resetting) setResetOpen(false);
+        }}
       />
     </KeyboardAvoidingView>
   );
@@ -409,6 +491,30 @@ const styles = StyleSheet.create({
     fontSize: 30,
     letterSpacing: 6,
     color: BrandColors.primary,
+  },
+  codeRule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    marginTop: Spacing.two,
+    paddingHorizontal: Spacing.three,
+  },
+  codeRuleText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    color: BrandColors.secondary,
+    textAlign: 'center',
+  },
+  resetLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    marginTop: Spacing.one,
+  },
+  resetText: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 12,
+    color: BrandColors.info,
   },
   codeActions: {
     flexDirection: 'row',

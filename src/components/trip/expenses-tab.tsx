@@ -15,7 +15,8 @@ interface ExpensesTabProps {
   members: TripMember[];
   currency: string;
   currentUserId: string;
-  onAdd: () => void;
+  /** Left out on a closed trip, which takes no new expenses. */
+  onAdd?: () => void;
   /** Opens the page listing every expense of the trip. */
   onViewAll: () => void;
   /** Opens the sheet holding one expense's full detail. */
@@ -60,7 +61,7 @@ export default function ExpensesTab({
           icon={Receipt}
           title="No expenses yet"
           message="Add the first one, then anyone in the trip can see who paid and who owes what."
-          actionLabel="Add expense"
+          actionLabel={onAdd ? 'Add expense' : undefined}
           onAction={onAdd}
         />
       ) : (

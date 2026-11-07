@@ -10,6 +10,8 @@ import {
 } from '@/utils/editLog';
 import { EditLogEntry, Settlement, TripBudget } from '@/types/expenses';
 import { formatMoney, parseAmount, todayKey, toAmount } from '@/utils/money';
+import { cleanReceipt, type PayMongoReceipt } from '@/utils/paymongo';
+import { assertTripStarted } from '@/services/Firebase/tripGuard';
 
 export interface SettlementInput {
   from: string;
@@ -23,6 +25,14 @@ export interface SettlementInput {
   proofUrls?: string[];
   note?: string;
   createdBy: string;
+  /**
+   * PayMongo's reference, saved when the app records a PayMongo payment itself
+   * (only when the server is not set up to record it). Such a payment still
+   * waits for the receiver: only the server can mark PayMongo money confirmed.
+   */
+  paymongoRef?: string;
+  /** PayMongo's transaction details, saved with the payment. */
+  paymongo?: PayMongoReceipt;
 }
 
 /**
@@ -34,6 +44,7 @@ export const createSettlement = async (
   input: SettlementInput,
 ): Promise<Settlement> => {
   if (!tripId) throw new Error('No trip was selected.');
+  await assertTripStarted(tripId);
   if (!input.from || !input.to) throw new Error('Pick who is paying who.');
   if (input.from === input.to) throw new Error('A person cannot settle up with themselves.');
 
@@ -43,6 +54,9 @@ export const createSettlement = async (
   const method = input.method?.trim();
   if (!input.isCash && !method) throw new Error('Tell us how it was paid, e.g. GCash.');
 
+  const selfRecorded = input.createdBy === input.to;
+  const now = new Date().toISOString();
+
   const settlement: Settlement = {
     id: newId(),
     from: input.from,
@@ -51,19 +65,21 @@ export const createSettlement = async (
     kind: input.kind,
     settledOn: input.settledOn || todayKey(),
     isCash: input.isCash,
-    // The receiver has to agree before a payment counts, unless they recorded it themselves.
-    status: input.createdBy === input.to ? 'confirmed' : 'pending',
-    ...(input.createdBy === input.to
-      ? { confirmedBy: input.createdBy, confirmedAt: new Date().toISOString() }
-      : {}),
+    // A payment the receiver recorded needs no confirming. Anything else waits
+    // for the receiver, but counts meanwhile.
+    status: selfRecorded ? 'confirmed' : 'pending',
+    ...(selfRecorded ? { confirmedBy: input.createdBy, confirmedAt: now } : {}),
+    ...(input.paymongoRef ? { paymongoRef: String(input.paymongoRef).slice(0, 64) } : {}),
+    ...(input.paymongo ? { paymongo: cleanReceipt(input.paymongo) } : {}),
     ...(input.proofUrls?.length ? { proofUrls: input.proofUrls } : {}),
     ...(!input.isCash && method ? { method } : {}),
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     createdBy: input.createdBy,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
   };
 
   await writeAt(`trips/${tripId}/settlements/${settlement.id}`, settlement);
+
   if (settlement.status === 'pending') {
     const tripName = (await readPath(`trips/${tripId}/name`)) as string | null;
     const currency = (await readPath(`trips/${tripId}/currency`)) as string | null;

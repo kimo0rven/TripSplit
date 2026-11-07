@@ -86,7 +86,16 @@ export const computeShares = (
         const percent = Number(values[id]);
         if (Number.isFinite(percent) && percent > 0) weights[id] = percent;
       });
-      return splitByWeights(totalCents, weights);
+      const percentSum = Object.values(weights).reduce((sum, value) => sum + value, 0);
+      // Close to 100 (33.33 x 3): spread the whole total, so no cent is lost.
+      if (Math.abs(percentSum - 100) <= 0.05) return splitByWeights(totalCents, weights);
+      // Otherwise each person gets exactly their percent, so the preview shows
+      // what is missing or extra instead of quietly scaling everyone.
+      const exact: Record<string, number> = {};
+      Object.entries(weights).forEach(([id, percent]) => {
+        exact[id] = Math.round((totalCents * percent) / 100);
+      });
+      return exact;
     }
     case 'custom': {
       const result: Record<string, number> = {};
@@ -190,5 +199,91 @@ export const balanceValues = (
   const othersAmount = others.reduce((sum, id) => sum + (Number(values[id]) || 0), 0);
   const totalAmount = totalCents / 100;
   next[anchorId] = Math.max(0, round2(totalAmount - othersAmount));
+  return next;
+};
+
+/** What the split must add up to: 100 percent, or the total in currency. */
+const targetOf = (mode: SplitMode, totalCents: number) =>
+  mode === 'percentage' ? 100 : totalCents / 100;
+
+/**
+ * Cleans what is typed into a split box: digits and one decimal point, at most
+ * two decimals. Kept as text, so "12." and "0.5" can be typed on the way.
+ */
+export const cleanSplitText = (text: string): string => {
+  const kept = text.replace(/,/g, '.').replace(/[^0-9.]/g, '');
+  const [whole, ...rest] = kept.split('.');
+  const fraction = rest.join('').slice(0, 2);
+  const leading = whole.replace(/^0+(?=\d)/, '');
+  return kept.includes('.') ? `${leading || '0'}.${fraction}` : leading;
+};
+
+/** A split value as a short string for its box: 33.33, 50, 12.5. */
+export const splitText = (value: number): string =>
+  value > 0 ? String(Math.round(value * 100) / 100) : '';
+
+/**
+ * Even starting values for everyone in a percent or custom split, spread in
+ * hundredths so they add up exactly (33.34 + 33.33 + 33.33).
+ */
+export const evenValues = (
+  mode: SplitMode,
+  totalCents: number,
+  ids: string[],
+): Record<string, number> => {
+  const units = splitEqual(Math.round(targetOf(mode, totalCents) * 100), ids);
+  const result: Record<string, number> = {};
+  ids.forEach((id) => {
+    result[id] = (units[id] ?? 0) / 100;
+  });
+  return result;
+};
+
+export interface SplitEdit {
+  values: Record<string, number>;
+  /** Who was typed into, oldest first. Everyone else adjusts on their own. */
+  edited: string[];
+}
+
+/**
+ * One row typed into. The rows nobody typed into share what is left, evenly,
+ * so the split keeps adding up. When every row has been typed into, the one
+ * typed into longest ago becomes the one that adjusts. Nobody goes below zero:
+ * if the typed rows already pass the total, the rest are zero and the split
+ * shows as over.
+ */
+export const editSplit = (
+  mode: SplitMode,
+  totalCents: number,
+  ids: string[],
+  current: SplitEdit,
+  id: string,
+  value: number,
+): SplitEdit => {
+  let edited = [...current.edited.filter((other) => other !== id && ids.includes(other)), id];
+  if (ids.length > 1 && edited.length >= ids.length) edited = edited.slice(1);
+  const values = { ...current.values, [id]: value };
+  return { values: refill(mode, totalCents, ids, values, edited), edited };
+};
+
+/** Shares what the typed rows leave over among the rows nobody typed into. */
+export const refill = (
+  mode: SplitMode,
+  totalCents: number,
+  ids: string[],
+  values: Record<string, number>,
+  edited: string[],
+): Record<string, number> => {
+  const free = ids.filter((id) => !edited.includes(id));
+  if (!free.length) return values;
+  const typed = ids
+    .filter((id) => edited.includes(id))
+    .reduce((sum, id) => sum + (Number(values[id]) || 0), 0);
+  const left = Math.max(0, Math.round((targetOf(mode, totalCents) - typed) * 100));
+  const units = splitEqual(left, free);
+  const next = { ...values };
+  free.forEach((id) => {
+    next[id] = (units[id] ?? 0) / 100;
+  });
   return next;
 };

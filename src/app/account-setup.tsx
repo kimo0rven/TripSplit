@@ -6,12 +6,13 @@ import { auth } from '@/config/firebase';
 import { currencies } from '@/constants/currencies';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { updateAuthProfile, updateUserData } from '@/services/Firebase/userService';
+import { registerPushToken } from '@/services/reminders/push';
 import { uploadAvatar } from '@/services/Supabase/storageService';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Camera, Check, Plus, Users } from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 const TOTAL_STEPS = 4;
 const CURRENCIES = currencies;
@@ -46,8 +47,38 @@ export default function AccountSetup() {
     }
   };
 
+  /**
+   * The notifications step: shows the system prompt, then moves on whatever
+   * the answer. If the phone already refused it (Android then never shows the
+   * prompt again), it says so and offers the phone's settings instead.
+   */
+  const [askingNotifications, setAskingNotifications] = useState(false);
+  /** 'blocked' when the phone will no longer show the notification prompt. */
+  const [notificationNote, setNotificationNote] = useState<'' | 'blocked'>('');
+
+  const handleEnableNotifications = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || askingNotifications) return;
+    setNotificationNote('');
+    setAskingNotifications(true);
+    try {
+      const result = await registerPushToken(uid, { ask: true });
+      if (result === 'blocked') {
+        setNotificationNote('blocked');
+        return;
+      }
+      setCurrentStep((step) => step + 1);
+    } finally {
+      setAskingNotifications(false);
+    }
+  };
+
   const handleContinue = async () => {
     if (currentStep === 1 && !hasFullname) return;
+    if (currentStep === 3) {
+      await handleEnableNotifications();
+      return;
+    }
 
     if (currentStep < TOTAL_STEPS) {
       setCurrentStep((step) => step + 1);
@@ -248,13 +279,26 @@ export default function AccountSetup() {
 
         <View style={styles.continueSection}>
           {!!saveError && <Text style={styles.saveErrorText}>{saveError}</Text>}
+          {currentStep === 3 && notificationNote === 'blocked' && (
+            <Text style={styles.saveErrorText}>
+              Notifications are turned off for TripSplit on this phone.{' '}
+              <Text style={styles.settingsLink} onPress={() => void Linking.openSettings()}>
+                Open settings
+              </Text>{' '}
+              to turn them on, then tap Try again.
+            </Text>
+          )}
           <PrimaryButton
             onPress={handleContinue}
             title={
               saving
                 ? 'Saving...'
                 : currentStep === 3
-                  ? 'Enable Notification'
+                  ? askingNotifications
+                    ? 'Asking…'
+                    : notificationNote === 'blocked'
+                      ? 'Try again'
+                      : 'Enable Notifications'
                   : currentStep === TOTAL_STEPS
                     ? 'Finish'
                     : 'Continue'
@@ -277,6 +321,11 @@ export default function AccountSetup() {
 }
 
 const styles = StyleSheet.create({
+  settingsLink: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: BrandColors.info,
+    textDecorationLine: 'underline',
+  },
   container: {
     flex: 1,
     alignItems: 'center',

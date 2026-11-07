@@ -3,6 +3,7 @@ import Avatar from '@/components/ui/avatar';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { TripMember } from '@/types/trips';
+import { memberOrigin } from '@/utils/joinInvite';
 import { formatMoney } from '@/utils/money';
 import { Crown, UserMinus, UserPlus } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -42,6 +43,9 @@ export default function TripMembersSheet({
   onRemove,
   onInvite,
 }: TripMembersSheetProps) {
+  const firstNameOf = (id: string) =>
+    members.find((member) => member.id === id)?.fullname?.split(' ')[0] || 'someone who left';
+
   return (
     <BottomSheet visible={visible} title="Members" onClose={onClose}>
       <ScrollView
@@ -55,6 +59,7 @@ export default function TripMembersSheet({
             : 'Only the trip owner can remove someone. To take yourself out, use "Leave this trip" on the trip screen.'}
         </Text>
 
+        {/* "Let in by Kim", "Joined with the invite code": how each person got in. */}
         <View style={styles.list}>
           {members.map((member) => {
             const net = balances[member.id] ?? 0;
@@ -82,6 +87,12 @@ export default function TripMembersSheet({
                   {!!member.email && (
                     <Text style={styles.email} numberOfLines={1}>
                       {member.email}
+                    </Text>
+                  )}
+
+                  {!!memberOrigin(member, firstNameOf) && (
+                    <Text style={styles.email} numberOfLines={1}>
+                      {memberOrigin(member, firstNameOf)}
                     </Text>
                   )}
 

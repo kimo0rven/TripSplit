@@ -40,7 +40,7 @@ export const NOTICE_LABELS: Record<NoticeType, { label: string; hint: string }> 
   pendingPayments: { label: 'Unconfirmed payments', hint: 'A nudge if a payment waits for you' },
   newExpenses: { label: 'New expenses', hint: 'When an expense includes you' },
   expenseChanges: { label: 'Expense edits and deletes', hint: 'When an expense you are in changes' },
-  tripActivity: { label: 'Trip members', hint: 'Someone joined, or you were removed' },
+  tripActivity: { label: 'Trip members', hint: 'Joins, requests to join, or you were removed' },
   recurring: { label: 'Recurring expenses', hint: 'When a repeating expense is added' },
   budget: { label: 'Budget warnings', hint: 'At 80% and 100% of a trip budget' },
   settleUp: { label: 'Settle-up nudges', hint: 'Open balances on a quiet trip' },

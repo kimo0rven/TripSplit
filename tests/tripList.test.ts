@@ -4,8 +4,11 @@ import {
   filterTrips,
   pinActiveTrip,
   resolveActiveTripId,
+  sortTrips,
+  canRecordMoney,
   tripIsOver,
   tripStatus,
+  tripTimeLabel,
 } from '../src/utils/tripList.ts';
 
 const base = {
@@ -202,4 +205,57 @@ test('an active trip the filter removed pins nothing', () => {
 
 test('an empty list stays empty', () => {
   assert.deepEqual(pinActiveTrip([], 'a'), []);
+});
+
+test('a trip in words: how far off, which day, or finished', () => {
+  const today = '2026-11-07';
+  assert.equal(tripTimeLabel({ startDate: '2026-11-08' }, today), 'Starts tomorrow');
+  assert.equal(
+    tripTimeLabel({ startDate: '2026-11-10', endDate: '2026-11-12' }, today),
+    'Starts in 3 days',
+  );
+  assert.equal(tripTimeLabel({ startDate: '2026-11-21' }, today), 'Starts in 2 weeks');
+  assert.equal(
+    tripTimeLabel({ startDate: '2026-11-06', endDate: '2026-11-10' }, today),
+    'Day 2 of 5',
+  );
+  assert.equal(tripTimeLabel({ startDate: '2026-11-07' }, today), 'Happening today');
+  assert.equal(
+    tripTimeLabel({ startDate: '2026-11-01', endDate: '2026-11-03' }, today),
+    'Finished',
+  );
+  assert.equal(tripTimeLabel({}, today), '');
+});
+
+test('most spent sorts by what the expenses add up to', () => {
+  const trips = [
+    { id: 'a', name: 'A', createdAt: '2026-01-01', totalSpent: 999 },
+    { id: 'b', name: 'B', createdAt: '2026-01-02' },
+  ] as any[];
+  const summaries = {
+    a: { lastActivity: 0, hasExpenses: true, settled: false, spent: 100 },
+    b: { lastActivity: 0, hasExpenses: true, settled: false, spent: 500 },
+  };
+  assert.deepEqual(
+    sortTrips(trips, 'spent', summaries).map((t) => t.id),
+    ['b', 'a'],
+  );
+});
+
+test('a closed trip counts as past and says Closed', () => {
+  const closed = {
+    startDate: '2026-12-01',
+    endDate: '2026-12-05',
+    closedAt: '2026-11-07T00:00:00Z',
+  };
+  assert.equal(tripStatus(closed, '2026-11-07'), 'past');
+  assert.equal(tripTimeLabel(closed, '2026-11-07'), 'Closed');
+});
+
+test('money can be recorded from the first day, or earlier if the owner allows it', () => {
+  const trip = { startDate: '2026-11-20' };
+  assert.equal(canRecordMoney(trip, '2026-11-19'), false);
+  assert.equal(canRecordMoney(trip, '2026-11-20'), true);
+  assert.equal(canRecordMoney({ ...trip, allowEarlySpending: true }, '2026-11-01'), true);
+  assert.equal(canRecordMoney({}, '2026-11-01'), true);
 });

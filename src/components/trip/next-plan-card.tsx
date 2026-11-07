@@ -6,6 +6,7 @@ import { formatDay, formatTime } from '@/utils/money';
 import { mapUrlFor, planTiming, runningFor, startsIn } from '@/utils/itinerary';
 import { ArrowRight, Clock, MapPin, Navigation } from 'lucide-react-native';
 import * as Linking from 'expo-linking';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface NextPlanCardProps {
@@ -42,51 +43,62 @@ export default function NextPlanCard({ item, members, onOpen }: NextPlanCardProp
   const extra = coming.length - faces.length;
 
   const places = mapUrlFor(item.location || '');
+  const [pressed, setPressed] = useState(false);
+
+  // The card is made of tappable parts with the map button between them, not
+  // one big button holding another (invalid on the web). Pressing any part
+  // dims the whole card, so it still feels like one.
+  const part = {
+    onPress: onOpen,
+    onPressIn: () => setPressed(true),
+    onPressOut: () => setPressed(false),
+  };
 
   return (
-    <Pressable
-      onPress={onOpen}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      accessibilityRole="button"
+    <View
+      style={[styles.card, pressed && styles.cardPressed]}
       accessibilityLabel={`${running ? 'Happening now' : 'Next'}: ${item.title}, ${when}`}
     >
-      <View style={styles.tagRow}>
-        <View style={[styles.tag, running && styles.tagNow]}>
-          <Text style={[styles.tagText, running && styles.tagTextNow]}>
-            {running ? 'HAPPENING NOW' : 'NEXT'}
+      <Pressable
+        {...part}
+        style={styles.part}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${item.title}`}
+      >
+        <View style={styles.tagRow}>
+          <View style={[styles.tag, running && styles.tagNow]}>
+            <Text style={[styles.tagText, running && styles.tagTextNow]}>
+              {running ? 'HAPPENING NOW' : 'NEXT'}
+            </Text>
+          </View>
+          <Text style={styles.when}>{when}</Text>
+        </View>
+
+        <Text style={styles.title} numberOfLines={2}>
+          {item.title}
+        </Text>
+
+        <View style={styles.metaRow}>
+          <Clock size={12} color={BrandColors.secondary} />
+          <Text style={styles.metaText}>
+            {formatDay(item.day)}
+            {item.time ? ` · ${formatTime(item.time)}` : ''}
+            {item.endTime ? ` – ${formatTime(item.endTime)}` : ''}
           </Text>
         </View>
-        <Text style={styles.when}>{when}</Text>
-      </View>
-
-      <Text style={styles.title} numberOfLines={2}>
-        {item.title}
-      </Text>
-
-      <View style={styles.metaRow}>
-        <Clock size={12} color={BrandColors.secondary} />
-        <Text style={styles.metaText}>
-          {formatDay(item.day)}
-          {item.time ? ` · ${formatTime(item.time)}` : ''}
-          {item.endTime ? ` – ${formatTime(item.endTime)}` : ''}
-        </Text>
-      </View>
+      </Pressable>
 
       {!!item.location && (
         <View style={styles.placeRow}>
-          <View style={styles.placeLeft}>
+          <Pressable {...part} style={styles.placeLeft} accessible={false}>
             <MapPin size={12} color={BrandColors.secondary} />
             <Text style={styles.metaText} numberOfLines={1}>
               {item.location}
             </Text>
-          </View>
+          </Pressable>
           {!!places && (
-            // The card itself opens the plan, so the map is its own control.
             <Pressable
-              onPress={(event) => {
-                event.stopPropagation();
-                Linking.openURL(places).catch(() => {});
-              }}
+              onPress={() => Linking.openURL(places).catch(() => {})}
               hitSlop={8}
               style={styles.mapButton}
               accessibilityRole="button"
@@ -99,7 +111,7 @@ export default function NextPlanCard({ item, members, onOpen }: NextPlanCardProp
         </View>
       )}
 
-      <View style={styles.footer}>
+      <Pressable {...part} style={styles.footer} accessible={false}>
         <View style={styles.faces}>
           {faces.map((member, index) => (
             <View key={member.id} style={[styles.faceRing, index > 0 && styles.faceOverlap]}>
@@ -112,12 +124,13 @@ export default function NextPlanCard({ item, members, onOpen }: NextPlanCardProp
           <Text style={styles.openText}>Open plan</Text>
           <ArrowRight size={13} color={BrandColors.primary} />
         </View>
-      </View>
-    </Pressable>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  part: { gap: Spacing.two },
   card: {
     gap: Spacing.two,
     padding: Spacing.three,

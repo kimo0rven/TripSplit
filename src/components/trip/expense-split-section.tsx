@@ -6,6 +6,7 @@ import TabSlider, { TabSliderItem } from '@/components/ui/tab-slider';
 import { SplitMode } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
 import { formatMoney } from '@/utils/money';
+import { percentTotal, splitText } from '@/utils/split';
 import { Pressable, Text, View } from 'react-native';
 
 import { styles } from './expense-form-styles';
@@ -36,6 +37,10 @@ interface SplitSectionProps {
   itemised: boolean;
   onToggleItemised: (value: boolean) => void;
   splitValues: Record<string, number>;
+  /** The raw text of the box being typed in. */
+  splitTexts: Record<string, string>;
+  /** Rows typed into; the rest adjust on their own. */
+  splitEdited: string[];
   onChangeSplitValue: (memberId: string, text: string) => void;
   /** Each member's computed share, in cents. */
   previewShares: Record<string, number>;
@@ -64,11 +69,38 @@ export default function ExpenseSplitSection({
   itemised,
   onToggleItemised,
   splitValues,
+  splitTexts,
+  splitEdited,
   onChangeSplitValue,
   previewShares,
   previewLeft,
   onAutoBalance,
 }: SplitSectionProps) {
+  const totalShares =
+    Object.values(previewShares).reduce((sum, value) => sum + value, 0) + previewLeft;
+  /** A member's custom amount as a percent of the bill, for context. */
+  const percentOf = (id: string) =>
+    totalShares > 0 ? Math.round(((previewShares[id] ?? 0) / totalShares) * 1000) / 10 : 0;
+
+  // Percent splits are judged in percent, which is what was typed.
+  const percentSum = percentTotal(participants, splitValues);
+  const percentGap = Math.round((100 - percentSum) * 100) / 100;
+  const off = splitMode === 'percentage' ? Math.abs(percentGap) > 0.05 : Math.abs(previewLeft) > 1;
+  const summary =
+    splitMode === 'percentage'
+      ? off
+        ? percentGap > 0
+          ? `Adds up to ${percentSum}%. ${percentGap}% (${formatMoney(Math.max(previewLeft, 0) / 100, currency)}) still to give someone.`
+          : `Adds up to ${percentSum}%, ${-percentGap}% too much. Lower someone’s percent.`
+        : 'Adds up to 100%.'
+      : off
+        ? `${formatMoney(Math.abs(previewLeft) / 100, currency)} ${
+            previewLeft > 0
+              ? 'still to give someone'
+              : 'more than the total. Lower someone’s amount.'
+          }`
+        : 'Adds up to the total.';
+
   return (
     <View style={styles.group}>
       <FieldLabel
@@ -115,6 +147,11 @@ export default function ExpenseSplitSection({
 
       {!itemised && splitMode !== 'equal' && (
         <View style={styles.splitEditor}>
+          <Text style={styles.sectionHint}>
+            {splitMode === 'percentage'
+              ? 'Type anyone’s percent. The people you haven’t typed share the rest.'
+              : 'Type anyone’s amount. The people you haven’t typed share the rest.'}
+          </Text>
           {members
             .filter((member) => participants.includes(member.id))
             .map((member) => (
@@ -126,12 +163,15 @@ export default function ExpenseSplitSection({
                     {member.fullname}
                   </Text>
                   <Text style={styles.splitShare} numberOfLines={1}>
-                    {formatMoney((previewShares[member.id] ?? 0) / 100, currency)}
+                    {splitMode === 'percentage'
+                      ? formatMoney((previewShares[member.id] ?? 0) / 100, currency)
+                      : `${percentOf(member.id)}% of the bill`}
+                    {splitEdited.length > 0 && !splitEdited.includes(member.id) ? ' · adjusts' : ''}
                   </Text>
                 </View>
                 <View style={styles.splitInputWrap}>
                   <InlineInput
-                    value={splitValues[member.id] ? String(splitValues[member.id]) : ''}
+                    value={splitTexts[member.id] ?? splitText(splitValues[member.id] ?? 0)}
                     placeholder="0"
                     onChangeText={(text) => onChangeSplitValue(member.id, text)}
                   />
@@ -142,17 +182,11 @@ export default function ExpenseSplitSection({
               </View>
             ))}
 
-          <Pressable style={styles.splitEvenPayers} onPress={onAutoBalance}>
-            <Text style={styles.splitEvenText}>Make it add up automatically</Text>
-          </Pressable>
+          <HelperText tone={off ? 'error' : 'success'}>{summary}</HelperText>
 
-          <HelperText tone={Math.abs(previewLeft) > 1 ? 'error' : 'success'}>
-            {Math.abs(previewLeft) > 1
-              ? `${formatMoney(Math.abs(previewLeft) / 100, currency)} still ${
-                  previewLeft > 0 ? 'unassigned' : 'over the total'
-                }`
-              : 'The split adds up to the total.'}
-          </HelperText>
+          <Pressable style={styles.splitEvenPayers} onPress={onAutoBalance}>
+            <Text style={styles.splitEvenText}>Split evenly again</Text>
+          </Pressable>
         </View>
       )}
     </View>

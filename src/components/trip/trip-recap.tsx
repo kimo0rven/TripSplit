@@ -5,7 +5,12 @@ import { findTripColor } from '@/constants/trip-colors';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Expense, Settlement, ItineraryItem } from '@/types/expenses';
 import { Trip, TripMember } from '@/types/trips';
-import { categoryLabel, computeTripTotals, simplifyDebts } from '@/utils/balance';
+import {
+  categoryLabel,
+  computeTripTotals,
+  countsTowardBalance,
+  simplifyDebts,
+} from '@/utils/balance';
 import { formatDay, formatMoney } from '@/utils/money';
 import { shortName } from '@/utils/format';
 import {
@@ -147,7 +152,7 @@ export default function TripRecap({
       priciestDay: priciestDayMatters ? priciestDay : null,
       priciestDayAmount,
       settledTotal: totals.settled,
-      settledCount: settlements.filter((s) => !s.status || s.status === 'confirmed').length,
+      settledCount: settlements.filter(countsTowardBalance).length,
       outstanding,
       unsettled,
       balanced: isZero(unsettled),

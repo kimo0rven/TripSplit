@@ -3,25 +3,38 @@ import ExpenseSplitSection from '@/components/trip/expense-split-section';
 import { styles } from '@/components/trip/expense-form-styles';
 import ChoiceChips, { FieldLabel } from '@/components/ui/choice-chips';
 import CategoryPicker from '@/components/ui/category-picker';
-import { ChevronDown, Receipt } from 'lucide-react-native';
+import { ChevronDown, ListChecks, Receipt } from 'lucide-react-native';
 import ItemisedEditor from '@/components/trip/itemised-editor';
 import ReceiptPicker from '@/components/trip/receipt-picker';
 import PrimaryButton from '@/components/Button/primary-button';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { HelperText } from '@/components/ui/card';
-import DateCalendar from '@/components/ui/date-calendar';
+import DayField from '@/components/ui/day-field';
 import { TextField } from '@/components/ui/text-input-field';
 import { categoryLook } from '@/constants/expense-categories';
 import { BrandColors } from '@/constants/theme';
 import { createRecurring } from '@/services/Firebase/recurringService';
 import { createExpense, ExpenseInput, updateExpense } from '@/services/Firebase/expenseService';
 import { uploadReceipt } from '@/services/Supabase/receiptService';
+import { canScanReceipts, scanReceipt } from '@/services/receipts/scanReceipt';
+import { fetchRates } from '@/services/currency/rates';
+import CurrencyField from '@/components/ui/currency-field';
+import RatesCredit from '@/components/ui/rates-credit';
+import {
+  cleanRateText,
+  convertedCents,
+  rateBetween,
+  rateText,
+  readOriginal,
+} from '@/utils/foreignAmount';
+import type { ReceiptLine } from '@/utils/receiptParser';
 import { Expense, ExpenseItem, RepeatEvery, SplitMode } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
 import { EXPENSE_CATEGORIES, QUICK_CATEGORIES, categoryLabel } from '@/utils/balance';
 import TimeField from '@/components/ui/time-field';
 import {
   centsToInput,
+  formatDay,
   formatMoney,
   nowTime,
   parseAmount,
@@ -29,14 +42,17 @@ import {
   todayKey,
 } from '@/utils/money';
 import {
-  balanceValues,
+  cleanSplitText,
   computeShares,
+  editSplit,
   emptyValues,
+  evenValues,
+  refill,
   splitEqual,
   validateSplit,
 } from '@/utils/split';
 import { pickImage, takePhoto } from '@/utils/imagePicker';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text, View, Pressable } from 'react-native';
 
 interface ExpenseFormProps {
@@ -67,6 +83,13 @@ export default function ExpenseForm({
   const isEditing = !!expense;
   const [title, setTitle] = useState('');
   const [amountText, setAmountText] = useState('');
+  /** The currency it was paid in; the trip's own unless changed. */
+  const [paidIn, setPaidIn] = useState(currency);
+  /** The amount as paid, when paid in another currency. */
+  const [foreignText, setForeignText] = useState('');
+  /** Trip-currency units per one unit of `paidIn`. */
+  const [fxRateText, setFxRateText] = useState('');
+  const [fxRateStatus, setFxRateStatus] = useState<'loading' | 'ready' | 'missing'>('ready');
   const [category, setCategory] = useState('food');
   // The full category grid, opened by "More" beside the everyday chips.
   const [pickingCategory, setPickingCategory] = useState(false);
@@ -91,17 +114,104 @@ export default function ExpenseForm({
   // null means "nobody has touched the chips yet", which starts as everyone.
   const [splitIds, setSplitIds] = useState<string[] | null>(null);
   const [splitValues, setSplitValues] = useState<Record<string, number>>({});
+  /** Rows typed into, oldest first; the others adjust so the split adds up. */
+  const [splitEdited, setSplitEdited] = useState<string[]>([]);
+  /** What is in each split box while typing, so "12." keeps its point. */
+  const [splitTexts, setSplitTexts] = useState<Record<string, string>>({});
 
   // Photos already saved (web links) and newly picked ones (local files), in order.
   const [receiptUris, setReceiptUris] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  /** The fields a receipt scan may fill, as they stand right now. */
+  const latest = useRef({ amountText, title, spentOn, itemised });
+  // Kept in step after each render; the app's React Compiler forbids writing refs while rendering.
+  useEffect(() => {
+    latest.current = { amountText, title, spentOn, itemised };
+  });
+  /** Lines read off the receipt, offered as an item-by-item split. */
+  const [scannedItems, setScannedItems] = useState<{
+    items: ReceiptLine[];
+    matches: boolean;
+  } | null>(null);
+  /** What reading the receipt photo found, shown under the photos. */
+  const [scan, setScan] = useState<{
+    status: 'scanning' | 'read' | 'guess' | 'nothing' | 'failed';
+    text: string;
+  } | null>(null);
+
+  /**
+   * Reads a new receipt photo on the phone and fills in what was left empty:
+   * the amount, the title (the store's name) and the date. Anything the person
+   * already typed is kept. Saved expenses are never rewritten by a scan.
+   */
+  const readReceipt = async (uri: string) => {
+    if (isEditing || !uri || /^https?:\/\//.test(uri) || !canScanReceipts()) return;
+    setScan({ status: 'scanning', text: 'Reading the receipt…' });
+    try {
+      const found = await scanReceipt(uri);
+      // The form as it is now, after the scan: the person may have typed meanwhile.
+      const now = latest.current;
+      const filled: string[] = [];
+
+      // Lines are offered, never applied on their own: splitting by item
+      // changes the whole split, so the person chooses it.
+      if (found.items?.length && !now.itemised) {
+        setScannedItems({ items: found.items, matches: found.itemsMatchTotal !== false });
+      }
+
+      if (found.total && !now.itemised && !now.amountText.trim()) {
+        setAmountText(centsToInput(Math.round(found.total * 100)));
+        filled.push(formatMoney(found.total, currency));
+      }
+      if (found.merchant && !now.title.trim()) {
+        setTitle(found.merchant);
+        filled.push(found.merchant);
+      }
+      // Only a date that is not in the future, and only over the untouched default.
+      if (found.date && found.date < todayKey() && now.spentOn === todayKey()) {
+        setSpentOn(found.date);
+        filled.push(formatDay(found.date));
+      }
+
+      if (!found.total) {
+        setScan({
+          status: 'nothing',
+          text: 'Could not find a total on this receipt. Type the amount in above.',
+        });
+      } else if (!filled.length) {
+        setScan({
+          status: 'read',
+          text: `The receipt says ${formatMoney(found.total, currency)}. Your own entries were kept.`,
+        });
+      } else {
+        setScan({
+          status: found.totalFrom === 'largest' ? 'guess' : 'read',
+          text:
+            (found.totalFrom === 'largest'
+              ? 'Best guess from the receipt: '
+              : 'Filled in from the receipt: ') +
+            filled.join(' · ') +
+            '. Check it before saving.',
+        });
+      }
+    } catch (err) {
+      console.warn('Could not read the receipt:', err);
+      setScan({ status: 'failed', text: 'Could not read this photo. Type the amount in above.' });
+    }
+  };
 
   // A photo taken outside the form (the dashboard's Receipt button) is dropped
   // in as soon as the form opens, so it can go straight onto the new expense.
   useEffect(() => {
     if (!visible) return;
     setReceiptUris(expense ? receiptsOf(expense) : initialReceiptUri ? [initialReceiptUri] : []);
+    setScan(null);
+    setScannedItems(null);
+    if (!expense) setPaidIn(currency);
+    if (!expense && initialReceiptUri) void readReceipt(initialReceiptUri);
+    // Runs once per opened photo; readReceipt reads the latest form state itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, initialReceiptUri, expense]);
 
   // Editing starts from what was saved.
@@ -109,6 +219,11 @@ export default function ExpenseForm({
     if (!visible || !expense) return;
     setTitle(expense.title);
     setAmountText(centsToInput(parseAmount(expense.amount)));
+    const original = readOriginal(expense.original);
+    setPaidIn(original?.currency ?? currency);
+    setForeignText(original ? centsToInput(Math.round(original.amount * 100)) : '');
+    setFxRateText(original ? rateText(original.rate) : '');
+    setFxRateStatus('ready');
     setCategory(expense.category || 'other');
     setSpentOn(expense.spentOn || todayKey());
     setSpentTime(expense.spentTime ?? '');
@@ -138,11 +253,48 @@ export default function ExpenseForm({
     setSplitMode(expense.splitMode || 'equal');
     setSplitIds(Object.keys(expense.shares ?? {}));
     setSplitValues(expense.splitDetail?.input ?? {});
+    // A saved split was set by hand: one edit moves only one other row.
+    setSplitEdited(Object.keys(expense.splitDetail?.input ?? {}));
+    setSplitTexts({});
     setError('');
   }, [visible, expense, currentUserId]);
 
   const itemsCents = items.reduce((sum, item) => sum + parseAmount(item.amount), 0);
   const totalCents = itemised ? itemsCents : parseAmount(amountText);
+  const foreign = !itemised && paidIn !== currency;
+  const foreignCents = parseAmount(foreignText);
+  const fxRate = Number(fxRateText) || 0;
+
+  /**
+   * The amount as paid and the rate decide the trip-currency amount, which is
+   * what the split and the balances use.
+   */
+  const applyForeign = (amount: string, rate: string) => {
+    setForeignText(amount);
+    setFxRateText(rate);
+    const cents = convertedCents(parseAmount(amount), Number(rate) || 0);
+    changeAmount(cents > 0 ? centsToInput(cents) : '');
+  };
+
+  /** Picks the currency it was paid in, and loads today's rate for it. */
+  const choosePaidIn = async (code: string) => {
+    setPaidIn(code);
+    if (code === currency) {
+      setForeignText('');
+      setFxRateText('');
+      setFxRateStatus('ready');
+      return;
+    }
+    // An amount already typed (or read off a receipt) was what the receipt
+    // says, so it becomes the amount paid in the new currency.
+    const carried = foreign ? foreignText : amountText;
+    setFxRateText('');
+    setFxRateStatus('loading');
+    applyForeign(carried, '');
+    const rate = rateBetween(await fetchRates(code), currency);
+    setFxRateStatus(rate ? 'ready' : 'missing');
+    applyForeign(carried, rate ? rateText(rate) : '');
+  };
   const allIds = useMemo(() => members.map((member) => member.id), [members]);
 
   // Everything is derived from the members list, so a selection can never
@@ -193,6 +345,10 @@ export default function ExpenseForm({
   const reset = () => {
     setTitle('');
     setAmountText('');
+    setPaidIn(currency);
+    setForeignText('');
+    setFxRateText('');
+    setFxRateStatus('ready');
     setCategory('food');
     setSpentOn(todayKey());
     setSpentTime(nowTime());
@@ -206,7 +362,10 @@ export default function ExpenseForm({
     setSplitMode('equal');
     setSplitIds(null);
     setSplitValues({});
+    setSplitEdited([]);
+    setSplitTexts({});
     setReceiptUris([]);
+    setScan(null);
     setError('');
     setSaving(false);
     setPickingCategory(false);
@@ -238,95 +397,82 @@ export default function ExpenseForm({
       const uris = ((result as any).assets ?? (result.asset ? [result.asset] : [])).map(
         (a: any) => a.uri,
       );
-      if (uris.length) setReceiptUris((previous) => [...previous, ...uris]);
+      if (uris.length) {
+        setReceiptUris((previous) => [...previous, ...uris]);
+        // The first photo of a new expense is read for its total.
+        if (!isEditing && !amountText.trim()) void readReceipt(uris[0]);
+      }
     } catch (err) {
       console.error('Failed to pick a receipt photo:', err);
       setError('Could not open your camera or photos.');
     }
   };
 
+  /**
+   * Starts a percent or custom split over: everyone even, nothing typed. Used
+   * when the mode or the people sharing change, since the old numbers no
+   * longer mean anything then.
+   */
+  const resetSplit = (mode: SplitMode, ids: string[], total: number) => {
+    setSplitEdited([]);
+    setSplitTexts({});
+    setSplitValues(mode === 'equal' ? emptyValues(allIds) : evenValues(mode, total, ids));
+  };
+
+  const chooseParticipants = (next: string[]) => {
+    setSplitIds(next);
+    resetSplit(splitMode, next, totalCents);
+  };
+
   const toggleParticipant = (id: string) => {
     const current = participants;
-    const next = current.includes(id) ? current.filter((value) => value !== id) : [...current, id];
-    setSplitIds(next);
-    setSplitValues((previous) => {
-      const cleaned: Record<string, number> = {};
-      next.forEach((value) => {
-        cleaned[value] = previous[value] ?? 0;
-      });
-      return cleaned;
-    });
+    chooseParticipants(
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+    );
   };
 
   const allSelected = participants.length === allIds.length;
 
-  /** Seeds sensible starting values when the split mode changes. */
-  const recomputeSplit = (mode: SplitMode, nextTotal: number) => {
-    if (mode === 'equal') {
-      setSplitValues(emptyValues(allIds));
-      return;
-    }
-
-    const seeded: Record<string, number> = {};
-
-    if (mode === 'percentage') {
-      const even = Math.round((100 / Math.max(participants.length, 1)) * 100) / 100;
-      participants.forEach((id) => {
-        seeded[id] = even;
-      });
-    } else {
-      const evenCents = splitEqual(nextTotal, participants);
-      participants.forEach((id) => {
-        seeded[id] = (evenCents[id] ?? 0) / 100;
-      });
-    }
-
-    setSplitValues(seeded);
-  };
-
   const changeMode = (mode: SplitMode) => {
     setSplitMode(mode);
-    recomputeSplit(mode, totalCents);
+    resetSplit(mode, participants, totalCents);
   };
 
   const changeAmount = (text: string) => {
     setAmountText(text);
+    // A custom split's untouched rows follow the new total.
+    if (splitMode === 'custom' && !itemised) {
+      setSplitValues((previous) =>
+        refill('custom', parseAmount(text), participants, previous, splitEdited),
+      );
+      setSplitTexts({});
+    }
   };
 
-  /** Types into one row, then lets the last edited row take the leftover. */
+  /**
+   * One box typed into. The rows nobody typed into share what is left, and
+   * once every row has been typed into, the one typed into longest ago adjusts.
+   */
   const changeSplitValue = (id: string, text: string) => {
-    const numeric = Number(text.replace(/[^0-9.]/g, '')) || 0;
-    setSplitValues((previous) => {
-      const next = { ...previous, [id]: numeric };
-      const others = participants.filter((value) => value !== id);
-      if (others.length === 0) return next;
-
-      if (splitMode === 'percentage') {
-        const othersTotal = others.reduce((sum, value) => sum + (next[value] || 0), 0);
-        const remaining = Math.max(0, Math.round((100 - othersTotal) * 100) / 100);
-        // Only auto-fill when exactly one person is left; otherwise respect typing.
-        if (others.length === 1) {
-          next[others[0]] = remaining;
-        }
-      } else if (splitMode === 'custom') {
-        const othersTotal = others.reduce((sum, value) => sum + (next[value] || 0), 0);
-        const remaining = Math.max(0, Math.round((totalCents / 100 - othersTotal) * 100) / 100);
-        if (others.length === 1) {
-          next[others[0]] = remaining;
-        }
-      }
-
-      return next;
-    });
+    const clean = cleanSplitText(text);
+    const next = editSplit(
+      splitMode,
+      totalCents,
+      participants,
+      { values: splitValues, edited: splitEdited },
+      id,
+      Number(clean) || 0,
+    );
+    setSplitValues(next.values);
+    setSplitEdited(next.edited);
+    // Only the box being typed in keeps its raw text; the rest show numbers.
+    setSplitTexts({ [id]: clean });
   };
 
-  /** Re-balances explicitly, for the "make it add up" shortcut. */
+  /** Back to an even split, for when the numbers got muddled. */
   const autoBalance = () => {
     if (splitMode === 'equal') return;
-    const anchor = participants[participants.length - 1];
-    setSplitValues((previous) =>
-      balanceValues(splitMode, totalCents, participants, previous, anchor),
-    );
+    resetSplit(splitMode, participants, totalCents);
   };
 
   const previewShares = useMemo(
@@ -464,6 +610,9 @@ export default function ExpenseForm({
         },
         items: savedItems,
         receiptUrls,
+        ...(foreign && foreignCents > 0 && fxRate > 0
+          ? { original: { currency: paidIn, amount: foreignCents / 100, rate: fxRate } }
+          : {}),
         createdBy: expense?.createdBy ?? currentUserId,
       };
 
@@ -580,13 +729,48 @@ export default function ExpenseForm({
             <Text style={styles.itemTotal}>{formatMoney(itemsCents / 100, currency)}</Text>
           </View>
         ) : (
-          <TextField
-            title={`Amount (${currency})`}
-            placeholder="0.00"
-            value={amountText}
-            onChangeText={changeAmount}
-            keyboardType="numeric"
-          />
+          <View style={styles.group}>
+            {/* The amount and its currency share one row: the currency is a
+                property of the number, not a separate question. */}
+            <View style={styles.amountRow}>
+              <View style={styles.amountField}>
+                <TextField
+                  title="Amount"
+                  placeholder="0.00"
+                  value={foreign ? foreignText : amountText}
+                  onChangeText={foreign ? (text) => applyForeign(text, fxRateText) : changeAmount}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={styles.paidInField}>
+                <CurrencyField title="Paid in" value={paidIn} onChange={choosePaidIn} compact />
+              </View>
+            </View>
+
+            {foreign && (
+              <>
+                <View style={styles.fxRow}>
+                  <Text style={styles.fxLabel}>1 {paidIn} =</Text>
+                  <View style={styles.fxInput}>
+                    <TextField
+                      title=""
+                      placeholder={fxRateStatus === 'loading' ? 'Loading…' : 'Rate'}
+                      value={fxRateText}
+                      onChangeText={(text) => applyForeign(foreignText, cleanRateText(text))}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <Text style={styles.fxLabel}>{currency}</Text>
+                </View>
+                <HelperText tone={fxRateStatus === 'missing' && !fxRate ? 'error' : 'muted'}>
+                  {fxRateStatus === 'missing' && !fxRate
+                    ? 'Could not load today’s rate. Type the rate your card or money changer used.'
+                    : `Comes to ${formatMoney(totalCents / 100, currency)} in the trip’s currency. The rate is today’s; change it to match what you were charged.`}
+                </HelperText>
+                {fxRateStatus !== 'missing' && <RatesCredit />}
+              </>
+            )}
+          </View>
         )}
 
         <View style={styles.group}>
@@ -626,12 +810,16 @@ export default function ExpenseForm({
 
         <View style={styles.group}>
           <FieldLabel>When</FieldLabel>
-          <DateCalendar value={spentOn} onChange={setSpentOn} maxDay={todayKey()} />
-        </View>
-
-        <View style={styles.group}>
-          <FieldLabel>Time</FieldLabel>
-          <TimeField value={spentTime} onChange={setSpentTime} />
+          {/* The day and the time share one row, as one answer to "when". Both
+              open the same kind of pop-up: a calendar, and a time picker. */}
+          <View style={styles.whenRow}>
+            <View style={styles.whenDay}>
+              <DayField label="Date" value={spentOn} onChange={setSpentOn} maxDay={todayKey()} />
+            </View>
+            <View style={styles.whenTime}>
+              <TimeField value={spentTime} onChange={setSpentTime} />
+            </View>
+          </View>
         </View>
 
         {/* ----- Who paid ----- */}
@@ -663,7 +851,7 @@ export default function ExpenseForm({
           currentUserId={currentUserId}
           participants={participants}
           onToggleParticipant={toggleParticipant}
-          onSelectAll={() => setSplitIds(allSelected ? [] : [...allIds])}
+          onSelectAll={() => chooseParticipants(allSelected ? [] : [...allIds])}
           allSelected={allSelected}
           splitMode={splitMode}
           onChangeMode={changeMode}
@@ -675,6 +863,8 @@ export default function ExpenseForm({
             }
           }}
           splitValues={splitValues}
+          splitTexts={splitTexts}
+          splitEdited={splitEdited}
           onChangeSplitValue={changeSplitValue}
           previewShares={previewShares}
           previewLeft={previewLeft}
@@ -701,6 +891,48 @@ export default function ExpenseForm({
           onRemove={(index) => setReceiptUris((previous) => previous.filter((_, i) => i !== index))}
           onPick={handlePickReceipt}
         />
+        {!!scan && (
+          <HelperText
+            tone={
+              scan.status === 'read' ? 'success' : scan.status === 'scanning' ? 'muted' : 'error'
+            }
+          >
+            {scan.text}
+          </HelperText>
+        )}
+        {!!scannedItems && !itemised && (
+          <Pressable
+            style={({ pressed }) => [styles.scanItems, pressed && { opacity: 0.7 }]}
+            onPress={() => {
+              setItemised(true);
+              setItems(
+                scannedItems.items.map((line) => ({
+                  id: newItemId(),
+                  name: line.name,
+                  amount: centsToInput(Math.round(line.amount * 100)),
+                  sharedBy: [...allIds],
+                })),
+              );
+              setScannedItems(null);
+            }}
+            accessibilityRole="button"
+          >
+            <ListChecks size={18} color={BrandColors.primary} />
+            <View style={styles.scanItemsText}>
+              <Text style={styles.scanItemsTitle}>
+                Split by item · {scannedItems.items.length} lines read
+              </Text>
+              <Text style={styles.scanItemsHint}>
+                {scannedItems.matches
+                  ? 'Then tap who had what. Everyone shares each line to start with.'
+                  : `The lines add up to ${formatMoney(
+                      scannedItems.items.reduce((sum, line) => sum + line.amount, 0),
+                      currency,
+                    )}, not the total. Check them after.`}
+              </Text>
+            </View>
+          </Pressable>
+        )}
 
         <TextField
           title="Notes (optional)"

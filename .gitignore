@@ -46,3 +46,12 @@ example
 .env
 .env.*
 !.env.example
+
+# Firebase service account keys (used by npm run pay:setup)
+*service-account*.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+
+# Firebase app config files
+google-services.json
+GoogleService-Info.plist

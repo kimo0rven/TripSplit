@@ -20,7 +20,7 @@ export default function TextInputInline({
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor={BrandColors.secondary}
-      keyboardType={text ? 'default' : 'numeric'}
+      keyboardType={text ? 'default' : 'decimal-pad'}
     />
   );
 }

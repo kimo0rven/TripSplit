@@ -13,6 +13,11 @@ import {
   splitByWeights,
   splitEqual,
   validateSplit,
+  cleanSplitText,
+  editSplit,
+  evenValues,
+  refill,
+  splitText,
 } from '../src/utils/split.ts';
 
 const sum = (record: Record<string, number>) => Object.values(record).reduce((s, n) => s + n, 0);
@@ -240,4 +245,80 @@ test('debtBetween reads the direction of a debt', () => {
   assert.equal(debtBetween(edges, 'b', 'a'), 25);
   assert.equal(debtBetween(edges, 'a', 'b'), -25);
   assert.equal(debtBetween(edges, 'a', 'c'), 0);
+});
+
+test('percent shares no longer scale up when the percents miss 100', () => {
+  // 80% assigned of a 1000-cent bill: 800 cents shown, 200 visibly missing.
+  assert.deepEqual(computeShares('percentage', 1000, ['a', 'b'], { a: 50, b: 30 }), {
+    a: 500,
+    b: 300,
+  });
+  // 33.33 x 3 is still the whole bill.
+  const thirds = computeShares('percentage', 1000, ['a', 'b', 'c'], {
+    a: 33.33,
+    b: 33.33,
+    c: 33.33,
+  });
+  assert.equal(thirds.a + thirds.b + thirds.c, 1000);
+});
+
+test('typing in a split box keeps decimals on the way', () => {
+  assert.equal(cleanSplitText('12.'), '12.');
+  assert.equal(cleanSplitText('0.5'), '0.5');
+  assert.equal(cleanSplitText('.5'), '0.5');
+  assert.equal(cleanSplitText('12.345'), '12.34');
+  assert.equal(cleanSplitText('1.2.3'), '1.23');
+  assert.equal(cleanSplitText('007'), '7');
+  assert.equal(cleanSplitText('12,5%'), '12.5');
+  assert.equal(cleanSplitText(''), '');
+  assert.equal(splitText(33.333), '33.33');
+  assert.equal(splitText(0), '');
+});
+
+test('even starting values add up exactly', () => {
+  assert.deepEqual(evenValues('percentage', 0, ['a', 'b', 'c']), { a: 33.34, b: 33.33, c: 33.33 });
+  assert.deepEqual(evenValues('custom', 1000, ['a', 'b', 'c']), { a: 3.34, b: 3.33, c: 3.33 });
+});
+
+test('typing one percent shares the rest among the others', () => {
+  const start = { values: evenValues('percentage', 0, ['a', 'b', 'c']), edited: [] };
+  const next = editSplit('percentage', 0, ['a', 'b', 'c'], start, 'a', 50);
+  assert.deepEqual(next.values, { a: 50, b: 25, c: 25 });
+  assert.deepEqual(next.edited, ['a']);
+});
+
+test('with two people, each box fills the other', () => {
+  let split = { values: evenValues('percentage', 0, ['a', 'b']), edited: [] as string[] };
+  split = editSplit('percentage', 0, ['a', 'b'], split, 'a', 30);
+  assert.deepEqual(split.values, { a: 30, b: 70 });
+  split = editSplit('percentage', 0, ['a', 'b'], split, 'b', 60);
+  assert.deepEqual(split.values, { a: 40, b: 60 });
+});
+
+test('once everyone is typed in, the oldest edit adjusts', () => {
+  const ids = ['a', 'b', 'c'];
+  let split = { values: { a: 50, b: 30, c: 20 }, edited: [...ids] };
+  split = editSplit('percentage', 0, ids, split, 'c', 10);
+  // a was typed longest ago, so a takes up the 10 points.
+  assert.deepEqual(split.values, { a: 60, b: 30, c: 10 });
+});
+
+test('the free rows never go below zero', () => {
+  const split = editSplit(
+    'custom',
+    1000,
+    ['a', 'b'],
+    { values: { a: 5, b: 5 }, edited: [] },
+    'a',
+    12,
+  );
+  assert.deepEqual(split.values, { a: 12, b: 0 });
+});
+
+test('a new total refills only the rows nobody typed', () => {
+  assert.deepEqual(refill('custom', 2000, ['a', 'b', 'c'], { a: 5, b: 0, c: 0 }, ['a']), {
+    a: 5,
+    b: 7.5,
+    c: 7.5,
+  });
 });

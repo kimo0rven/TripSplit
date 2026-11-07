@@ -1,12 +1,15 @@
 import Avatar from '@/components/ui/avatar';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import DayDivider from '@/components/ui/day-divider';
+import { CoversList } from '@/components/trip/settle/covers-list';
 import { Card } from '@/components/ui/card';
 import { BrandColors, Spacing } from '@/constants/theme';
-import { Settlement } from '@/types/expenses';
+import { Expense, Settlement } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
+import { coverageFor } from '@/utils/coverage';
 import { groupByDay } from '@/utils/listGrouping';
 import { dayHeading, formatDay, formatMoney } from '@/utils/money';
+import { payMongoPaidWith, payMongoReceiptRows } from '@/utils/paymongo';
 import { Image } from 'expo-image';
 import { ArrowRight, History, Pencil } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -22,6 +25,12 @@ interface PaymentsListProps {
   onRespond?: (settlement: Settlement, accept: boolean) => void;
   /** Splits the list into day sections; used on the page holding every payment. */
   grouped?: boolean;
+  /**
+   * The trip's expenses and every payment, even when only some are listed.
+   * With them, a payment's details show which expenses it paid for.
+   */
+  expenses?: Expense[];
+  allSettlements?: Settlement[];
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -49,6 +58,8 @@ export default function PaymentsList({
   onEditSettlement,
   onRespond,
   grouped = false,
+  expenses,
+  allSettlements,
 }: PaymentsListProps) {
   const router = useRouter();
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -60,6 +71,13 @@ export default function PaymentsList({
     members.find((member) => member.id === id)?.fullname ?? 'Someone who left';
   const photoOf = (id: string) => members.find((member) => member.id === id)?.photoURL;
   const first = (id: string) => nameOf(id).split(' ')[0];
+
+  // A declined payment paid for nothing, so it gets no list.
+  const covers =
+    detail && expenses && detail.status !== 'declined'
+      ? (coverageFor(detail.from, expenses, allSettlements ?? settlements).byPayment[detail.id] ??
+        [])
+      : null;
 
   const renderPayment = (settlement: Settlement) => (
     <View key={settlement.id} style={styles.settlementBlock}>
@@ -77,9 +95,11 @@ export default function PaymentsList({
               {settlement.kind === 'full' ? 'full settlement' : 'part payment'}
               {settlement.isCash === true
                 ? ' · cash'
-                : settlement.method
-                  ? ' · ' + settlement.method
-                  : ''}
+                : settlement.paymongo
+                  ? ' · ' + payMongoPaidWith(settlement.paymongo)
+                  : settlement.method
+                    ? ' · ' + settlement.method
+                    : ''}
             </Text>
           </View>
           <Text style={styles.settlementAmount}>{formatMoney(settlement.amount, currency)}</Text>
@@ -89,8 +109,9 @@ export default function PaymentsList({
         <View style={styles.pendingBox}>
           <Text style={styles.pendingText}>
             {settlement.to === currentUserId
-              ? first(settlement.from) + ' says they paid you. Did you receive it?'
-              : 'Waiting for ' + first(settlement.to) + ' to confirm. Not counted yet.'}
+              ? first(settlement.from) +
+                ' says they paid you. Did you receive it? Declining puts the debt back.'
+              : 'Taken off the balance. Waiting for ' + first(settlement.to) + ' to confirm.'}
           </Text>
           {settlement.to === currentUserId && !!onRespond && (
             <View style={styles.pendingButtons}>
@@ -192,12 +213,33 @@ export default function PaymentsList({
                 label="Type"
                 value={detail.kind === 'full' ? 'Full settlement' : 'Part payment'}
               />
-              <DetailRow
-                label="Paid with"
-                value={detail.isCash === true ? 'Cash' : detail.method || '—'}
-              />
+              {detail.paymongo ? (
+                <>
+                  {payMongoReceiptRows(detail.paymongo).map((row) => (
+                    <DetailRow key={row.label} label={row.label} value={row.value} />
+                  ))}
+                  {!!timeOf(detail.paymongo.paidAt) && (
+                    <DetailRow label="Paid at" value={timeOf(detail.paymongo.paidAt)} />
+                  )}
+                </>
+              ) : (
+                <DetailRow
+                  label="Paid with"
+                  value={detail.isCash === true ? 'Cash' : detail.method || '—'}
+                />
+              )}
               {!!detail.note && <DetailRow label="Note" value={detail.note} />}
             </Card>
+
+            {covers && (
+              <CoversList
+                title="Expenses this paid for"
+                owner={detail.from === currentUserId ? 'your' : `${first(detail.from)}’s`}
+                items={covers}
+                currency={currency}
+                empty="No expense shares: this was paid on top of what was owed."
+              />
+            )}
 
             {!!detail.proofUrls?.length && <Text style={styles.detailLabel}>Proof of payment</Text>}
             {!!detail.proofUrls?.length && (

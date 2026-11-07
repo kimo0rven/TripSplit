@@ -15,6 +15,8 @@ interface UserInputFieldProps {
   multiline?: boolean;
   /** How tall that taller box starts, in pixels. */
   minHeight?: number;
+  /** False shows the value as read-only, greyed out. */
+  editable?: boolean;
 }
 
 export default function UserInputField({
@@ -27,6 +29,7 @@ export default function UserInputField({
   leftIcon: LeftIconComponent,
   multiline = false,
   minHeight,
+  editable = true,
 }: UserInputFieldProps) {
   const [isPasswordHidden, setIsPasswordHidden] = useState(secureTextEntry);
   const [isFocused, setIsFocused] = useState(false);
@@ -50,10 +53,11 @@ export default function UserInputField({
             secureTextEntry ? styles.fieldWithRightIcon : null,
             multiline ? styles.fieldStyleMultiline : null,
             multiline && minHeight ? { minHeight } : null,
+            !editable ? styles.fieldReadOnly : null,
           ]}
           multiline={multiline}
           textAlignVertical={multiline ? 'top' : 'center'}
-          editable={true}
+          editable={editable}
           placeholder={placeholder}
           placeholderTextColor={BrandColors.secondary}
           value={value}
@@ -151,6 +155,10 @@ export function PasswordField({ title, placeholder, value, onChangeText }: UserI
 }
 
 const styles = StyleSheet.create({
+  fieldReadOnly: {
+    color: BrandColors.primary,
+    opacity: 0.7,
+  },
   contentWrapper: {
     width: '100%',
   },

@@ -3,6 +3,7 @@ import { Card, HelperText, ProgressBar, SectionTitle } from '@/components/ui/car
 import PaymentsList from '@/components/trip/payments-list';
 import EmptyState from '@/components/ui/empty-state';
 import { BrandColors, Spacing } from '@/constants/theme';
+import WhyOweSheet from '@/components/trip/why-owe-sheet';
 import { DebtEdge, Expense, MemberBalance, Settlement } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
 import { formatMoney } from '@/utils/money';
@@ -26,6 +27,13 @@ interface BalancesTabProps {
   onEditSettlement?: (settlement: Settlement) => void;
   onRespond?: (settlement: Settlement, accept: boolean) => void;
   onSettle: (preselect?: { from?: string; to?: string; amount?: number }) => void;
+  /** Opens "Settle all", offered when you owe more than one person. */
+  onSettleAll?: () => void;
+  /**
+   * Set while payments can't be recorded yet (the trip hasn't started): says
+   * why, and the payment buttons are hidden.
+   */
+  settleLocked?: string;
 }
 
 /** How many payments the Balances tab lists before "View all". */
@@ -42,6 +50,8 @@ export default function BalancesTab({
   tripId,
   tripName,
   onSettle,
+  onSettleAll,
+  settleLocked,
   onViewAll,
   onEditSettlement,
   onRespond,
@@ -71,7 +81,10 @@ export default function BalancesTab({
     }
   };
 
+  /** Whose debt the "Why?" sheet explains, or ''. */
+  const [whyId, setWhyId] = useState('');
   const myBalance = balances.find((balance) => balance.memberId === currentUserId);
+  const myDebts = edges.filter((edge) => edge.from === currentUserId && edge.amount > 0.004);
   const myNet = myBalance?.net ?? 0;
 
   const totalOwed = edges.reduce((sum, edge) => sum + edge.amount, 0);
@@ -102,6 +115,28 @@ export default function BalancesTab({
 
       <SectionTitle>Who pays who</SectionTitle>
 
+      {!!settleLocked && <HelperText>{settleLocked}</HelperText>}
+
+      {!settleLocked && !!onSettleAll && myDebts.length > 1 && (
+        <Pressable
+          style={({ pressed }) => [styles.settleAll, pressed && styles.pressed]}
+          onPress={onSettleAll}
+          accessibilityRole="button"
+        >
+          <View style={styles.settleAllText}>
+            <Text style={styles.settleAllTitle}>Settle all at once</Text>
+            <Text style={styles.settleAllHint}>
+              Pay all {myDebts.length} people you owe ·{' '}
+              {formatMoney(
+                myDebts.reduce((sum, edge) => sum + edge.amount, 0),
+                currency,
+              )}
+            </Text>
+          </View>
+          <ArrowRight size={16} color={BrandColors.primary} />
+        </Pressable>
+      )}
+
       {edges.length === 0 ? (
         <EmptyState
           icon={Scale}
@@ -111,22 +146,42 @@ export default function BalancesTab({
       ) : (
         <View style={styles.list}>
           {edges.map((edge) => (
-            <Pressable
-              key={`${edge.from}-${edge.to}`}
-              style={({ pressed }) => [styles.edgeCard, pressed && styles.pressed]}
-              onPress={() => onSettle({ from: edge.from, to: edge.to, amount: edge.amount })}
-            >
-              <Avatar name={nameOf(edge.from)} size={34} photoURL={photoOf(edge.from)} />
-              <View style={styles.edgeMiddle}>
-                <Text style={styles.edgeText} numberOfLines={1}>
-                  {first(edge.from)} pays {first(edge.to)}
-                </Text>
-                <Text style={styles.edgeHint}>Tap to record this payment</Text>
-              </View>
-              <View style={styles.edgeRight}>
-                <Text style={styles.edgeAmount}>{formatMoney(edge.amount, currency)}</Text>
-                <ArrowRight size={14} color={BrandColors.secondary} />
-              </View>
+            // Remind sits beside the tappable part, not inside it: a button
+            // inside a button is invalid on the web.
+            <View key={`${edge.from}-${edge.to}`} style={styles.edgeCard}>
+              <Pressable
+                style={({ pressed }) => [styles.edgeMain, pressed && styles.pressed]}
+                onPress={() =>
+                  !settleLocked && onSettle({ from: edge.from, to: edge.to, amount: edge.amount })
+                }
+                disabled={!!settleLocked}
+                accessibilityRole="button"
+              >
+                <Avatar name={nameOf(edge.from)} size={34} photoURL={photoOf(edge.from)} />
+                <View style={styles.edgeMiddle}>
+                  <Text style={styles.edgeText} numberOfLines={1}>
+                    {first(edge.from)} pays {first(edge.to)}
+                  </Text>
+                  <Text style={styles.edgeHint}>
+                    {settleLocked
+                      ? 'Can be paid once the trip starts'
+                      : 'Tap to record this payment'}
+                  </Text>
+                </View>
+                <View style={styles.edgeRight}>
+                  <Text style={styles.edgeAmount}>{formatMoney(edge.amount, currency)}</Text>
+                  <ArrowRight size={14} color={BrandColors.secondary} />
+                </View>
+              </Pressable>
+              <Pressable
+                onPress={() => setWhyId(edge.from)}
+                style={[styles.whyBtn, edge.to !== currentUserId && styles.whyLast]}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={`Why ${first(edge.from)} owes this`}
+              >
+                <Text style={styles.whyText}>Why?</Text>
+              </Pressable>
               {edge.to === currentUserId && (
                 <Pressable
                   onPress={() => remind(edge)}
@@ -139,7 +194,7 @@ export default function BalancesTab({
                   </Text>
                 </Pressable>
               )}
-            </Pressable>
+            </View>
           ))}
         </View>
       )}
@@ -231,14 +286,16 @@ export default function BalancesTab({
         Payments recorded
       </SectionTitle>
 
-      <Pressable
-        style={({ pressed }) => [styles.recordButton, pressed && styles.pressed]}
-        onPress={() => onSettle()}
-        accessibilityRole="button"
-      >
-        <Plus size={16} color={BrandColors.primary} />
-        <Text style={styles.recordText}>Record a payment</Text>
-      </Pressable>
+      {!settleLocked && (
+        <Pressable
+          style={({ pressed }) => [styles.recordButton, pressed && styles.pressed]}
+          onPress={() => onSettle()}
+          accessibilityRole="button"
+        >
+          <Plus size={16} color={BrandColors.primary} />
+          <Text style={styles.recordText}>Record a payment</Text>
+        </Pressable>
+      )}
 
       {settlements.length === 0 ? (
         <HelperText>
@@ -247,6 +304,8 @@ export default function BalancesTab({
       ) : (
         <PaymentsList
           settlements={settlements.slice(0, RECENT_PAYMENT_LIMIT)}
+          allSettlements={settlements}
+          expenses={expenses}
           members={members}
           currency={currency}
           currentUserId={currentUserId}
@@ -258,6 +317,17 @@ export default function BalancesTab({
       <HelperText>
         {expenses.length} expenses and {settlements.length} payments counted.
       </HelperText>
+
+      <WhyOweSheet
+        debtorId={whyId}
+        onClose={() => setWhyId('')}
+        edges={edges}
+        expenses={expenses}
+        settlements={settlements}
+        members={members}
+        currency={currency}
+        currentUserId={currentUserId}
+      />
     </View>
   );
 }
@@ -327,11 +397,32 @@ const styles = StyleSheet.create({
   edgeCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
     backgroundColor: BrandColors.background,
     borderWidth: 1,
     borderColor: BrandColors.base200,
     borderRadius: 15,
+  },
+  settleAll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    backgroundColor: BrandColors.base50,
+    borderRadius: 15,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+  },
+  settleAllText: { flex: 1, gap: 2 },
+  settleAllTitle: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
+  settleAllHint: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    color: BrandColors.primary,
+  },
+  edgeMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     padding: Spacing.three,
   },
   pressed: {
@@ -346,7 +437,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.primary,
   },
+  whyBtn: {
+    marginRight: Spacing.two,
+    paddingHorizontal: Spacing.one,
+    paddingVertical: Spacing.one,
+  },
+  whyLast: { marginRight: Spacing.three },
+  whyText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 11, color: BrandColors.info },
   remindBtn: {
+    marginRight: Spacing.three,
     borderWidth: 1,
     borderColor: BrandColors.border,
     borderRadius: 12,

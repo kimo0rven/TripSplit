@@ -8,6 +8,7 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       { "source": "/j", "destination": "/j.html" },
+      { "source": "/pay-done", "destination": "/pay-done.html" },
       { "source": "/", "destination": "/j.html" }
     ]
   }

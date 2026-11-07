@@ -3,6 +3,7 @@ import { fetchExpenses } from '@/services/Firebase/expenseService';
 import { fetchSettlements } from '@/services/Firebase/settlementService';
 import { fetchUserTrips } from '@/services/Firebase/tripService';
 import { useCombinedTotal } from '@/services/currency/useCombinedTotal';
+import RatesCredit from '@/components/ui/rates-credit';
 import { computeBalances } from '@/utils/balance';
 import { formatMoney } from '@/utils/money';
 import { useEffect, useState } from 'react';
@@ -24,7 +25,12 @@ interface AllTripsSummaryProps {
 }
 
 /** What you are owed and what you owe across every trip, one line per currency. */
-export default function AllTripsSummary({ userId, refreshKey, embedded, inline }: AllTripsSummaryProps) {
+export default function AllTripsSummary({
+  userId,
+  refreshKey,
+  embedded,
+  inline,
+}: AllTripsSummaryProps) {
   const [lines, setLines] = useState<Line[] | null>(null);
 
   useEffect(() => {
@@ -95,10 +101,19 @@ export default function AllTripsSummary({ userId, refreshKey, embedded, inline }
   if (!text) return null;
 
   if (inline) {
-    return (
+    const line = (
       <Text style={styles.inline} numberOfLines={1}>
         All trips: {text}
       </Text>
+    );
+    // Converted totals carry the rates' credit underneath.
+    return owedTotal && oweTotal ? (
+      <View style={styles.inlineStack}>
+        {line}
+        <RatesCredit align="right" />
+      </View>
+    ) : (
+      line
     );
   }
 
@@ -108,11 +123,18 @@ export default function AllTripsSummary({ userId, refreshKey, embedded, inline }
         <Text style={styles.title}>All trips: </Text>
         {text}
       </Text>
+      {/* Only when amounts in different currencies were converted to be added up. */}
+      {!!(owedTotal && oweTotal) && <RatesCredit />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  inlineStack: {
+    flexShrink: 1,
+    alignItems: 'flex-end',
+    gap: 2,
+  },
   inline: {
     flexShrink: 1,
     textAlign: 'right',
