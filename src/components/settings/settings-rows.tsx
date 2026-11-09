@@ -1,7 +1,8 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { ChevronRight, LucideIcon } from 'lucide-react-native';
 import { ReactNode } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, Switch, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** A titled group of rows, used on the settings pages. */
 export function SettingsSection({ title, children }: { title: string; children: ReactNode }) {
@@ -82,7 +83,7 @@ export const switchColors = (on: boolean) => ({
   activeThumbColor: BrandColors.base50,
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   section: { gap: Spacing.two },
   sectionTitle: {
     fontFamily: 'PlusJakartaSans-Bold',
@@ -107,4 +108,4 @@ const styles = StyleSheet.create({
   rowLabelDestructive: { color: BrandColors.error },
   rowHint: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
   rowValue: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 14, color: BrandColors.secondary },
-});
+}));

@@ -7,7 +7,8 @@ import { mapUrlFor, planTiming, runningFor, startsIn } from '@/utils/itinerary';
 import { ArrowRight, Clock, MapPin, Navigation } from 'lucide-react-native';
 import * as Linking from 'expo-linking';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface NextPlanCardProps {
   item: ItineraryItem;
@@ -129,7 +130,7 @@ export default function NextPlanCard({ item, members, onOpen }: NextPlanCardProp
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   part: { gap: Spacing.two },
   card: {
     gap: Spacing.two,
@@ -160,7 +161,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 10,
     letterSpacing: 0.5,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   tagTextNow: {
     color: BrandColors.success,
@@ -245,4 +246,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.primary,
   },
-});
+}));

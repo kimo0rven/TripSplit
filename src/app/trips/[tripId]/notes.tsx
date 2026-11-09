@@ -27,12 +27,12 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** The most one note may be, matched by the database rules. */
 const MAX_LENGTH = 1000;
@@ -394,7 +394,7 @@ export default function TripNotesScreen() {
                         <View
                           style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}
                         >
-                          <Text style={styles.body}>{note.body}</Text>
+                          <Text style={[styles.body, mine && styles.bodyMine]}>{note.body}</Text>
 
                           {!!note.photoUrls?.length && (
                             <View style={styles.notePhotos}>
@@ -470,7 +470,7 @@ export default function TripNotesScreen() {
             accessibilityRole="button"
             accessibilityLabel="Post the note"
           >
-            <Send size={17} color={BrandColors.primary} />
+            <Send size={17} color={BrandColors.onBrand} />
           </Pressable>
         </View>
 
@@ -515,7 +515,7 @@ export default function TripNotesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1, backgroundColor: BrandColors.background },
   header: {
     paddingHorizontal: 25,
@@ -604,7 +604,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: 2,
   },
-  clockMine: { color: BrandColors.base700 },
+  clockMine: { color: BrandColors.onBrand, opacity: 0.65 },
+  bodyMine: { color: BrandColors.onBrand },
   clockTheirs: { color: BrandColors.secondary },
 
   notePhotos: {
@@ -722,4 +723,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: BrandColors.background,
   },
-});
+}));

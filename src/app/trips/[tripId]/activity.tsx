@@ -33,7 +33,8 @@ import {
   Wallet,
 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 const FILTERS = [
   { value: 'expense', label: 'Expenses', icon: Receipt },
@@ -222,7 +223,7 @@ export default function TripActivityScreen() {
                             accessibilityRole="button"
                             accessibilityLabel={`Restore ${entry.item.title}`}
                           >
-                            <RotateCcw size={13} color={BrandColors.primary} />
+                            <RotateCcw size={13} color={BrandColors.onBrand} />
                             <Text style={styles.restoreText}>
                               {restoringId === entry.id ? 'Restoring…' : 'Restore'}
                             </Text>
@@ -282,7 +283,7 @@ export default function TripActivityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1, backgroundColor: BrandColors.background },
   header: {
     paddingTop: 40,
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.one,
   },
-  restoreText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.primary },
+  restoreText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.onBrand },
   footnote: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 11,
@@ -336,4 +337,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.two,
   },
-});
+}));

@@ -11,7 +11,8 @@ import { JoinRequest, TripMember } from '@/types/trips';
 import { useFocusEffect } from 'expo-router';
 import { ChevronRight, UserPlus } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface JoinRequestsProps {
   tripId: string;
@@ -160,7 +161,7 @@ export default function JoinRequests({ tripId, ownerId, onApproved }: JoinReques
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -209,5 +210,5 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     backgroundColor: BrandColors.base50,
   },
-  approveText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
-});
+  approveText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.onBrand },
+}));

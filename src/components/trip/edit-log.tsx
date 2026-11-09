@@ -1,7 +1,8 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { EditLogEntry } from '@/types/expenses';
 import { formatDay, formatTime } from '@/utils/money';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** The edit log of a money record, newest edit first. */
 export default function EditLog({ history }: { history?: EditLogEntry[] }) {
@@ -26,7 +27,7 @@ export default function EditLog({ history }: { history?: EditLogEntry[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two },
   entry: {
     gap: 2,
@@ -46,4 +47,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.secondary,
   },
-});
+}));

@@ -3,7 +3,8 @@ import { TextField } from '@/components/ui/text-input-field';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { formatMoney } from '@/utils/money';
 import { halfOf, type AmountChoice } from '@/utils/settle';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface AmountPickerProps {
   currency: string;
@@ -81,7 +82,7 @@ export function AmountPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   group: {
     gap: Spacing.two,
   },
@@ -111,9 +112,9 @@ const styles = StyleSheet.create({
   },
   chipTextOn: {
     fontFamily: 'PlusJakartaSans-Bold',
-    color: BrandColors.heading,
+    color: BrandColors.onBrand,
   },
   pressed: {
     opacity: 0.7,
   },
-});
+}));

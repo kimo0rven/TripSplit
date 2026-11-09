@@ -10,9 +10,10 @@ import { TripMember } from '@/types/trips';
 import { formatMoney } from '@/utils/money';
 import { memberLookup } from '@/utils/memberLookup';
 import { remindDebtor } from '@/services/reminders/push';
-import { ArrowRight, Plus, Scale } from 'lucide-react-native';
+import { ArrowRight, HelpCircle, Plus, Scale } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface BalancesTabProps {
   members: TripMember[];
@@ -58,11 +59,15 @@ export default function BalancesTab({
   onRespond,
 }: BalancesTabProps) {
   const [showAllPairs, setShowAllPairs] = useState(false);
+  /** Whether the "Debts simplified" card shows its longer explanation. */
+  const [simplifyOpen, setSimplifyOpen] = useState(false);
 
   const lookup = useMemo(() => memberLookup(members), [members]);
   const nameOf = (id: string) => lookup.nameOf(id, 'Someone who left');
   const photoOf = lookup.photoOf;
   const first = (id: string) => nameOf(id).split(' ')[0];
+  /** "You" for the person looking, otherwise their first name. */
+  const who = (id: string) => (id === currentUserId ? 'You' : first(id));
 
   const [sentKey, setSentKey] = useState('');
   const remind = async (edge: DebtEdge) => {
@@ -99,14 +104,31 @@ export default function BalancesTab({
   const creditors = balances.filter((balance) => balance.net > 0.004).length;
   const pairPayments = debtors * creditors;
   const savedPayments = Math.max(0, pairPayments - edges.length);
+  const plural = (count: number) => `${count} ${count === 1 ? 'payment' : 'payments'}`;
+  // No zeros: with nothing owed yet, say what simplifying will do instead.
+  const simplifySummary =
+    edges.length === 0
+      ? 'Paying everyone back one by one can take a lot of payments. Once there are expenses, TripSplit works out the fewest payments that settle the whole trip.'
+      : savedPayments > 0
+        ? `Paying each person back one by one would take ${plural(pairPayments)}. With simplification it takes ${edges.length}, so ${savedPayments} fewer.`
+        : `Settling up takes ${plural(edges.length)}, already the fewest possible.`;
 
   return (
     <View style={styles.wrap}>
-      <Card style={styles.hero}>
+      {/* Dashed and unfilled, so it doesn't compete with the trip card above. */}
+      <View style={styles.hero}>
         <Text style={styles.heroLabel}>
           {myNet > 0.004 ? 'You should receive' : myNet < -0.004 ? 'You owe' : 'You are all square'}
         </Text>
-        <Text style={styles.heroValue}>{formatMoney(Math.abs(myNet), currency)}</Text>
+        <Text
+          style={[
+            styles.heroValue,
+            myNet > 0.004 && styles.heroGet,
+            myNet < -0.004 && styles.heroOwe,
+          ]}
+        >
+          {formatMoney(Math.abs(myNet), currency)}
+        </Text>
         <HelperText tone="muted">
           {myNet > 0.004
             ? 'The trip owes you this much in total.'
@@ -114,7 +136,7 @@ export default function BalancesTab({
               ? 'This is your share of everything spent so far.'
               : 'Nothing to pay and nothing to collect.'}
         </HelperText>
-      </Card>
+      </View>
 
       <SectionTitle>Who pays who</SectionTitle>
 
@@ -136,7 +158,7 @@ export default function BalancesTab({
               )}
             </Text>
           </View>
-          <ArrowRight size={16} color={BrandColors.primary} />
+          <ArrowRight size={16} color={BrandColors.onBrand} />
         </Pressable>
       )}
 
@@ -148,89 +170,134 @@ export default function BalancesTab({
         />
       ) : (
         <View style={styles.list}>
-          {edges.map((edge) => (
-            // Remind sits beside the tappable part, not inside it: a button
-            // inside a button is invalid on the web.
-            <View key={`${edge.from}-${edge.to}`} style={styles.edgeCard}>
-              <Pressable
-                style={({ pressed }) => [styles.edgeMain, pressed && styles.pressed]}
-                onPress={() =>
-                  !settleLocked && onSettle({ from: edge.from, to: edge.to, amount: edge.amount })
-                }
-                disabled={!!settleLocked}
-                accessibilityRole="button"
-              >
-                <Avatar name={nameOf(edge.from)} size={34} photoURL={photoOf(edge.from)} />
-                <View style={styles.edgeMiddle}>
-                  <Text style={styles.edgeText} numberOfLines={1}>
-                    {first(edge.from)} pays {first(edge.to)}
-                  </Text>
-                  <Text
-                    style={[styles.edgeHint, waitingOn(edge) > 0 && styles.edgeWaiting]}
-                    numberOfLines={2}
-                  >
-                    {waitingOn(edge) > 0
-                      ? `${formatMoney(waitingOn(edge), currency)} sent, waiting for ${first(edge.to)} to confirm`
-                      : settleLocked
-                        ? 'Can be paid once the trip starts'
-                        : 'Tap to record this payment'}
-                  </Text>
-                </View>
-                <View style={styles.edgeRight}>
-                  <Text style={styles.edgeAmount}>{formatMoney(edge.amount, currency)}</Text>
-                  <ArrowRight size={14} color={BrandColors.secondary} />
-                </View>
-              </Pressable>
-              <Pressable
-                onPress={() => setWhyId(edge.from)}
-                style={[
-                  styles.whyBtn,
-                  !(edge.to === currentUserId && waitingOn(edge) < edge.amount - 0.004) &&
-                    styles.whyLast,
-                ]}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel={`Why ${first(edge.from)} owes this`}
-              >
-                <Text style={styles.whyText}>Why?</Text>
-              </Pressable>
-              {edge.to === currentUserId && waitingOn(edge) < edge.amount - 0.004 && (
+          {edges.map((edge) => {
+            const waiting = waitingOn(edge);
+            const canRemind = edge.to === currentUserId && waiting < edge.amount - 0.004;
+            const key = `${edge.from}-${edge.to}`;
+            return (
+              // The buttons sit in their own row under the tappable part, not
+              // inside it: a button inside a button is invalid on the web.
+              <View key={key} style={styles.edgeCard}>
                 <Pressable
-                  onPress={() => remind(edge)}
-                  style={styles.remindBtn}
+                  style={({ pressed }) => [styles.edgeMain, pressed && styles.pressed]}
+                  onPress={() =>
+                    !settleLocked && onSettle({ from: edge.from, to: edge.to, amount: edge.amount })
+                  }
+                  disabled={!!settleLocked}
                   accessibilityRole="button"
-                  accessibilityLabel={`Remind ${first(edge.from)}`}
+                  accessibilityLabel={`${who(edge.from)} pays ${who(edge.to)} ${formatMoney(edge.amount, currency)}`}
                 >
-                  <Text style={styles.remindText}>
-                    {sentKey === `${edge.from}-${edge.to}` ? 'Sent ✓' : 'Remind'}
-                  </Text>
+                  <View style={styles.avatars}>
+                    <Avatar name={nameOf(edge.from)} size={36} photoURL={photoOf(edge.from)} />
+                    <View style={styles.avatarSecond}>
+                      <Avatar name={nameOf(edge.to)} size={36} photoURL={photoOf(edge.to)} />
+                    </View>
+                  </View>
+                  <View style={styles.edgeMiddle}>
+                    <View style={styles.namesRow}>
+                      <Text style={styles.edgeName} numberOfLines={1}>
+                        {who(edge.from)}
+                      </Text>
+                      <ArrowRight size={14} color={BrandColors.secondary} />
+                      <Text style={styles.edgeName} numberOfLines={1}>
+                        {who(edge.to)}
+                      </Text>
+                    </View>
+                    {(waiting > 0 || !!settleLocked) && (
+                      <Text
+                        style={[styles.edgeHint, waiting > 0 && styles.edgeWaiting]}
+                        numberOfLines={2}
+                      >
+                        {waiting > 0
+                          ? `${formatMoney(waiting, currency)} sent, waiting for ${first(edge.to)} to confirm`
+                          : 'Can be paid once the trip starts'}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.edgeAmount}>{formatMoney(edge.amount, currency)}</Text>
                 </Pressable>
-              )}
-            </View>
-          ))}
+
+                <View style={styles.edgeActions}>
+                  <Pressable
+                    onPress={() => setWhyId(edge.from)}
+                    style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
+                    hitSlop={4}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Why ${first(edge.from)} owes this`}
+                  >
+                    <HelpCircle size={13} color={BrandColors.info} />
+                    <Text style={styles.chipWhy}>Why?</Text>
+                  </Pressable>
+                  <View style={styles.actionsRight}>
+                    {canRemind && (
+                      <Pressable
+                        onPress={() => remind(edge)}
+                        style={({ pressed }) => [
+                          styles.chip,
+                          styles.chipOutline,
+                          pressed && styles.pressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remind ${first(edge.from)}`}
+                      >
+                        <Text style={styles.chipText}>{sentKey === key ? 'Sent ✓' : 'Remind'}</Text>
+                      </Pressable>
+                    )}
+                    {!settleLocked && (
+                      <Pressable
+                        onPress={() =>
+                          onSettle({ from: edge.from, to: edge.to, amount: edge.amount })
+                        }
+                        style={({ pressed }) => [
+                          styles.chip,
+                          styles.chipFilled,
+                          pressed && styles.pressed,
+                        ]}
+                        accessibilityRole="button"
+                      >
+                        <Text style={[styles.chipText, styles.chipTextFilled]}>
+                          {edge.from === currentUserId ? 'Pay' : 'Record payment'}
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              </View>
+            );
+          })}
         </View>
       )}
 
-      <Card style={styles.simplifyCard}>
-        <View style={styles.simplifyHeader}>
-          <Scale size={16} color={BrandColors.primary} />
-          <Text style={styles.simplifyTitle}>Debts simplified</Text>
-        </View>
-        <Text style={styles.simplifyText}>
-          Paying each person back one by one would take {pairPayments}{' '}
-          {pairPayments === 1 ? 'payment' : 'payments'}. With simplification it takes {edges.length}
-          {savedPayments > 0 ? `, so ${savedPayments} fewer.` : '.'}
-        </Text>
-        <HelperText>
-          A new expense can change who pays whom, but never how much anyone owes in total. People
-          who already paid each other stay paired, so the list changes as little as it can. Tap Why?
-          on any payment to see the expenses behind it.
-        </HelperText>
-        <HelperText>
-          Total still to move around: {formatMoney(totalOwed, currency)}
-          {biggest > 0 ? ` · largest single payment ${formatMoney(biggest, currency)}` : ''}
-        </HelperText>
-      </Card>
+      {/* Tapping the card shows or hides the longer explanation. */}
+      <Pressable
+        onPress={() => setSimplifyOpen((open) => !open)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: simplifyOpen }}
+        accessibilityHint={simplifyOpen ? 'Hides the explanation' : 'Shows how this works'}
+      >
+        <Card style={styles.simplifyCard}>
+          <View style={styles.simplifyHeader}>
+            <Scale size={16} color={BrandColors.primary} />
+            <Text style={styles.simplifyTitle}>Debts simplified</Text>
+          </View>
+          <Text style={styles.simplifyText}>{simplifySummary}</Text>
+          {simplifyOpen && (
+            <>
+              <HelperText>
+                A new expense can change who pays whom, but never how much anyone owes in total.
+                People who already paid each other stay paired, so the list changes as little as it
+                can. Tap Why? on any payment to see the expenses behind it.
+              </HelperText>
+              {edges.length > 0 && (
+                <HelperText>
+                  Total still to move around: {formatMoney(totalOwed, currency)}
+                  {biggest > 0 ? ` · largest single payment ${formatMoney(biggest, currency)}` : ''}
+                </HelperText>
+              )}
+            </>
+          )}
+        </Card>
+      </Pressable>
 
       <SectionTitle
         right={
@@ -349,7 +416,7 @@ export default function BalancesTab({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   viewAllLink: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 13,
@@ -395,9 +462,15 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   hero: {
-    backgroundColor: BrandColors.base400,
-    borderColor: BrandColors.base400,
+    gap: 2,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: BrandColors.base50,
+    borderRadius: 15,
+    padding: Spacing.three,
   },
+  heroGet: { color: BrandColors.success },
+  heroOwe: { color: BrandColors.error },
   heroLabel: {
     fontFamily: 'PlusJakartaSans-Medium',
     fontSize: 12,
@@ -412,12 +485,11 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   edgeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: BrandColors.background,
     borderWidth: 1,
     borderColor: BrandColors.base200,
     borderRadius: 15,
+    overflow: 'hidden',
   },
   settleAll: {
     flexDirection: 'row',
@@ -429,63 +501,76 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
   },
   settleAllText: { flex: 1, gap: 2 },
-  settleAllTitle: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
+  settleAllTitle: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.onBrand },
   settleAllHint: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 12,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   edgeMain: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    padding: Spacing.three,
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.two,
   },
   pressed: {
     opacity: 0.75,
   },
+  avatars: { flexDirection: 'row', alignItems: 'center' },
+  avatarSecond: {
+    marginLeft: -12,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: BrandColors.background,
+  },
   edgeMiddle: {
     flex: 1,
-    gap: 2,
+    gap: 3,
   },
-  edgeText: {
+  namesRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  edgeName: {
+    flexShrink: 1,
     fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 13,
+    fontSize: 15,
     color: BrandColors.primary,
   },
-  whyBtn: {
-    marginRight: Spacing.two,
-    paddingHorizontal: Spacing.one,
-    paddingVertical: Spacing.one,
-  },
-  edgeWaiting: { color: BrandColors.warning },
-  whyLast: { marginRight: Spacing.three },
-  whyText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 11, color: BrandColors.info },
-  remindBtn: {
-    marginRight: Spacing.three,
-    borderWidth: 1,
-    borderColor: BrandColors.border,
-    borderRadius: 12,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-  },
-  remindText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 11, color: BrandColors.primary },
   edgeHint: {
     fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 10,
+    fontSize: 12,
+    lineHeight: 16,
     color: BrandColors.secondary,
   },
-  edgeRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
+  edgeWaiting: { color: BrandColors.warning },
   edgeAmount: {
     fontFamily: 'PlusJakartaSans-ExtraBold',
-    fontSize: 14,
+    fontSize: 17,
     color: BrandColors.primary,
   },
+  edgeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.three,
+    paddingTop: Spacing.one,
+  },
+  actionsRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 6,
+  },
+  chipOutline: { borderWidth: 1, borderColor: BrandColors.border },
+  chipFilled: { backgroundColor: BrandColors.base50 },
+  chipTextFilled: { color: BrandColors.onBrand },
+  chipWhy: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.info },
+  chipText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.primary },
   simplifyCard: {
     backgroundColor: BrandColors.surfaceAlt,
   },
@@ -537,4 +622,4 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: BrandColors.secondary,
   },
-});
+}));

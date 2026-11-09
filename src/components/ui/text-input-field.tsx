@@ -1,7 +1,8 @@
 import { BrandColors } from '@/constants/theme';
 import { Eye, EyeOff, Lock, LucideIcon, Mail } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface UserInputFieldProps {
   title: string;
@@ -154,7 +155,7 @@ export function PasswordField({ title, placeholder, value, onChangeText }: UserI
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   fieldReadOnly: {
     color: BrandColors.primary,
     opacity: 0.7,
@@ -213,4 +214,4 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     minHeight: 96,
   },
-});
+}));

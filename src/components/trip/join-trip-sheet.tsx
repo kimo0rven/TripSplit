@@ -9,7 +9,8 @@ import type { JoinStep } from '@/utils/joinInvite';
 import { formatLongDay } from '@/utils/money';
 import { CalendarDays, Clock, ShieldCheck, Ticket, UserRound } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface JoinTripSheetProps {
   /** The trip behind the code, or null while the sheet is closed. */
@@ -153,7 +154,7 @@ export default function JoinTripSheet({ preview, code, onClose, onJoined }: Join
         <View style={styles.body}>
           <View style={styles.card}>
             <View style={styles.icon}>
-              <Ticket size={22} color={BrandColors.primary} />
+              <Ticket size={22} color={BrandColors.onBrand} />
             </View>
             <Text style={styles.name}>{preview.name}</Text>
             <View style={styles.facts}>
@@ -188,7 +189,7 @@ export default function JoinTripSheet({ preview, code, onClose, onJoined }: Join
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   body: { gap: Spacing.three, paddingBottom: Spacing.three },
   card: {
     alignItems: 'center',
@@ -229,4 +230,4 @@ const styles = StyleSheet.create({
   },
   secondary: { alignSelf: 'center', paddingVertical: Spacing.two },
   secondaryText: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 14, color: BrandColors.info },
-});
+}));

@@ -2,7 +2,8 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { ErrorBoundaryProps } from 'expo-router';
 import { RotateCcw, TriangleAlert } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * What the app shows when a screen throws, instead of the raw developer error.
@@ -33,7 +34,7 @@ export default function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
         accessibilityRole="button"
         accessibilityLabel="Try loading this screen again"
       >
-        <RotateCcw size={16} color={BrandColors.primary} />
+        <RotateCcw size={16} color={BrandColors.onBrand} />
         <Text style={styles.actionText}>Try again</Text>
       </Pressable>
 
@@ -57,7 +58,7 @@ export default function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   page: {
     flex: 1,
     alignItems: 'center',
@@ -102,7 +103,7 @@ const styles = StyleSheet.create({
   actionText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 13,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   detailsToggle: {
     marginTop: Spacing.two,
@@ -127,4 +128,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.secondary,
   },
-});
+}));

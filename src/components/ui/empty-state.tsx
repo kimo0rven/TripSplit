@@ -1,6 +1,7 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { LucideIcon } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface EmptyStateProps {
   icon: LucideIcon;
@@ -20,7 +21,7 @@ export default function EmptyState({
   return (
     <View style={styles.box}>
       <View style={styles.iconCircle}>
-        <Icon size={26} color={BrandColors.primary} />
+        <Icon size={26} color={BrandColors.onBrand} />
       </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.message}>{message}</Text>
@@ -33,7 +34,7 @@ export default function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   box: {
     alignItems: 'center',
     gap: Spacing.two,
@@ -71,6 +72,6 @@ const styles = StyleSheet.create({
   actionText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 13,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
-});
+}));

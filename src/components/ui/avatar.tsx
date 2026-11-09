@@ -3,6 +3,7 @@ import { CAP_CENTER_OFFSET_RATIO } from '@/constants/typography';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface AvatarProps {
   name?: string;
@@ -59,7 +60,7 @@ export default function Avatar({ name, size = 40, photoURL }: AvatarProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   avatar: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -70,4 +71,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
   },
-});
+}));

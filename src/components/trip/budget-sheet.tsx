@@ -6,7 +6,8 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { saveTripBudget } from '@/services/Firebase/settlementService';
 import { formatMoney, parseAmount } from '@/utils/money';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface BudgetSheetProps {
   visible: boolean;
@@ -96,9 +97,9 @@ export default function BudgetSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: {
     gap: Spacing.four,
     paddingBottom: Spacing.four,
   },
-});
+}));

@@ -1,10 +1,11 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { niceCeiling, SettlePoint } from '@/utils/charts';
 import { formatMoney } from '@/utils/money';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Svg, { Line, Polyline } from 'react-native-svg';
 
 import { chartStyles, dayLabel, LegendDot, shortMoney, useChartWidth } from './chart-kit';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface SettleChartProps {
   points: SettlePoint[];
@@ -88,9 +89,9 @@ export default function SettleChart({ points, currency }: SettleChartProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two },
   row: { flexDirection: 'row' },
   axis: { width: AXIS, justifyContent: 'space-between', paddingRight: 4 },
   xLabels: { flexDirection: 'row', justifyContent: 'space-between' },
-});
+}));

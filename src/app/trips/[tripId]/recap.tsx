@@ -13,7 +13,8 @@ import { Trip, TripMember } from '@/types/trips';
 import { shortName } from '@/utils/format';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, RefreshControl, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * The story of a finished trip, on a page of its own.
@@ -122,7 +123,7 @@ export default function TripRecapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -161,4 +162,4 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-});
+}));

@@ -17,7 +17,8 @@ import { shortName } from '@/utils/format';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowUpDown, Scale, Wallet } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 const SORTS = [
   { value: 'newest', label: 'Newest' },
@@ -300,7 +301,7 @@ export default function AllPaymentsScreen() {
           accessibilityRole="button"
           accessibilityLabel="Settle up"
         >
-          <Scale size={22} color={BrandColors.primary} />
+          <Scale size={22} color={BrandColors.onBrand} />
         </Pressable>
       )}
 
@@ -329,7 +330,7 @@ export default function AllPaymentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -411,7 +412,7 @@ const styles = StyleSheet.create({
   },
   pillTextOn: {
     fontFamily: 'PlusJakartaSans-Bold',
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   fab: {
     position: 'absolute',
@@ -436,4 +437,4 @@ const styles = StyleSheet.create({
     color: BrandColors.secondary,
     textAlign: 'center',
   },
-});
+}));

@@ -2,9 +2,10 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { colourFor, DayBar, niceCeiling, OTHER_KEY } from '@/utils/charts';
 import { formatLongDay, formatMoney } from '@/utils/money';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { chartStyles, dayLabel, LegendDot, shortMoney, useChartWidth } from './chart-kit';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface DailyBarsChartProps {
   bars: DayBar[];
@@ -145,7 +146,7 @@ export default function DailyBarsChart({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.three },
   plotRow: { flexDirection: 'row' },
   axis: { width: AXIS_WIDTH, justifyContent: 'space-between', paddingRight: 4 },
@@ -174,4 +175,4 @@ const styles = StyleSheet.create({
   },
   detailTop: { flexDirection: 'row', justifyContent: 'space-between' },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-});
+}));

@@ -1,7 +1,8 @@
-import { BrandColors, Spacing } from '@/constants/theme';
+import { BrandColors, Spacing, isDarkTheme } from '@/constants/theme';
 import { TripMember } from '@/types/trips';
 import { ReactionMap, REACTIONS, reactionRows, toggleReaction } from '@/utils/funExtras';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface ReactionStripProps {
   /** The expense's stored reactions, or undefined when nobody reacted. */
@@ -90,7 +91,7 @@ export default function ReactionStrip({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     gap: Spacing.one,
   },
@@ -120,7 +121,7 @@ const styles = StyleSheet.create({
     color: BrandColors.secondary,
   },
   countMine: {
-    color: BrandColors.base700,
+    color: isDarkTheme() ? BrandColors.onBrand : BrandColors.base700,
   },
   picker: {
     gap: Spacing.one,
@@ -150,4 +151,4 @@ const styles = StyleSheet.create({
   pickEmoji: {
     fontSize: 14,
   },
-});
+}));

@@ -2,7 +2,7 @@ import BackButton from '@/components/Button/back-button';
 import PrimaryButton from '@/components/Button/primary-button';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import ConfirmDialog from '@/components/ui/confirm-dialog';
-import QrCode from '@/components/ui/qr-code';
+import QrCode, { QR_GOLD } from '@/components/ui/qr-code';
 import { TextfieldLeftIcon } from '@/components/ui/text-input-field';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { addFriendByEmail } from '@/services/Firebase/friendService';
@@ -11,15 +11,8 @@ import { buildFriendQr } from '@/utils/qr';
 import { useRouter } from 'expo-router';
 import { Mail, QrCode as QrIcon, UserPlus } from 'lucide-react-native';
 import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function AddFriendScreen() {
   const router = useRouter();
@@ -166,14 +159,14 @@ export default function AddFriendScreen() {
           <Text style={styles.qrHint}>
             Let a friend scan this to send you a request. You still choose whether to accept it.
           </Text>
-          {!!myQrValue && <QrCode value={myQrValue} size={220} color={BrandColors.base700} />}
+          {!!myQrValue && <QrCode value={myQrValue} size={220} color={QR_GOLD} />}
         </View>
       </BottomSheet>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -294,4 +287,4 @@ const styles = StyleSheet.create({
     color: BrandColors.secondary,
     textAlign: 'center',
   },
-});
+}));

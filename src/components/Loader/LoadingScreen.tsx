@@ -1,7 +1,8 @@
 import logo from '@/assets/images/logo_on_yellow.png';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, View } from 'react-native';
 
 import { BrandColors } from '@/constants/theme';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function LoadingScreen() {
   return (
@@ -11,7 +12,7 @@ export default function LoadingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -22,4 +23,4 @@ const styles = StyleSheet.create({
     width: 200,
     height: 54,
   },
-});
+}));

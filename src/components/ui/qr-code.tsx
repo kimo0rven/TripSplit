@@ -1,6 +1,6 @@
-import { BrandColors } from '@/constants/theme';
 import QRCode from 'react-native-qrcode-svg';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface QrCodeProps {
   value: string;
@@ -9,8 +9,17 @@ interface QrCodeProps {
   color?: string;
 }
 
+/**
+ * The squares' colours are fixed, not taken from the theme: the theme's text
+ * colours turn light in dark mode, and light squares on the white card can't
+ * be scanned.
+ */
+export const QR_INK = '#1A1A1A';
+/** The brand gold, dark enough to scan on white. */
+export const QR_GOLD = '#C4900D';
+
 /** A white card with a QR code inside, so it stays scannable on any background. */
-export default function QrCode({ value, size = 200, color = BrandColors.primary }: QrCodeProps) {
+export default function QrCode({ value, size = 200, color = QR_INK }: QrCodeProps) {
   if (!value) return null;
 
   return (
@@ -20,7 +29,7 @@ export default function QrCode({ value, size = 200, color = BrandColors.primary 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     backgroundColor: '#FFFFFF',
     padding: 16,
@@ -28,4 +37,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

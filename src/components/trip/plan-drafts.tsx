@@ -9,7 +9,8 @@ import { formatDay, formatTime, parseDayKey } from '@/utils/money';
 import { Image } from 'expo-image';
 import { AlertTriangle, CalendarDays, Plus, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** A plan typed on the create screen, before the trip exists. */
 export interface DraftPlan {
@@ -290,7 +291,7 @@ export default function PlanDrafts({ plans, onChange, startDate, endDate }: Plan
               disabled={!title.trim() || !chosenDay}
               accessibilityRole="button"
             >
-              <Plus size={16} color={BrandColors.heading} />
+              <Plus size={16} color={BrandColors.onBrand} />
               <Text style={styles.addText}>Add plan</Text>
             </Pressable>
           </View>
@@ -309,7 +310,7 @@ export default function PlanDrafts({ plans, onChange, startDate, endDate }: Plan
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   timeRow: { flexDirection: 'row', gap: Spacing.two },
   timeHalf: { flex: 1 },
   wrap: { gap: Spacing.two },
@@ -334,8 +335,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: BrandColors.base200,
   },
-  planWeekday: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 10, color: BrandColors.primary },
-  planDay: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.heading },
+  planWeekday: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 10, color: BrandColors.onBrand },
+  planDay: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.onBrand },
   planBody: { flex: 1, gap: 2 },
   planTitle: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
   planMeta: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
@@ -373,7 +374,7 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: BrandColors.base50, borderColor: BrandColors.base50 },
   chipSmall: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 10, color: BrandColors.secondary },
   chipBig: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, color: BrandColors.primary },
-  chipTextOn: { color: BrandColors.heading },
+  chipTextOn: { color: BrandColors.onBrand },
   actions: { flexDirection: 'row', gap: Spacing.two },
   cancel: {
     flex: 1,
@@ -396,7 +397,7 @@ const styles = StyleSheet.create({
     backgroundColor: BrandColors.base50,
   },
   addButtonOff: { opacity: 0.45 },
-  addText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.heading },
+  addText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.onBrand },
   addRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -410,4 +411,4 @@ const styles = StyleSheet.create({
   },
   addRowText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
   pressed: { opacity: 0.7 },
-});
+}));

@@ -2,10 +2,10 @@ import { File, Paths } from 'expo-file-system';
 import { Appearance, Platform } from 'react-native';
 
 /**
- * Light, dark, or whatever the phone is set to. The app's colours are fixed
- * when it starts (every screen's styles are built from them once), so the
- * choice is read synchronously here, before any screen loads, and a change
- * takes effect the next time the app opens.
+ * Light, dark, or whatever the phone is set to. The choice is read
+ * synchronously here, before any screen loads, so the first screen already
+ * has the right colours. Changing it later switches the colours straight away
+ * (see `setDarkTheme` in theme.ts).
  */
 export type AppearanceChoice = 'system' | 'light' | 'dark';
 
@@ -44,8 +44,29 @@ export const saveAppearanceChoice = (choice: AppearanceChoice): void => {
   }
 };
 
-/** The choice the app started with, and whether that came out dark. */
-export const startupChoice = readAppearanceChoice();
-export const startedDark =
-  startupChoice === 'dark' ||
-  (startupChoice === 'system' && Appearance.getColorScheme() === 'dark');
+let currentChoice = readAppearanceChoice();
+
+const wantsDark = (choice: AppearanceChoice) =>
+  choice === 'dark' || (choice === 'system' && Appearance.getColorScheme() === 'dark');
+
+/** Whether the app opens in the dark. */
+export const startedDark = wantsDark(currentChoice);
+
+/** The choice in use right now. */
+export const getAppearanceChoice = () => currentChoice;
+
+/** Saves the choice and switches the colours to match, straight away. */
+export const applyAppearanceChoice = (choice: AppearanceChoice): void => {
+  currentChoice = choice;
+  saveAppearanceChoice(choice);
+  // Loaded here, not at the top, because theme.ts reads `startedDark` from this file.
+  require('./theme').setDarkTheme(wantsDark(choice));
+};
+
+/** Keeps "Same as phone" in step with the phone. Returns a stop function. */
+export const followAppearance = (): (() => void) => {
+  const subscription = Appearance.addChangeListener(() => {
+    if (currentChoice === 'system') require('./theme').setDarkTheme(wantsDark('system'));
+  });
+  return () => subscription.remove();
+};

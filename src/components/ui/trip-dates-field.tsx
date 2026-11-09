@@ -5,6 +5,7 @@ import { formatDay, todayKey } from '@/utils/money';
 import { CalendarDays } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripDatesFieldProps {
   /** YYYY-MM-DD, or '' when not set. */
@@ -147,7 +148,7 @@ export default function TripDatesField({ startDate, endDate, onChange }: TripDat
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two },
   title: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
   row: { flexDirection: 'row', gap: Spacing.two },
@@ -204,5 +205,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.two,
   },
-  doneText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.heading },
-});
+  doneText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.onBrand },
+}));

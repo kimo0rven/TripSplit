@@ -1,7 +1,8 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * Where the app lands when PayMongo's return page opens it.
@@ -29,7 +30,7 @@ export default function PayMongoReturn() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   screen: {
     flex: 1,
     alignItems: 'center',
@@ -43,4 +44,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.secondary,
   },
-});
+}));

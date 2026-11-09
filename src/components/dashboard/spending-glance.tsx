@@ -4,7 +4,8 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { Expense } from '@/types/expenses';
 import { categoryLabel } from '@/utils/balance';
 import { formatMoney } from '@/utils/money';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface SpendingGlanceProps {
   expenses: Expense[];
@@ -84,14 +85,19 @@ export default function SpendingGlance({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: { gap: Spacing.two },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
   total: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, color: BrandColors.primary },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  name: { width: 72, fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.primary },
+  name: {
+    width: 72,
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    color: BrandColors.primary,
+  },
   bar: { flex: 1 },
   amount: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 12, color: BrandColors.secondary },
   budget: { gap: Spacing.two },
-});
+}));

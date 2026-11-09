@@ -1,6 +1,6 @@
 import Avatar from '@/components/ui/avatar';
 import { Card, HelperText } from '@/components/ui/card';
-import { BrandColors, Spacing } from '@/constants/theme';
+import { BrandColors, Spacing, isDarkTheme } from '@/constants/theme';
 import { fetchGuesses, saveGuess } from '@/services/Firebase/funService';
 import { saveErrorMessage } from '@/services/offline/offlineStore';
 import { TripMember } from '@/types/trips';
@@ -9,7 +9,8 @@ import { GUESSES_LOCKED_HINT, guessesOpen } from '@/utils/funExtras';
 import { formatMoney, parseAmount } from '@/utils/money';
 import { EyeOff, Target, Trophy } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface GuessCardProps {
   tripId: string;
@@ -189,7 +190,7 @@ export default function GuessCard({
                   accessibilityRole="button"
                 >
                   {busy ? (
-                    <ActivityIndicator size="small" color={BrandColors.primary} />
+                    <ActivityIndicator size="small" color={BrandColors.onBrand} />
                   ) : (
                     <Text style={styles.saveText}>{mine ? 'Update' : 'Lock in'}</Text>
                   )}
@@ -227,7 +228,12 @@ export default function GuessCard({
                       : `${formatMoney(entry.distance, currency)} off`}
                   </Text>
                 </View>
-                {won && <Trophy size={15} color={BrandColors.base700} />}
+                {won && (
+                  <Trophy
+                    size={15}
+                    color={isDarkTheme() ? BrandColors.onBrand : BrandColors.base700}
+                  />
+                )}
                 <Text style={styles.guess}>{formatMoney(entry.guess, currency)}</Text>
               </View>
             );
@@ -245,7 +251,7 @@ export default function GuessCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     backgroundColor: BrandColors.surfaceAlt,
     gap: Spacing.two,
@@ -306,7 +312,7 @@ const styles = StyleSheet.create({
   saveText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 13,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   list: {
     gap: Spacing.one,
@@ -363,4 +369,4 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.6,
   },
-});
+}));

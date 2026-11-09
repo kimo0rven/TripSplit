@@ -25,6 +25,7 @@ import { computeBalances, countsTowardBalance, simplifyDebts } from '@/utils/bal
 import { coverageFor, previewCoverage } from '@/utils/coverage';
 import { formatMoney, parseAmount, todayKey } from '@/utils/money';
 import { choiceFor, PAYMENT_CHOICES, storedPayment } from '@/utils/paymentMethod';
+import { payMethodTitle } from '@/utils/payDetails';
 import {
   amountFor,
   amountProblem,
@@ -38,7 +39,8 @@ import {
   type AmountChoice,
 } from '@/utils/settle';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** The clock, read only when a payment is about to be saved. */
 const nowMs = () => Date.now();
@@ -100,6 +102,8 @@ export default function SettleSheet({
   const [method, setMethod] = useState<MethodKey>('cash');
   /** Kept as is, so editing an older GCash or bank payment does not lose its name. */
   const [savedMethod, setSavedMethod] = useState('');
+  /** Which of the payee's accounts the transfer went to. */
+  const [accountId, setAccountId] = useState('');
   const [proofUris, setProofUris] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -140,8 +144,9 @@ export default function SettleSheet({
       setTyped(picked === 'custom' ? String(settlement.amount) : '');
       setNote(settlement.note ?? '');
       const saved = choiceFor({ isCash: settlement.isCash, method: settlement.method });
-      setMethod(saved && !saved.cash ? 'other' : 'cash');
+      setMethod(saved && !saved.cash ? 'transfer' : 'cash');
       setSavedMethod(saved && !saved.cash ? (settlement.method ?? '') : '');
+      setAccountId('');
       setProofUris(settlement.proofUrls ?? []);
     } else {
       const fallback = preselect?.to ? null : debtsWithMe(edges, currentUserId)[0];
@@ -156,9 +161,10 @@ export default function SettleSheet({
       setChoice(picked);
       setTyped(picked === 'custom' && start > 0 ? String(start) : '');
       setNote('');
-      // Cash is the everyday case; switching to Other brings up PayMongo.
+      // Cash is the everyday case; Transfer shows the payee's accounts.
       setMethod('cash');
       setSavedMethod('');
+      setAccountId('');
       setProofUris([]);
     }
     setError('');
@@ -170,8 +176,8 @@ export default function SettleSheet({
 
   // A checkout left unfinished last time brings the sheet straight back to it.
   useEffect(() => {
-    if (visible && !settlement && checkout.pending) setMethod('other');
-  }, [visible, settlement, checkout.pending]);
+    if (visible && !settlement && checkout.pending && from === currentUserId) setMethod('online');
+  }, [visible, settlement, checkout.pending, from, currentUserId]);
 
   const memberOf = (id: string) => members.find((member) => member.id === id);
   const nameOf = (id: string) => memberOf(id)?.fullname ?? 'Member';
@@ -221,8 +227,8 @@ export default function SettleSheet({
    * "Other" on a new payment, made by you, means paying through PayMongo here -
    * when PayMongo is switched on. Off, Other is recorded like cash, with proof.
    */
-  const onlineAvailable = payMongoConfigured();
-  const payOnline = onlineAvailable && !settlement && method === 'other' && from === currentUserId;
+  const onlineAvailable = payMongoConfigured() && !settlement && from === currentUserId;
+  const payOnline = onlineAvailable && method === 'online';
   const checkingPending = payOnline && !!checkout.pending;
 
   const problemNow = () =>
@@ -366,8 +372,9 @@ export default function SettleSheet({
     }
 
     const paid = storedPayment(PAYMENT_CHOICES[method === 'cash' ? 0 : 1], savedMethod);
-    // A non-cash payment must name how it was paid; "Other" is the honest answer.
-    if (!paid.isCash && !paid.method) paid.method = 'Other';
+    // A non-cash payment must name how it was paid: the account picked
+    // ("GCash", "BPI"), or simply "Transfer" when they have none saved.
+    if (!paid.isCash && !paid.method) paid.method = 'Transfer';
 
     setSaving(true);
     try {
@@ -490,7 +497,15 @@ export default function SettleSheet({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scroll}
       >
-        <PartiesHeader headline={headline} payer={personOf(from)} payee={personOf(to)} />
+        <PartiesHeader
+          headline={headline}
+          payer={personOf(from)}
+          payee={personOf(to)}
+          amount={amount}
+          owed={debt}
+          pending={pendingNow}
+          currency={currency}
+        />
 
         {!locked && myDebts.length > 1 && (
           <DebtSwitcher
@@ -499,6 +514,7 @@ export default function SettleSheet({
             to={to}
             currency={currency}
             labelOf={labelOf}
+            personOf={personOf}
             onPick={pickDebt}
           />
         )}
@@ -547,12 +563,34 @@ export default function SettleSheet({
           currency={currency}
           checkout={checkout}
           pendingPayee={checkout.pending ? labelOf(checkout.pending.to) : ''}
+          payeeLabel={to === currentUserId ? 'you' : labelOf(to)}
+          accounts={
+            to ? (
+              <PayToCard
+                tripId={tripId}
+                payeeId={to}
+                payeeLabel={labelOf(to)}
+                isYou={to === currentUserId}
+                compact
+                noTitle
+                selectedId={accountId}
+                onSelect={(account) => {
+                  setAccountId(account.id);
+                  setSavedMethod(payMethodTitle(account));
+                }}
+                onLoaded={(accounts) => {
+                  // An edited payment starts on the account it named; a new
+                  // one on the payee's first account (or none, when they have none).
+                  const match = settlement
+                    ? accounts.find((account) => payMethodTitle(account) === savedMethod)
+                    : accounts[0];
+                  setAccountId(match?.id ?? '');
+                  if (match || !settlement) setSavedMethod(match ? payMethodTitle(match) : '');
+                }}
+              />
+            ) : null
+          }
         />
-
-        {/* Their GCash, Maya or bank details, when you are the one paying. */}
-        {!settlement && !payOnline && from === currentUserId && !!to && (
-          <PayToCard tripId={tripId} payeeId={to} payeeLabel={labelOf(to)} />
-        )}
 
         {/* PayMongo keeps its own receipt, so there is no photo to add. */}
         {!payOnline && <ProofPicker uris={proofUris} onChange={setProofUris} onError={setError} />}
@@ -570,9 +608,9 @@ export default function SettleSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scroll: {
     gap: Spacing.four,
     paddingBottom: Spacing.four,
   },
-});
+}));

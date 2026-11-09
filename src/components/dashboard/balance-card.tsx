@@ -1,7 +1,8 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { formatMoney } from '@/utils/money';
 import { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface BalanceCardProps {
   net: number;
@@ -50,7 +51,7 @@ export default function BalanceCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -90,4 +91,4 @@ const styles = StyleSheet.create({
     color: BrandColors.secondary,
     marginTop: 2,
   },
-});
+}));

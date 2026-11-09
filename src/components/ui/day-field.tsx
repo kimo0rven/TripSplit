@@ -4,6 +4,7 @@ import { formatDay, todayKey } from '@/utils/money';
 import { CalendarDays } from 'lucide-react-native';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface DayFieldProps {
   label: string;
@@ -82,7 +83,7 @@ export default function DayField({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   tile: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -121,4 +122,4 @@ const styles = StyleSheet.create({
     color: BrandColors.heading,
     textAlign: 'center',
   },
-});
+}));

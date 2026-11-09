@@ -1,4 +1,5 @@
 import { readPath, writeUpdates } from '@/services/offline/offlineStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
@@ -17,6 +18,28 @@ if (supported) {
       shouldSetBadge: false,
     }),
   });
+}
+
+/** This phone's push address, so signing out can take it off the account. */
+const PHONE_TOKEN_KEY = 'tripsplit.pushToken';
+
+/**
+ * Stops pushes for this account reaching this phone, before signing out.
+ * Without it, the next person to sign in on the phone would get the last
+ * person's notifications. Only clears the account's token when it is this
+ * phone's, so signing out of an old phone doesn't silence the new one.
+ */
+export async function forgetPushToken(userId: string): Promise<void> {
+  if (!supported || !userId) return;
+  try {
+    const mine = await AsyncStorage.getItem(PHONE_TOKEN_KEY);
+    if (!mine) return;
+    const stored = await readPath('userPrivate/' + userId + '/pushToken', { preferCache: false });
+    if (stored === mine) await writeUpdates({ ['userPrivate/' + userId + '/pushToken']: null });
+    await AsyncStorage.removeItem(PHONE_TOKEN_KEY);
+  } catch (error) {
+    console.warn('Could not remove the push address:', error);
+  }
 }
 
 /** What happened when the app tried to turn on push for this phone. */
@@ -65,6 +88,7 @@ export async function registerPushToken(
     // Kept private: only the server reads it, to send this person pushes.
     const stored = await readPath('userPrivate/' + userId + '/pushToken');
     if (stored !== data) await writeUpdates({ ['userPrivate/' + userId + '/pushToken']: data });
+    await AsyncStorage.setItem(PHONE_TOKEN_KEY, data).catch(() => {});
     return 'granted';
   } catch (error) {
     // Push is a nicety; a phone that cannot register just gets reminders by message.

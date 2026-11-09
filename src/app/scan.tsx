@@ -24,6 +24,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function ScanScreen() {
   const router = useRouter();
@@ -248,7 +249,7 @@ export default function ScanScreen() {
 
         <View style={styles.permissionBox}>
           <View style={styles.iconWrapper}>
-            <ScanLine size={32} color={BrandColors.primary} />
+            <ScanLine size={32} color={BrandColors.onBrand} />
           </View>
           <Text style={styles.permissionTitle}>Camera access needed</Text>
           <Text style={styles.permissionText}>
@@ -398,7 +399,7 @@ export default function ScanScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: {
     flex: 1,
     backgroundColor: BrandColors.inputField,
@@ -596,4 +597,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: Spacing.two,
   },
-});
+}));

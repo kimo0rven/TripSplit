@@ -24,7 +24,8 @@ import {
   Wallet,
 } from 'lucide-react-native';
 import { ReactNode, useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripRecapProps {
   trip: Trip;
@@ -460,7 +461,7 @@ function Standing({ net, currency }: { net: number; currency: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.three },
 
   banner: {
@@ -700,4 +701,4 @@ const styles = StyleSheet.create({
     color: BrandColors.primary,
     textAlign: 'right',
   },
-});
+}));

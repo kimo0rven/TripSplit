@@ -1,6 +1,7 @@
 import back from '@/assets/images/back-button.png';
-import { Spacing } from '@/constants/theme';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { isDarkTheme, Spacing } from '@/constants/theme';
+import { Image, Pressable, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function BackButton({ onPress }: { onPress: () => void }) {
   return (
@@ -12,12 +13,14 @@ export default function BackButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   button: {
     padding: Spacing.two,
   },
   image: {
     width: 30,
     height: 30,
+    // The arrow picture is dark; in dark mode it is drawn white instead.
+    ...(isDarkTheme() ? { tintColor: '#FFFFFF' } : null),
   },
-});
+}));

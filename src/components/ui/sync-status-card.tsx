@@ -2,7 +2,8 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { useOffline } from '@/services/offline/OfflineProvider';
 import { CloudOff, RefreshCw } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * Connection and sync status, shown on the profile instead of a strip across
@@ -90,7 +91,7 @@ export default function SyncStatusCard() {
   const tone = !online
     ? { bg: BrandColors.warningBg, fg: BrandColors.warning }
     : pendingWrites > 0
-      ? { bg: BrandColors.base200, fg: BrandColors.heading }
+      ? { bg: BrandColors.base200, fg: BrandColors.onBrand }
       : { bg: BrandColors.successBg, fg: BrandColors.success };
 
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
@@ -119,7 +120,7 @@ export default function SyncStatusCard() {
         style={({ pressed }) => [styles.button, (pressed || syncing) && styles.buttonPressed]}
       >
         <Animated.View style={{ transform: [{ rotate }] }}>
-          <RefreshCw size={16} color={BrandColors.heading} />
+          <RefreshCw size={16} color={BrandColors.onBrand} />
         </Animated.View>
         <Text style={styles.buttonText}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
       </Pressable>
@@ -139,7 +140,7 @@ export default function SyncStatusCard() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     backgroundColor: BrandColors.surfaceAlt,
     borderWidth: 1,
@@ -190,7 +191,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 14,
-    color: BrandColors.heading,
+    color: BrandColors.onBrand,
   },
   note: {
     fontFamily: 'PlusJakartaSans-Regular',
@@ -204,4 +205,4 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: BrandColors.error,
   },
-});
+}));

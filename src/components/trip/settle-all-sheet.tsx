@@ -2,6 +2,7 @@ import PrimaryButton from '@/components/Button/primary-button';
 import Avatar from '@/components/ui/avatar';
 import BottomSheet from '@/components/ui/bottom-sheet';
 import { HelperText } from '@/components/ui/card';
+import { PayToCard } from '@/components/trip/settle/pay-to-card';
 import TabSlider from '@/components/ui/tab-slider';
 import { TextField } from '@/components/ui/text-input-field';
 import { BrandColors, Spacing } from '@/constants/theme';
@@ -15,11 +16,12 @@ import { formatMoney, todayKey } from '@/utils/money';
 import { debtBetween, pendingBetween } from '@/utils/settle';
 import { Check } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 const METHOD_TABS = [
   { key: 'cash', label: 'Cash' },
-  { key: 'other', label: 'Other' },
+  { key: 'other', label: 'Transfer' },
 ] as const;
 
 interface SettleAllSheetProps {
@@ -143,7 +145,7 @@ export default function SettleAllSheet({
             kind: 'full',
             settledOn: todayKey(),
             isCash: method === 'cash',
-            ...(method === 'other' ? { method: 'Other' } : {}),
+            ...(method === 'other' ? { method: 'Transfer' } : {}),
             proofUrls: [],
             note: note.trim(),
             createdBy: currentUserId,
@@ -211,7 +213,7 @@ export default function SettleAllSheet({
                 accessibilityLabel={`Pay ${nameOf(edge.to)} ${money(edge.amount)}`}
               >
                 <View style={[styles.box, on && styles.boxOn]}>
-                  {on && <Check size={14} color={BrandColors.primary} strokeWidth={3} />}
+                  {on && <Check size={14} color={BrandColors.onBrand} strokeWidth={3} />}
                 </View>
                 <Avatar name={nameOf(edge.to)} size={34} photoURL={photoOf(edge.to)} />
                 <Text style={styles.name} numberOfLines={1}>
@@ -229,9 +231,21 @@ export default function SettleAllSheet({
           <HelperText>
             {method === 'cash'
               ? 'Paid in cash. Each person confirms they received theirs.'
-              : 'Paid another way, like GCash or a bank transfer. Each person confirms theirs.'}
+              : 'Sent to each person’s GCash, Maya or bank account, below. Each person confirms theirs.'}
           </HelperText>
         </View>
+
+        {/* Each person's GCash, Maya or bank details, to send the money to. */}
+        {method === 'other' &&
+          chosen.map((edge) => (
+            <PayToCard
+              key={edge.to}
+              tripId={tripId}
+              payeeId={edge.to}
+              payeeLabel={nameOf(edge.to).split(' ')[0]}
+              compact
+            />
+          ))}
 
         <TextField
           title="Note (optional)"
@@ -246,7 +260,7 @@ export default function SettleAllSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   body: { gap: Spacing.four, paddingBottom: Spacing.four },
   lead: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 14, color: BrandColors.primary },
   list: { gap: Spacing.two },
@@ -275,4 +289,4 @@ const styles = StyleSheet.create({
   amount: { fontFamily: 'PlusJakartaSans-ExtraBold', fontSize: 14, color: BrandColors.primary },
   section: { gap: Spacing.two },
   sectionTitle: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
-});
+}));

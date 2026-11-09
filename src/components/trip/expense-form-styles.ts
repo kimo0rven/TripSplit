@@ -1,12 +1,12 @@
 import { BrandColors, Spacing } from '@/constants/theme';
-import { StyleSheet } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * Styles shared by the expense form and the two sections pulled out of it
  * (who paid, who shares the cost). Kept in one place so the three files
  * cannot drift apart.
  */
-export const styles = StyleSheet.create({
+export const styles = themedStyles(() => ({
   scroll: { gap: Spacing.four, paddingBottom: Spacing.four },
   repeatHint: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
   itemTotal: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 22, color: BrandColors.primary },
@@ -210,4 +210,4 @@ export const styles = StyleSheet.create({
   whenDay: { flex: 3 },
   whenTime: { flex: 2 },
   fxCredit: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 10, color: BrandColors.secondary },
-});
+}));

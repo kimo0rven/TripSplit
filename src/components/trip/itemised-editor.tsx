@@ -7,7 +7,8 @@ import { TripMember } from '@/types/trips';
 import { formatMoney } from '@/utils/money';
 import { Plus, X } from 'lucide-react-native';
 import { Dispatch, SetStateAction } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export interface DraftItem {
   id: string;
@@ -112,7 +113,7 @@ export default function ItemisedEditor({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   group: {
     gap: Spacing.two,
   },
@@ -160,4 +161,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.info,
   },
-});
+}));

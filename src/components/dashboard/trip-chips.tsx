@@ -3,7 +3,8 @@ import { Trip } from '@/types/trips';
 import { shortName } from '@/utils/format';
 import { todayKey } from '@/utils/money';
 import { Plus } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, Text } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripChipsProps {
   trips: Trip[];
@@ -53,7 +54,7 @@ export default function TripChips({ trips, activeId, onSelect, onNew }: TripChip
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: { gap: Spacing.two, paddingVertical: Spacing.one },
   chip: {
     flexDirection: 'row',
@@ -70,4 +71,4 @@ const styles = StyleSheet.create({
   newChip: { borderStyle: 'dashed' },
   text: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, color: BrandColors.primary },
   textActive: { color: BrandColors.background },
-});
+}));

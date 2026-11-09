@@ -2,7 +2,8 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { DEFAULT_TRIP_COLOR, TRIP_ICON_COLORS } from '@/constants/trip-colors';
 import { DEFAULT_TRIP_ICON, TRIP_ICONS, type TripIconChoice } from '@/constants/trip-icons';
 import { Check } from 'lucide-react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** Six icons to a line, so the 18 icons make three tidy rows. */
 const ICON_COLUMNS = 6;
@@ -68,7 +69,7 @@ export default function TripIconPicker({
                 >
                   <Icon
                     size={22}
-                    color={isOn ? BrandColors.primary : BrandColors.secondary}
+                    color={isOn ? BrandColors.onBrand : BrandColors.secondary}
                     strokeWidth={2}
                   />
                 </Pressable>
@@ -107,7 +108,7 @@ export default function TripIconPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrapper: {
     gap: Spacing.three,
   },
@@ -145,4 +146,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

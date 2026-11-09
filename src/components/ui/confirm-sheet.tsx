@@ -1,8 +1,9 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Lock, LogOut, Trash2, UserMinus } from 'lucide-react-native';
 import { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import BottomSheet from './bottom-sheet';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** The small red badge at the top of the sheet, chosen to match the action. */
 export type ConfirmIcon = 'delete' | 'remove' | 'leave' | 'lock';
@@ -100,7 +101,7 @@ export default function ConfirmSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   body: {
     alignItems: 'center',
     gap: Spacing.three,
@@ -153,4 +154,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: BrandColors.primary,
   },
-});
+}));

@@ -1,7 +1,8 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { useOffline } from '@/services/offline/OfflineProvider';
 import { CloudOff, RefreshCw } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** Only visible when offline or changes are still waiting to upload. */
 export default function SyncChip() {
@@ -21,7 +22,7 @@ export default function SyncChip() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -31,4 +32,4 @@ const styles = StyleSheet.create({
     padding: Spacing.two,
   },
   text: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 12, color: BrandColors.primary },
-});
+}));

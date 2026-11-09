@@ -1,7 +1,8 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { BarChart3, Receipt } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function QuickLinks() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function QuickLinks() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: { flexDirection: 'row', gap: Spacing.two },
   link: {
     flex: 1,
@@ -40,4 +41,4 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
   },
   text: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, color: BrandColors.primary },
-});
+}));

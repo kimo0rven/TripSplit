@@ -5,7 +5,8 @@ import { TripMember } from '@/types/trips';
 import { formatMoney } from '@/utils/money';
 import { remindDebtor } from '@/services/reminders/push';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface DebtsListProps {
   edges: DebtEdge[];
@@ -102,7 +103,7 @@ export default function DebtsList({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   embedded: {
     borderWidth: 0,
     borderRadius: 0,
@@ -141,5 +142,5 @@ const styles = StyleSheet.create({
   actionPay: { backgroundColor: BrandColors.base500, borderColor: BrandColors.base500 },
   actionPressed: { opacity: 0.75 },
   actionText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, color: BrandColors.primary },
-  actionTextPay: { color: BrandColors.heading },
-});
+  actionTextPay: { color: BrandColors.onBrand },
+}));

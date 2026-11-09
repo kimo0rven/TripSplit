@@ -1,7 +1,8 @@
 import BackButton from '@/components/Button/back-button';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripScreenHeaderProps {
   title: string;
@@ -39,7 +40,7 @@ export default function TripScreenHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   outer: {
     width: '100%',
     maxWidth: MaxContentWidth,
@@ -87,4 +88,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.one,
   },
-});
+}));

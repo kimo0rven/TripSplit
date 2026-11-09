@@ -1,5 +1,14 @@
 import { auth } from '@/config/firebase';
-import { newId, readPath, removeAt, writeAt, writeUpdates } from '@/services/offline/offlineStore';
+import {
+  afterFlush,
+  isWritePending,
+  newId,
+  readPath,
+  removeAt,
+  writeAt,
+  writeUpdates,
+} from '@/services/offline/offlineStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { callServer, hasServer } from '@/services/server/appServer';
 
 export type NoticeType =
@@ -160,11 +169,17 @@ export async function notify(
       createdAt: new Date().toISOString(),
       read: false,
     };
-    await writeAt('notifications/' + toUserId + '/' + notice.id, notice);
+    const { queued } = await writeAt('notifications/' + toUserId + '/' + notice.id, notice);
 
     // Their push token and settings are private, so the server sends the push.
     // It reads the notice just written, so it can only push what the rules let in.
     const wantsPush = options.push !== false && toUserId !== me;
+    if (wantsPush && queued) {
+      // Offline: the notice is still on this phone, so the server can't see
+      // it yet. The push goes out once the notice has been sent.
+      await rememberPush(toUserId, notice.id);
+      return 'inbox';
+    }
     if (wantsPush && hasServer()) {
       const { status } = await callServer<{ status: NotifyResult }>('/push', {
         to: toUserId,
@@ -178,6 +193,59 @@ export async function notify(
     return 'failed';
   }
 }
+
+const PUSH_QUEUE_KEY = 'tripsplit.pendingPushes';
+/** A push older than this is stale news by the time it would arrive. */
+const PUSH_MAX_AGE_MS = 2 * 86_400_000;
+
+interface PendingPush {
+  to: string;
+  noticeId: string;
+  at: number;
+}
+
+const loadPushes = async (): Promise<PendingPush[]> => {
+  try {
+    const raw = await AsyncStorage.getItem(PUSH_QUEUE_KEY);
+    return raw ? (JSON.parse(raw) as PendingPush[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const rememberPush = async (to: string, noticeId: string) => {
+  const list = await loadPushes();
+  list.push({ to, noticeId, at: Date.now() });
+  await AsyncStorage.setItem(PUSH_QUEUE_KEY, JSON.stringify(list.slice(-200))).catch(() => {});
+};
+
+let sendingPushes = false;
+
+/** Sends the pushes for notices written offline, once those notices are online. */
+export async function sendQueuedPushes(): Promise<void> {
+  if (sendingPushes || !hasServer() || !auth.currentUser) return;
+  sendingPushes = true;
+  try {
+    const list = await loadPushes();
+    const keep: PendingPush[] = [];
+    for (const item of list) {
+      if (Date.now() - item.at > PUSH_MAX_AGE_MS) continue;
+      // Still waiting in the offline queue: try again after the next send.
+      if (await isWritePending('notifications/' + item.to + '/' + item.noticeId)) {
+        keep.push(item);
+        continue;
+      }
+      await callServer('/push', { to: item.to, noticeId: item.noticeId }).catch(() => undefined);
+    }
+    await AsyncStorage.setItem(PUSH_QUEUE_KEY, JSON.stringify(keep)).catch(() => {});
+  } finally {
+    sendingPushes = false;
+  }
+}
+
+afterFlush(() => {
+  void sendQueuedPushes();
+});
 
 /** Notifies several people at once, never the person who caused it. */
 export async function notifyMany(

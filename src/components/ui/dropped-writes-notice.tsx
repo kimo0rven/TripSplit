@@ -2,7 +2,8 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { useOffline } from '@/services/offline/OfflineProvider';
 import { TriangleAlert } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * A short strip that appears at the top of any screen that asks to show it,
@@ -54,7 +55,7 @@ export default function DroppedWritesNotice() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -76,4 +77,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.error,
   },
-});
+}));

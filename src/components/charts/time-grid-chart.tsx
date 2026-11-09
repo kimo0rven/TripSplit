@@ -2,9 +2,10 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { DAY_PARTS, TimeGrid } from '@/utils/charts';
 import { formatLongDay, formatMoney } from '@/utils/money';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { chartStyles, dayLabel } from './chart-kit';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TimeGridChartProps {
   grid: TimeGrid;
@@ -97,7 +98,7 @@ export default function TimeGridChart({ grid, days, currency }: TimeGridChartPro
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two },
   row: { flexDirection: 'row' },
   labels: { width: 66, gap: 4 },
@@ -109,4 +110,4 @@ const styles = StyleSheet.create({
   cell: { width: CELL, height: CELL, borderRadius: 6 },
   cellEmpty: { backgroundColor: BrandColors.inputField },
   cellPicked: { borderWidth: 2, borderColor: BrandColors.primary },
-});
+}));

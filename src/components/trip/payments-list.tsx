@@ -14,7 +14,8 @@ import { Image } from 'expo-image';
 import { ArrowRight, History, Pencil } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface PaymentsListProps {
   settlements: Settlement[];
@@ -322,7 +323,7 @@ export default function PaymentsList({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   list: { gap: Spacing.two },
   groupedList: { gap: Spacing.three },
   day: { gap: Spacing.two },
@@ -344,7 +345,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one,
   },
-  confirmText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.primary },
+  confirmText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.onBrand },
   declineBtn: {
     borderWidth: 1,
     borderColor: BrandColors.error,
@@ -444,4 +445,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.success,
   },
-});
+}));

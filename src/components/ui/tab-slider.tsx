@@ -1,6 +1,6 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { useEffect, useState } from 'react';
-import { LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
+import { LayoutChangeEvent, Pressable, View } from 'react-native';
 import Animated, {
   Easing,
   interpolateColor,
@@ -8,6 +8,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { themedStyles } from '@/constants/themed-styles';
 
 export type TabSliderItem<K extends string> = { key: K; label: string };
 
@@ -108,7 +109,7 @@ function TabLabel({
   }, [activeIndex, highlight, index]);
 
   const labelStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(highlight.value, [0, 1], [BrandColors.secondary, BrandColors.primary]),
+    color: interpolateColor(highlight.value, [0, 1], [BrandColors.secondary, BrandColors.onBrand]),
   }));
 
   const weightStyle = isActive ? styles.labelOn : styles.labelOff;
@@ -128,7 +129,7 @@ function TabLabel({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   track: {
     flexDirection: 'row',
     backgroundColor: BrandColors.surfaceAlt,
@@ -161,4 +162,4 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
   },
-});
+}));

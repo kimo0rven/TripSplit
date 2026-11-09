@@ -8,7 +8,8 @@ import { RESEND_COOLDOWN_SECONDS, verificationProblem } from '@/utils/verificati
 import { useLocalSearchParams } from 'expo-router';
 import { MailCheck } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** How often the screen quietly checks, so verifying on another device moves on by itself. */
 const AUTO_CHECK_MS = 6000;
@@ -98,7 +99,7 @@ export default function VerifyEmailScreen() {
     <ThemedView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.badge}>
-          <MailCheck size={36} color={BrandColors.primary} strokeWidth={2} />
+          <MailCheck size={36} color={BrandColors.onBrand} strokeWidth={2} />
         </View>
 
         <View style={styles.texts}>
@@ -166,7 +167,7 @@ export default function VerifyEmailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -262,4 +263,4 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.7,
   },
-});
+}));

@@ -2,10 +2,11 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { colourFor, DonutSlice, OTHER_COLOUR, OTHER_KEY } from '@/utils/charts';
 import { formatMoney } from '@/utils/money';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { chartStyles } from './chart-kit';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface CategoryDonutProps {
   slices: DonutSlice[];
@@ -107,7 +108,7 @@ export default function CategoryDonut({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   ring: { width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' },
   centre: { position: 'absolute', alignItems: 'center', maxWidth: SIZE - THICK * 2 - 8 },
@@ -128,4 +129,4 @@ const styles = StyleSheet.create({
   },
   legendNumbers: { alignItems: 'flex-end' },
   legendPercent: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.primary },
-});
+}));

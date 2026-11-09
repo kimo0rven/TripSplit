@@ -32,8 +32,9 @@ import {
   X,
 } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { themedStyles } from '@/constants/themed-styles';
 
 const ICONS: Record<NoticeType, LucideIcon> = {
   tripInvites: Users,
@@ -153,7 +154,7 @@ export default function NotificationsScreen() {
                 <View key={notice.id} style={styles.rowWrap}>
                   <Pressable style={styles.row} onPress={() => open(notice)}>
                     <View style={styles.iconCircle}>
-                      <Icon size={18} color={BrandColors.primary} />
+                      <Icon size={18} color={BrandColors.onBrand} />
                     </View>
                     <View style={styles.text}>
                       <Text style={styles.title}>{notice.title}</Text>
@@ -181,7 +182,7 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1, backgroundColor: BrandColors.background },
   header: {
     flexDirection: 'row',
@@ -222,4 +223,4 @@ const styles = StyleSheet.create({
   title: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
   body: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 13, color: BrandColors.primary },
   time: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 11, color: BrandColors.secondary },
-});
+}));

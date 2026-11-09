@@ -8,7 +8,8 @@ import { formatMoney } from '@/utils/money';
 import { shortName } from '@/utils/format';
 import { ChevronRight, Trash2, Wallet } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface FriendSheetProps {
   visible: boolean;
@@ -255,7 +256,7 @@ export default function FriendSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   content: {
     gap: Spacing.three,
     paddingBottom: Spacing.four,
@@ -398,4 +399,4 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     color: BrandColors.secondary,
   },
-});
+}));

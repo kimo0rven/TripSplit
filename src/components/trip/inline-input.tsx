@@ -1,5 +1,6 @@
 import { BrandColors } from '@/constants/theme';
-import { StyleSheet, TextInput } from 'react-native';
+import { TextInput } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** A small bordered-free input used inside rows: numbers by default, or plain text. */
 export default function TextInputInline({
@@ -25,7 +26,7 @@ export default function TextInputInline({
   );
 }
 
-const inlineStyles = StyleSheet.create({
+const inlineStyles = themedStyles(() => ({
   input: {
     flex: 1,
     // Without minWidth a web text box refuses to shrink below its default
@@ -38,4 +39,4 @@ const inlineStyles = StyleSheet.create({
     textAlign: 'right',
     fontFamily: 'PlusJakartaSans-Medium',
   },
-});
+}));

@@ -1,7 +1,7 @@
 import MemberFaces from '@/components/ui/member-faces';
 import TripIcon from '@/components/ui/trip-icon';
 import { findTripColor } from '@/constants/trip-colors';
-import { BrandColors, Spacing } from '@/constants/theme';
+import { BrandColors, Spacing, isDarkTheme } from '@/constants/theme';
 import type { Trip, TripMember } from '@/types/trips';
 import { shortName } from '@/utils/format';
 import { formatMoney } from '@/utils/money';
@@ -14,7 +14,8 @@ import {
   MoreHorizontal,
   Star,
 } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripListCardProps {
   trip: Trip;
@@ -52,6 +53,9 @@ export default function TripListCard({
   onMore,
 }: TripListCardProps) {
   const palette = findTripColor(trip.iconColor);
+  // The trip colour's dark ink is unreadable on a dark card; there its soft
+  // light shade is used instead.
+  const accent = isDarkTheme() ? palette.background : palette.foreground;
   const currency = trip.currency || 'PHP';
   const when = tripTimeLabel(trip, today);
   const finished = when === 'Finished';
@@ -92,7 +96,7 @@ export default function TripListCard({
               <View style={styles.tags}>
                 {isActive && (
                   <View style={[styles.tag, styles.tagActive]}>
-                    <Star size={10} color={BrandColors.heading} fill={BrandColors.heading} />
+                    <Star size={10} color={BrandColors.onBrand} fill={BrandColors.onBrand} />
                     <Text style={[styles.tagText, styles.tagTextActive]}>On dashboard</Text>
                   </View>
                 )}
@@ -113,12 +117,9 @@ export default function TripListCard({
                   {finished ? (
                     <CheckCircle2 size={12} color={BrandColors.secondary} />
                   ) : (
-                    <Clock3 size={12} color={palette.foreground} />
+                    <Clock3 size={12} color={accent} />
                   )}
-                  <Text
-                    style={[styles.when, !finished && { color: palette.foreground }]}
-                    numberOfLines={1}
-                  >
+                  <Text style={[styles.when, !finished && { color: accent }]} numberOfLines={1}>
                     {when}
                   </Text>
                   <Text style={styles.dot}>·</Text>
@@ -172,7 +173,7 @@ export default function TripListCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     position: 'relative',
   },
@@ -235,7 +236,7 @@ const styles = StyleSheet.create({
     color: BrandColors.secondary,
   },
   tagTextActive: {
-    color: BrandColors.heading,
+    color: BrandColors.onBrand,
   },
   name: {
     fontFamily: 'PlusJakartaSans-Bold',
@@ -305,4 +306,4 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     backgroundColor: BrandColors.inputField,
   },
-});
+}));

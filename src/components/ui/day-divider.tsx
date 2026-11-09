@@ -1,5 +1,6 @@
 import { BrandColors, Spacing } from '@/constants/theme';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface DayDividerProps {
   /** "Today", "Yesterday", or a date like "Oct 21, 2026". */
@@ -31,7 +32,7 @@ export default function DayDivider({ label, total, count }: DayDividerProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -58,4 +59,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.primary,
   },
-});
+}));

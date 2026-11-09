@@ -36,7 +36,8 @@ import { useRouter } from 'expo-router';
 import { Bell, Settings } from 'lucide-react-native';
 import { useUnreadCount } from '@/services/notifications/useUnreadCount';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** What the receipt button is asking, when it is asking anything. */
 type ReceiptStep = 'source' | null;
@@ -555,7 +556,7 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scrollContent: {
     flexGrow: 1,
     backgroundColor: BrandColors.background,
@@ -629,4 +630,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.error,
   },
-});
+}));

@@ -10,7 +10,8 @@ import { groupByDay } from '@/utils/listGrouping';
 import { memberLookup } from '@/utils/memberLookup';
 import { dayHeading, formatDayTime, formatMoney } from '@/utils/money';
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface ExpenseCardsProps {
   expenses: Expense[];
@@ -181,7 +182,7 @@ function payerLabelOf(
   return others > 0 ? `${first} +${others}` : first;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   list: {
     gap: Spacing.two,
   },
@@ -257,4 +258,4 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: BrandColors.secondary,
   },
-});
+}));

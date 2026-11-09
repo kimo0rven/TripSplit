@@ -1,12 +1,13 @@
 import PrimaryButton from '@/components/Button/primary-button';
 import Avatar from '@/components/ui/avatar';
 import BottomSheet from '@/components/ui/bottom-sheet';
-import { BrandColors, Spacing } from '@/constants/theme';
+import { BrandColors, Spacing, isDarkTheme } from '@/constants/theme';
 import { TripMember } from '@/types/trips';
 import { memberOrigin } from '@/utils/joinInvite';
 import { formatMoney } from '@/utils/money';
 import { Crown, UserMinus, UserPlus } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripMembersSheetProps {
   visible: boolean;
@@ -78,7 +79,10 @@ export default function TripMembersSheet({
                     </Text>
                     {isOwnerRow && (
                       <View style={styles.ownerBadge}>
-                        <Crown size={10} color={BrandColors.base700} />
+                        <Crown
+                          size={10}
+                          color={isDarkTheme() ? BrandColors.onBrand : BrandColors.base700}
+                        />
                         <Text style={styles.ownerText}>Owner</Text>
                       </View>
                     )}
@@ -154,7 +158,7 @@ export default function TripMembersSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   content: {
     gap: Spacing.three,
     paddingBottom: Spacing.four,
@@ -205,7 +209,7 @@ const styles = StyleSheet.create({
   ownerText: {
     fontFamily: 'PlusJakartaSans-Medium',
     fontSize: 10,
-    color: BrandColors.base700,
+    color: isDarkTheme() ? BrandColors.onBrand : BrandColors.base700,
   },
   email: {
     fontFamily: 'PlusJakartaSans-Regular',
@@ -243,4 +247,4 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: BrandColors.secondary,
   },
-});
+}));

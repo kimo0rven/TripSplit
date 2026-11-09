@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, Text } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface SquareButtonProps {
   title: ReactNode;
@@ -37,7 +38,7 @@ export default function SquareButton({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   button: {
     width: 48,
     height: 48,
@@ -49,4 +50,4 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 14,
   },
-});
+}));

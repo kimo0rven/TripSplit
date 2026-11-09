@@ -2,7 +2,8 @@ import { FieldLabel } from '@/components/ui/choice-chips';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Image } from 'expo-image';
 import { Camera, Images, Trash2 } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface ReceiptPickerProps {
   uris: string[];
@@ -12,7 +13,12 @@ interface ReceiptPickerProps {
 }
 
 /** The receipt photos on an expense, with buttons to take or choose more. */
-export default function ReceiptPicker({ uris, onRemove, onPick, label = 'Receipt photos' }: ReceiptPickerProps) {
+export default function ReceiptPicker({
+  uris,
+  onRemove,
+  onPick,
+  label = 'Receipt photos',
+}: ReceiptPickerProps) {
   return (
     <View style={styles.group}>
       <FieldLabel>{label}</FieldLabel>
@@ -47,7 +53,7 @@ export default function ReceiptPicker({ uris, onRemove, onPick, label = 'Receipt
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   group: {
     gap: Spacing.two,
   },
@@ -102,4 +108,4 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.two,
   },
-});
+}));

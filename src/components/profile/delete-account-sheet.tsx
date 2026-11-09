@@ -5,7 +5,8 @@ import { PasswordField } from '@/components/ui/text-input-field';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { deleteAccount } from '@/services/Firebase/userService';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface DeleteAccountSheetProps {
   visible: boolean;
@@ -91,6 +92,6 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   content: { gap: Spacing.three, paddingBottom: Spacing.four },
-});
+}));

@@ -6,7 +6,8 @@ import { shortName } from '@/utils/format';
 import { useRouter } from 'expo-router';
 import { HandCoins } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface Row {
   key: string;
@@ -118,7 +119,7 @@ export default function RecentActivity({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 14, color: BrandColors.primary },
@@ -158,4 +159,4 @@ const styles = StyleSheet.create({
   name: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, color: BrandColors.primary },
   meta: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 11, color: BrandColors.secondary },
   amount: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, color: BrandColors.success },
-});
+}));

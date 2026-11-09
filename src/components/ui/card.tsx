@@ -1,6 +1,7 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
@@ -49,7 +50,7 @@ export function HelperText({
   return <Text style={[styles.helper, { color }]}>{children}</Text>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -81,4 +82,4 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 12,
   },
-});
+}));

@@ -7,7 +7,8 @@ import RatesCredit from '@/components/ui/rates-credit';
 import { computeBalances } from '@/utils/balance';
 import { formatMoney } from '@/utils/money';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface Line {
   currency: string;
@@ -129,7 +130,7 @@ export default function AllTripsSummary({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   inlineStack: {
     flexShrink: 1,
     alignItems: 'flex-end',
@@ -172,4 +173,4 @@ const styles = StyleSheet.create({
     color: BrandColors.secondary,
   },
   value: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 16 },
-});
+}));

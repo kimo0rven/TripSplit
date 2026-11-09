@@ -4,7 +4,7 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { TripMember } from '@/types/trips';
 import { wheelLanding } from '@/utils/fun';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, Pressable, Text, View } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -17,6 +17,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** The whole wheel, rim included. */
 const SIZE = 280;
@@ -404,10 +405,10 @@ export default function SpinWheel({
             <Path
               d="M17 44 L4 14 A14 14 0 1 1 30 14 Z"
               fill={BrandColors.base50}
-              stroke={BrandColors.primary}
+              stroke={BrandColors.onBrand}
               strokeWidth={2}
             />
-            <Circle cx={17} cy={14} r={5} fill={BrandColors.primary} />
+            <Circle cx={17} cy={14} r={5} fill={BrandColors.onBrand} />
           </Svg>
         </Animated.View>
       </View>
@@ -435,7 +436,7 @@ export default function SpinWheel({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { alignItems: 'center', gap: Spacing.three },
   stage: { width: SIZE, height: SIZE + 18, alignItems: 'center' },
   wheelBox: {
@@ -485,7 +486,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 13,
     letterSpacing: 1,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   pointer: {
     position: 'absolute',
@@ -507,11 +508,11 @@ const styles = StyleSheet.create({
   },
   spinButtonOff: { backgroundColor: BrandColors.inputField },
   pressed: { opacity: 0.85 },
-  spinText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
+  spinText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.onBrand },
   hint: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 12,
     color: BrandColors.secondary,
     marginTop: -Spacing.two,
   },
-});
+}));

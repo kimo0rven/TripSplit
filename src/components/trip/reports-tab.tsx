@@ -24,7 +24,8 @@ import {
 } from '@/utils/charts';
 import { formatMoney, todayKey } from '@/utils/money';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface ReportsTabProps {
   expenses: Expense[];
@@ -278,7 +279,7 @@ export default function ReportsTab({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     gap: Spacing.three,
   },
@@ -304,7 +305,7 @@ const styles = StyleSheet.create({
     color: BrandColors.secondary,
   },
   rangeTextOn: {
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
     fontFamily: 'PlusJakartaSans-Bold',
   },
   editButton: {
@@ -394,4 +395,4 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 3,
   },
-});
+}));

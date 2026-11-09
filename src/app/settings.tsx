@@ -13,9 +13,8 @@ import { SettingsRow, SettingsSection } from '@/components/settings/settings-row
 import { currencies } from '@/constants/currencies';
 import {
   AppearanceChoice,
-  readAppearanceChoice,
-  saveAppearanceChoice,
-  startupChoice,
+  applyAppearanceChoice,
+  getAppearanceChoice,
 } from '@/constants/appearance';
 
 const APPEARANCES = [
@@ -51,8 +50,9 @@ import {
   UserRound,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -64,7 +64,7 @@ export default function SettingsScreen() {
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   /** What is saved for next time; the colours on screen are what the app started with. */
-  const [appearance, setAppearance] = useState<AppearanceChoice>(readAppearanceChoice);
+  const [appearance, setAppearance] = useState<AppearanceChoice>(getAppearanceChoice);
   const [currency, setCurrency] = useState('PHP');
   const [notice, setNotice] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
@@ -217,11 +217,7 @@ export default function SettingsScreen() {
             <SettingsRow
               icon={Moon}
               label="Appearance"
-              hint={
-                appearance !== startupChoice
-                  ? 'Close and reopen TripSplit to switch'
-                  : 'Light, dark, or the same as your phone'
-              }
+              hint="Light, dark, or the same as your phone"
               value={APPEARANCES.find((option) => option.value === appearance)?.name}
               onPress={() => setAppearanceOpen(true)}
             />
@@ -330,18 +326,15 @@ export default function SettingsScreen() {
         title="Appearance"
         onClose={() => setAppearanceOpen(false)}
       >
-        <HelperText>
-          {appearance !== startupChoice
-            ? 'Saved. Close TripSplit fully and open it again to see the change.'
-            : 'The change applies the next time you open TripSplit.'}
-        </HelperText>
         <BigButtonOptions
           choices={APPEARANCES}
           selectedValue={appearance}
           onSelect={(choice) => {
             const next = choice.value as AppearanceChoice;
-            saveAppearanceChoice(next);
             setAppearance(next);
+            setAppearanceOpen(false);
+            // Switches the colours now; every screen redraws in the new theme.
+            applyAppearanceChoice(next);
           }}
         />
       </BottomSheet>
@@ -349,7 +342,7 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1, backgroundColor: BrandColors.background },
   header: {
     flexDirection: 'row',
@@ -379,4 +372,4 @@ const styles = StyleSheet.create({
   userInfo: { flex: 1, gap: Spacing.half },
   userName: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 18, color: BrandColors.primary },
   userEmail: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 14, color: BrandColors.secondary },
-});
+}));

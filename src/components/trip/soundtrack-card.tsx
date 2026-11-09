@@ -7,7 +7,8 @@ import { TripMember } from '@/types/trips';
 import { Track, isDuplicateTrack, parseTrack } from '@/utils/funExtras';
 import { Music, Trash2 } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface SoundtrackCardProps {
   tripId: string;
@@ -165,7 +166,7 @@ export default function SoundtrackCard({
           accessibilityRole="button"
         >
           {busy ? (
-            <ActivityIndicator size="small" color={BrandColors.primary} />
+            <ActivityIndicator size="small" color={BrandColors.onBrand} />
           ) : (
             <Text style={styles.addText}>Add</Text>
           )}
@@ -177,7 +178,7 @@ export default function SoundtrackCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     backgroundColor: BrandColors.surfaceAlt,
     gap: Spacing.two,
@@ -254,7 +255,7 @@ const styles = StyleSheet.create({
   addText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 13,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   error: {
     fontFamily: 'PlusJakartaSans-Medium',
@@ -264,4 +265,4 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.6,
   },
-});
+}));

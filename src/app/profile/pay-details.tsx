@@ -30,10 +30,10 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 const blank = (name: string): PayMethod => ({
   id: newId(),
@@ -151,7 +151,7 @@ export default function PayDetailsScreen() {
               {methods.map((method) => (
                 <View key={method.id} style={styles.card}>
                   <View style={styles.cardIcon}>
-                    <Wallet size={18} color={BrandColors.primary} />
+                    <Wallet size={18} color={BrandColors.onBrand} />
                   </View>
                   <View style={styles.cardText}>
                     <Text style={styles.cardTitle}>{payMethodTitle(method)}</Text>
@@ -234,9 +234,9 @@ export default function PayDetailsScreen() {
                       accessibilityRole="button"
                     >
                       {uploading ? (
-                        <ActivityIndicator color={BrandColors.primary} size="small" />
+                        <ActivityIndicator color={BrandColors.onBrand} size="small" />
                       ) : (
-                        <ImagePlus size={16} color={BrandColors.primary} />
+                        <ImagePlus size={16} color={BrandColors.onBrand} />
                       )}
                       <Text style={styles.qrText}>
                         {draft.qrUrl ? 'Change QR' : 'Add your QR (optional)'}
@@ -299,7 +299,7 @@ export default function PayDetailsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1, backgroundColor: BrandColors.background },
   flexOne: { flex: 1 },
   header: { paddingTop: 40, paddingHorizontal: 25, alignItems: 'center', justifyContent: 'center' },
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
-  qrText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.primary },
+  qrText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.onBrand },
   remove: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 12, color: BrandColors.error },
   formButtons: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   cancel: { paddingHorizontal: Spacing.two },
@@ -366,4 +366,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
-});
+}));

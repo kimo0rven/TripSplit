@@ -6,7 +6,8 @@ import { formatDay, todayKey } from '@/utils/money';
 import { shortName } from '@/utils/format';
 import { tripCountdown } from '@/utils/fun';
 import { ChevronRight, Luggage, QrCode } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * Members as a list, owner first, then whoever joined earliest.
@@ -70,10 +71,24 @@ export function ActiveTripCard({
 
   const qrShown = !!onShowQr && !!activeTrip?.inviteCode;
 
+  const noTrip = !activeTrip;
+  const kicker = noTrip
+    ? hasTrips
+      ? 'No trip on the dashboard'
+      : 'Start here'
+    : showCountdown
+      ? 'Coming up'
+      : 'Active trip';
+  const when = !activeTrip ? '' : showCountdown && countdown ? countdown.label : (tripDate ?? '');
+
   return (
     <View style={styles.wrap}>
       <Pressable
-        style={[styles.card, !activeTrip && styles.cardNoTrip]}
+        style={({ pressed }) => [
+          styles.hero,
+          noTrip && styles.heroEmpty,
+          pressed && styles.pressed,
+        ]}
         onPress={activeTrip ? onOpen : onManageTrips}
         accessibilityRole="button"
         accessibilityLabel={
@@ -84,156 +99,174 @@ export function ActiveTripCard({
               : 'No trip yet - create one'
         }
       >
-        <View style={styles.cardLeft}>
-          {/* The badge carries its own colour, so the trip looks the same here
-              as it does on the trips list. With no trip there is no colour to
-              carry, so a plain dark chip holds the space instead. */}
-          {activeTrip ? (
-            <TripIconBadge name={activeTrip.icon} colorKey={activeTrip.iconColor} size={40} />
-          ) : (
-            <View style={styles.emptyBadge}>
-              <Luggage size={20} color={BrandColors.disabled} strokeWidth={2} />
-            </View>
-          )}
-          <View style={styles.cardBody}>
-            {/* The date sits above the name, not beside the faces. With a big
-                group the face row pushed it to a sliver, which made it
-                unreadable exactly when the trip was busiest. */}
-            {activeTrip && (
-              <Text style={styles.cardDate} numberOfLines={1}>
-                {showCountdown && countdown
-                  ? `${countdown.label} · ${tripDate ?? activeTrip.currency}`
-                  : tripDate
-                    ? tripDate
-                    : activeTrip.currency}
-              </Text>
+        {/* Two soft circles in the corner, the same as the profile banner. */}
+        <View style={[styles.blobBig, noTrip && styles.blobDim]} />
+        <View style={[styles.blobSmall, noTrip && styles.blobDim]} />
+
+        <View style={styles.top}>
+          {/* The badge carries the trip's own colour, so it looks the same
+              here as on the trips list. With no trip a plain chip holds the space. */}
+          <View style={[styles.iconRing, noTrip && styles.iconRingEmpty]}>
+            {activeTrip ? (
+              <TripIconBadge name={activeTrip.icon} colorKey={activeTrip.iconColor} size={44} />
+            ) : (
+              <View style={styles.emptyBadge}>
+                <Luggage size={22} color={BrandColors.disabled} strokeWidth={2} />
+              </View>
             )}
-            <Text
-              style={[styles.cardTitle, !activeTrip && styles.cardTitleNoTrip]}
-              numberOfLines={1}
-            >
+          </View>
+          <View style={styles.titleBlock}>
+            <Text style={[styles.kicker, noTrip && styles.textEmpty]}>{kicker}</Text>
+            <Text style={[styles.title, noTrip && styles.titleEmpty]} numberOfLines={1}>
               {activeTrip ? shortName(activeTrip.name) : 'No Trip'}
             </Text>
-            <View style={styles.cardMetaRow}>
-              {members.length > 0 && activeTrip ? (
-                <MemberFaces members={members} max={3} size={22} ringColor={BrandColors.base50} />
-              ) : (
-                <Text
-                  style={[styles.cardHint, !activeTrip && styles.cardHintNoTrip]}
-                  numberOfLines={1}
-                >
-                  {emptyHint}
-                </Text>
-              )}
-            </View>
           </View>
+          {/* Room for the QR button, which floats above the card. */}
+          {qrShown && <View style={styles.actionSpace} />}
         </View>
-        {/* Room for the QR button, which floats above the card below. */}
-        {qrShown && <View style={styles.cardActionSpace} />}
 
-        <ChevronRight size={18} color={activeTrip ? BrandColors.secondary : BrandColors.disabled} />
+        <View style={[styles.strip, noTrip && styles.stripEmpty]}>
+          {activeTrip ? (
+            <>
+              {!!when && (
+                <View style={styles.whenPill}>
+                  <Text style={styles.whenText} numberOfLines={1}>
+                    {when}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.stripFill}>
+                {members.length > 0 ? (
+                  <MemberFaces members={members} max={4} size={24} ringColor={BrandColors.base50} />
+                ) : (
+                  <Text style={styles.stripText}>{activeTrip.currency}</Text>
+                )}
+              </View>
+              <Text style={styles.openText}>Open</Text>
+              <ChevronRight size={16} color={BrandColors.onBrand} />
+            </>
+          ) : (
+            <>
+              <Text
+                style={[styles.stripText, styles.textEmpty, styles.stripFill]}
+                numberOfLines={1}
+              >
+                {emptyHint}
+              </Text>
+              <ChevronRight size={16} color={BrandColors.disabled} />
+            </>
+          )}
+        </View>
       </Pressable>
 
       {/* Its own button beside the card, not inside it, so tapping it does not
           also open the trip (and the web does not get a button in a button). */}
       {qrShown && (
-        <View style={styles.cardActionLayer} pointerEvents="box-none">
-          <Pressable
-            style={({ pressed }) => [styles.cardAction, pressed && styles.cardActionPressed]}
-            onPress={onShowQr}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={`Show ${activeTrip!.name}'s invite code and QR code`}
-          >
-            <QrCode size={17} color={BrandColors.primary} />
-          </Pressable>
-        </View>
+        <Pressable
+          style={({ pressed }) => [styles.qrButton, pressed && styles.pressed]}
+          onPress={onShowQr}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Show ${activeTrip!.name}'s invite code and QR code`}
+        >
+          <QrCode size={18} color={BrandColors.onBrand} />
+        </Pressable>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
+const styles = themedStyles(() => ({
+  wrap: { position: 'relative' },
+  pressed: { opacity: 0.85 },
+  hero: {
     backgroundColor: BrandColors.base50,
-    borderRadius: 16,
-    padding: Spacing.three,
+    borderRadius: 24,
+    padding: Spacing.four,
+    gap: Spacing.three,
+    overflow: 'hidden',
   },
-  /* No trip yet: a dark grey card, so an empty dashboard reads as idle rather
-     than looking like a trip is waiting. */
-  cardNoTrip: {
-    backgroundColor: BrandColors.primary,
+  /* No trip yet: a quiet grey card, so an empty dashboard reads as idle. */
+  heroEmpty: { backgroundColor: BrandColors.inputField },
+  blobBig: {
+    position: 'absolute',
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    right: -55,
+    top: -75,
+    backgroundColor: 'rgba(255,255,255,0.22)',
   },
+  blobSmall: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    right: 70,
+    bottom: -40,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  blobDim: { backgroundColor: 'rgba(255,255,255,0.05)' },
+  top: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  iconRing: { padding: 3, borderRadius: 16, backgroundColor: '#FFFFFF' },
+  iconRingEmpty: { backgroundColor: BrandColors.border },
   emptyBadge: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.10)',
+    backgroundColor: BrandColors.background,
   },
-  cardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    flex: 1,
-  },
-  cardBody: {
-    flex: 1,
-    gap: 1,
-  },
-  cardDate: {
-    fontFamily: 'PlusJakartaSans-SemiBold',
-    fontSize: 11,
-    letterSpacing: 0.2,
-    color: BrandColors.secondary,
-  },
-  cardTitle: {
+  titleBlock: { flex: 1, gap: 1 },
+  kicker: {
     fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 16,
-    color: BrandColors.primary,
-  },
-  cardTitleNoTrip: {
-    color: BrandColors.background,
-  },
-  cardHint: {
-    fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 11,
-    color: BrandColors.primary,
-    flexShrink: 1,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: BrandColors.onBrand,
+    opacity: 0.7,
   },
-  cardHintNoTrip: {
-    color: BrandColors.disabled,
+  title: {
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 22,
+    color: BrandColors.onBrand,
   },
-  wrap: { position: 'relative' },
-  cardActionSpace: { width: 32, height: 32 },
-  cardActionLayer: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    // The card's padding, the chevron and the gap before it.
-    right: Spacing.three + 18 + Spacing.three,
-    justifyContent: 'center',
-  },
-  cardAction: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: BrandColors.base200,
-  },
-  cardActionPressed: {
-    opacity: 0.6,
-  },
-  cardMetaRow: {
+  titleEmpty: { color: BrandColors.primary },
+  textEmpty: { color: BrandColors.secondary, opacity: 1 },
+  actionSpace: { width: 36, height: 36 },
+  strip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    marginTop: 2,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    borderRadius: 16,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    minHeight: 44,
+  },
+  stripEmpty: { backgroundColor: BrandColors.background },
+  stripFill: { flex: 1 },
+  whenPill: {
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 3,
+    flexShrink: 1,
+  },
+  whenText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 11, color: BrandColors.onBrand },
+  stripText: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 12, color: BrandColors.onBrand },
+  openText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 12, color: BrandColors.onBrand },
+  qrButton: {
+    position: 'absolute',
+    top: Spacing.four + 6,
+    right: Spacing.four,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.55)',
   },
   list: {
     gap: Spacing.two,
@@ -282,4 +315,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.info,
   },
-});
+}));

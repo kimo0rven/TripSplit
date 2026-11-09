@@ -9,7 +9,8 @@ import { saveProfile } from '@/services/Firebase/userService';
 import { pickImage } from '@/utils/imagePicker';
 import { Camera } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface EditProfileSheetProps {
   visible: boolean;
@@ -115,10 +116,10 @@ export default function EditProfileSheet({ visible, onClose, onSaved }: EditProf
           <Avatar
             name={shownName}
             size={96}
-            photoURL={photoUri ?? (removePhoto ? undefined : currentUser?.photoURL ?? undefined)}
+            photoURL={photoUri ?? (removePhoto ? undefined : (currentUser?.photoURL ?? undefined))}
           />
           <View style={styles.cameraBadge}>
-            <Camera size={14} color={BrandColors.primary} />
+            <Camera size={14} color={BrandColors.onBrand} />
           </View>
         </Pressable>
         <Text style={styles.hint}>Tap the picture to change it</Text>
@@ -151,7 +152,7 @@ export default function EditProfileSheet({ visible, onClose, onSaved }: EditProf
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   removeLink: {
     alignSelf: 'center',
     fontFamily: 'PlusJakartaSans-Bold',
@@ -195,4 +196,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: BrandColors.primary,
   },
-});
+}));

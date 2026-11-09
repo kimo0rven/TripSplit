@@ -1,10 +1,11 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { BudgetLine, niceCeiling } from '@/utils/charts';
 import { formatMoney } from '@/utils/money';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 
 import { chartStyles, dayLabel, LegendDot, shortMoney, useChartWidth } from './chart-kit';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface BudgetChartProps {
   line: BudgetLine;
@@ -138,10 +139,10 @@ export default function BudgetChart({ line, days, budget, currency }: BudgetChar
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two },
   row: { flexDirection: 'row' },
   axis: { width: AXIS, justifyContent: 'space-between', paddingRight: 4 },
   xLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   warn: { color: BrandColors.error },
-});
+}));

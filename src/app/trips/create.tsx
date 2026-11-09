@@ -26,10 +26,10 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** Most trips are in pesos; a trip abroad can pick its own currency. */
 const DEFAULT_CURRENCY = 'PHP';
@@ -299,7 +299,7 @@ export default function CreateTripScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -434,4 +434,4 @@ const styles = StyleSheet.create({
     color: BrandColors.error,
     textAlign: 'center',
   },
-});
+}));

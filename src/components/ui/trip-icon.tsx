@@ -1,7 +1,8 @@
 import { findTripIcon } from '@/constants/trip-icons';
 import { findTripColor } from '@/constants/trip-colors';
 import { BrandColors } from '@/constants/theme';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripIconProps {
   /** The icon key saved on the trip. Missing or unknown uses the default. */
@@ -62,9 +63,9 @@ export function TripIconBadge({ name, colorKey, size = 40, iconSize, radius }: T
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   badge: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

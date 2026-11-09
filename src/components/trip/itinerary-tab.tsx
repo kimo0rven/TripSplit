@@ -23,7 +23,8 @@ import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** Where the dot's centre sits, measured from the top of a row. */
 const DOT_CENTRE = 25;
@@ -335,7 +336,7 @@ export default function ItineraryTab({
                   onEdit?.(open);
                 }}
               >
-                <Pencil size={14} color={BrandColors.primary} />
+                <Pencil size={14} color={BrandColors.onBrand} />
                 <Text style={styles.editText}>Edit plan</Text>
               </Pressable>
             )}
@@ -372,7 +373,7 @@ export default function ItineraryTab({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     gap: Spacing.three,
   },
@@ -476,7 +477,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: BrandColors.base50,
   },
-  editText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
+  editText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.onBrand },
   logLink: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -581,4 +582,4 @@ const styles = StyleSheet.create({
     color: BrandColors.primary,
     lineHeight: 17,
   },
-});
+}));

@@ -3,7 +3,8 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { pickImage, takePhoto } from '@/utils/imagePicker';
 import { Image } from 'expo-image';
 import { Camera, Images, Trash2 } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface ProofPickerProps {
   uris: string[];
@@ -70,7 +71,7 @@ export function ProofPicker({ uris, onChange, onError }: ProofPickerProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   group: { gap: Spacing.two },
   strip: { flexDirection: 'row', gap: Spacing.two },
   item: { width: 96, height: 96 },
@@ -108,4 +109,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.secondary,
   },
-});
+}));

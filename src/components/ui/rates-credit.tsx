@@ -1,5 +1,6 @@
 import { BrandColors } from '@/constants/theme';
-import { Linking, StyleSheet, Text } from 'react-native';
+import { Linking, Text } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 const RATES_SITE = 'https://www.exchangerate-api.com';
 
@@ -20,11 +21,11 @@ export default function RatesCredit({ align = 'left' }: { align?: 'left' | 'righ
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   credit: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 10,
     color: BrandColors.secondary,
     textDecorationLine: 'underline',
   },
-});
+}));

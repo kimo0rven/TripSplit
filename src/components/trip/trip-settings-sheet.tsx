@@ -18,7 +18,8 @@ import { cleanRateText, rateText as rateText_ } from '@/utils/foreignAmount';
 import { formatMoney, todayKey } from '@/utils/money';
 import { Lock, LockOpen, Trash2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripSettingsSheetProps {
   visible: boolean;
@@ -367,9 +368,9 @@ export default function TripSettingsSheet({
                 {closed ? 'Reopen this trip' : 'Close this trip'}
               </Text>
               {closed ? (
-                <LockOpen size={16} color={BrandColors.primary} />
+                <LockOpen size={16} color={BrandColors.onBrand} />
               ) : (
-                <Lock size={16} color={BrandColors.primary} />
+                <Lock size={16} color={BrandColors.onBrand} />
               )}
             </Pressable>
             <HelperText>
@@ -409,7 +410,7 @@ const CONVERT_TABS = [
   { key: 'keep', label: 'Keep the numbers' },
 ] as const;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   convertBox: { gap: Spacing.two },
   rateRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   rateLabel: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
@@ -438,12 +439,12 @@ const styles = StyleSheet.create({
   budgetText: {
     fontFamily: 'PlusJakartaSans-Medium',
     fontSize: 14,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   budgetAction: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 13,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   dangerZone: {
     gap: Spacing.two,
@@ -486,4 +487,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-});
+}));

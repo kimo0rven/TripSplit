@@ -2,8 +2,9 @@ import Avatar from '@/components/ui/avatar';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { categoryLook } from '@/constants/expense-categories';
 import { Expense } from '@/types/expenses';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { formatDayTime, formatMoney } from '@/utils/money';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface RecentExpensesProps {
   expenses: Expense[];
@@ -103,7 +104,7 @@ export default function RecentExpenses({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flexDirection: 'column',
     gap: 12,
@@ -187,4 +188,4 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: BrandColors.secondary,
   },
-});
+}));

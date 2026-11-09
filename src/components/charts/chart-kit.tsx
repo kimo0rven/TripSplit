@@ -1,7 +1,8 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { parseDayKey } from '@/utils/money';
 import { useState } from 'react';
-import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import { LayoutChangeEvent, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** The width a chart has to draw in, once it has been laid out. */
 export function useChartWidth(initial = 300) {
@@ -62,7 +63,7 @@ export function LegendDot({
   );
 }
 
-export const chartStyles = StyleSheet.create({
+export const chartStyles = themedStyles(() => ({
   card: {
     gap: Spacing.three,
     backgroundColor: BrandColors.background,
@@ -82,11 +83,11 @@ export const chartStyles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: Spacing.four,
   },
-});
+}));
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%' },
   legendDot: { width: 10, height: 10, borderRadius: 3 },
   legendLine: { width: 14, height: 0, borderTopWidth: 2, borderStyle: 'dashed' },
   legendText: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 11, color: BrandColors.primary },
-});
+}));

@@ -1,5 +1,6 @@
 import { BrandColors } from '@/constants/theme';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface PageHeaderProps {
   title: string;
@@ -13,7 +14,7 @@ export default function PageHeader({ title }: PageHeaderProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     paddingVertical: 12,
     display: 'flex',
@@ -25,4 +26,4 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: BrandColors.primary,
   },
-});
+}));

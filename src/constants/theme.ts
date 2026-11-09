@@ -49,19 +49,27 @@ const LIGHT_COLORS = {
   warningBg: '#FEF3E7',
   info: '#2F80ED',
   infoBg: '#EAF2FE',
+  /** Text and icons on the brand yellow: dark in both themes. */
+  onBrand: '#333333',
+  /**
+   * Soft yellow tints, kept as tints in dark mode too (there everything else
+   * yellow is the bright brand yellow). Only the dashboard's quick actions use these.
+   */
+  tint200: '#FFE099',
+  tint400: '#FED766',
 };
 
 /**
- * The same roles in the dark. Neutrals flip; the brand yellows become deep
- * golds, so the light text that sits on them stays readable, and the tinted
- * backgrounds become dark tints of the same colour.
+ * The same roles in the dark. Neutrals flip; every yellow, the pale ones
+ * included, is the bright brand yellow with dark text on it (`onBrand`).
+ * Only the quick actions keep dark gold tints (`tint200`, `tint400`).
  */
 const DARK_COLORS: typeof LIGHT_COLORS = {
-  base50: '#9C7100',
-  base200: '#3D3214',
-  base400: '#5A4613',
-  base500: '#9C7100',
-  base600: '#9C7100',
+  base50: '#FEBB1B',
+  base200: '#FEBB1B',
+  base400: '#FEBB1B',
+  base500: '#FEBB1B',
+  base600: '#FEBB1B',
   base700: '#F2C04D',
   heading: '#F5F5F5',
   primary: '#E8E8E8',
@@ -79,15 +87,50 @@ const DARK_COLORS: typeof LIGHT_COLORS = {
   warningBg: '#3A2A14',
   info: '#6AA6F5',
   infoBg: '#16263E',
+  onBrand: '#1A1A1A',
+  tint200: '#3D3214',
+  tint400: '#5A4613',
 };
 
 /**
- * The app's colours, picked once at start from the Appearance setting (or
- * the phone's own light or dark mode). Every screen builds its styles from
- * these when it loads, which is why a change applies after reopening the app.
+ * The app's colours. This one object is shared by every screen and is changed
+ * in place when the theme switches, so any code that reads
+ * `BrandColors.background` while drawing gets the current colour. Styles made
+ * with `themedStyles` are rebuilt from it, and the root layout redraws every
+ * screen when the version below changes.
  */
-export const BrandColors = startedDark ? DARK_COLORS : LIGHT_COLORS;
-export const isDarkTheme = startedDark;
+export const BrandColors: typeof LIGHT_COLORS = { ...(startedDark ? DARK_COLORS : LIGHT_COLORS) };
+
+let dark = startedDark;
+let themeVersion = 0;
+const listeners = new Set<() => void>();
+
+/** Whether the dark colours are showing right now. */
+export const isDarkTheme = () => dark;
+
+/** Whether a colour is the brand yellow, which needs `onBrand` text on it. */
+export const isBrandYellow = (color?: string) =>
+  !!color &&
+  (color === BrandColors.base50 || color === BrandColors.base500 || color === BrandColors.base600);
+
+/** Goes up by one every time the colours change. */
+export const getThemeVersion = () => themeVersion;
+
+export const subscribeToTheme = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+/** Switches every colour to the light or dark set, and redraws the app. */
+export const setDarkTheme = (next: boolean) => {
+  if (next === dark) return;
+  dark = next;
+  Object.assign(BrandColors, next ? DARK_COLORS : LIGHT_COLORS);
+  themeVersion += 1;
+  listeners.forEach((listener) => listener());
+};
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 

@@ -1,8 +1,9 @@
 import { navItems } from '@/constants/navigation';
 import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { usePathname, useRouter } from 'expo-router';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function NavBar() {
   const router = useRouter();
@@ -40,7 +41,7 @@ export default function NavBar() {
                 accessibilityState={{ selected: isActive }}
               >
                 <View style={[styles.scanContainer, isActive && styles.activeScanContainer]}>
-                  <item.Icon color={BrandColors.primary} size={26} />
+                  <item.Icon color={BrandColors.onBrand} size={26} />
                 </View>
               </TouchableOpacity>
             );
@@ -59,7 +60,7 @@ export default function NavBar() {
               {/* The lit tab wears a soft amber pill, so the current tab is
                   obvious at a glance instead of just a shade of grey. */}
               <View style={[styles.iconPill, isActive && styles.activeIconPill]}>
-                <item.Icon color={color} size={22} />
+                <item.Icon color={isActive ? BrandColors.onBrand : color} size={22} />
               </View>
               <Text style={[styles.title, { color }]} numberOfLines={1}>
                 {item.label}
@@ -72,7 +73,7 @@ export default function NavBar() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   shell: {
     position: 'absolute',
     bottom: 0,
@@ -144,4 +145,4 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: BrandColors.base700,
   },
-});
+}));

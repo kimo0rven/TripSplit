@@ -1,15 +1,12 @@
 import { Card, SectionTitle } from '@/components/ui/card';
 import { BrandColors, Spacing } from '@/constants/theme';
-import {
-  EVERY_LABEL,
-  fetchRecurring,
-  stopRecurring,
-} from '@/services/Firebase/recurringService';
+import { EVERY_LABEL, fetchRecurring, stopRecurring } from '@/services/Firebase/recurringService';
 import { RecurringExpense } from '@/types/expenses';
 import { formatDay, formatMoney } from '@/utils/money';
 import { Repeat } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface RecurringListProps {
   tripId: string;
@@ -64,7 +61,7 @@ export default function RecurringList({
       {items.map((item) => (
         <Card key={item.id} style={styles.card}>
           <View style={styles.icon}>
-            <Repeat size={18} color={BrandColors.primary} />
+            <Repeat size={18} color={BrandColors.onBrand} />
           </View>
           <View style={styles.info}>
             <Text style={styles.title} numberOfLines={1}>
@@ -92,7 +89,7 @@ export default function RecurringList({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two },
   card: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   icon: {
@@ -107,4 +104,4 @@ const styles = StyleSheet.create({
   title: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
   meta: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
   stop: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, color: BrandColors.error },
-});
+}));

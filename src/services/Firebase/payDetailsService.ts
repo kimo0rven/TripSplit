@@ -15,9 +15,13 @@ const tripPath = (tripId: string, uid: string) => `trips/${tripId}/payDetails/${
 export const fetchMyPayDetails = async (uid: string): Promise<PayMethod[]> =>
   cleanPayMethods(await readPath(ownPath(uid), { preferCache: false }).catch(() => null));
 
-/** How a member of a trip likes to be paid, as they shared it with that trip. */
+/**
+ * How a member of a trip likes to be paid, as they shared it with that trip.
+ * Asks the server first (falling back to the phone's copy offline): an old
+ * empty copy would otherwise hide details they added since.
+ */
 export const fetchTripPayDetails = async (tripId: string, uid: string): Promise<PayMethod[]> =>
-  cleanPayMethods(await readPath(tripPath(tripId, uid)).catch(() => null));
+  cleanPayMethods(await readPath(tripPath(tripId, uid), { preferCache: false }).catch(() => null));
 
 /** Saves the person's details and copies them into every trip they are in. */
 export const saveMyPayDetails = async (uid: string, methods: PayMethod[]): Promise<void> => {

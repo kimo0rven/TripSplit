@@ -5,7 +5,8 @@ import { Expense } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
 import { shortName } from '@/utils/format';
 import { UsersRound, Wallet } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface RecentSectionProps {
   tripName?: string;
@@ -69,7 +70,7 @@ export default function RecentSection({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   recentExpensesContainer: {
     flexDirection: 'column',
     gap: Spacing.two,
@@ -90,4 +91,4 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-});
+}));

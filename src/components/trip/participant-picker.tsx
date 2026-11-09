@@ -2,7 +2,8 @@ import Avatar from '@/components/ui/avatar';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { TripMember } from '@/types/trips';
 import { Check } from 'lucide-react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 const AVATAR_SIZE = 44;
 /** Avatar + ring border + ring padding, so the circle's own radius is exact. */
@@ -61,7 +62,7 @@ export default function ParticipantPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -92,4 +93,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

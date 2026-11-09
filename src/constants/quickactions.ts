@@ -14,35 +14,46 @@ export interface QuickAction {
   btnColor: string;
 }
 
+// The colours are read when drawn, so they follow the theme.
 export const quickactions: QuickAction[] = [
   {
     id: 'add-expense',
     label: 'Expense',
     Icon: Plus,
-    btnColor: BrandColors.base50,
+    get btnColor() {
+      return BrandColors.base50;
+    },
   },
   {
     id: 'settle-up',
     label: 'Settle up',
     Icon: Banknote,
-    btnColor: BrandColors.base400,
+    get btnColor() {
+      return BrandColors.tint400;
+    },
   },
   {
     id: 'receipt',
     label: 'Receipt',
     Icon: Camera,
-    btnColor: BrandColors.base200,
+    get btnColor() {
+      return BrandColors.tint200;
+    },
   },
   {
     id: 'note',
     label: 'Note',
     Icon: StickyNote,
-    btnColor: BrandColors.inputField,
+    get btnColor() {
+      return BrandColors.inputField;
+    },
   },
   {
     id: 'invite',
     label: 'Invite',
     Icon: UserPlus,
-    btnColor: BrandColors.surfaceAlt,
+    get btnColor() {
+      return BrandColors.surfaceAlt;
+    },
   },
 ];

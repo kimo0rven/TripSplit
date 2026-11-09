@@ -506,6 +506,20 @@ export const queueWrite = async (updates: Record<string, unknown>): Promise<void
  * (a trip is created before its first expense), so sending later entries while
  * an earlier one is stuck would put the data in the wrong order.
  */
+const afterFlushListeners = new Set<() => void>();
+
+/** Runs after queued changes reach the server, e.g. to send their pushes. */
+export const afterFlush = (listener: () => void): (() => void) => {
+  afterFlushListeners.add(listener);
+  return () => {
+    afterFlushListeners.delete(listener);
+  };
+};
+
+/** Whether a change to this exact path is still waiting to be sent. */
+export const isWritePending = async (path: string): Promise<boolean> =>
+  (await loadPendingWrites()).some((entry) => path in entry.updates);
+
 export const flushPendingWrites = async (): Promise<number> => {
   // Nothing may be sent before sign-in: the rules refuse every unauthenticated
   // write, so the queue would be refused wholesale every few seconds.
@@ -513,7 +527,7 @@ export const flushPendingWrites = async (): Promise<number> => {
 
   // Two callers (coming back online and the retry timer) must not send the
   // same queued change twice.
-  return withQueueLock(async () => {
+  const sentCount = await withQueueLock(async () => {
     const pending = await loadPendingWrites();
     if (pending.length === 0) return 0;
 
@@ -557,6 +571,8 @@ export const flushPendingWrites = async (): Promise<number> => {
     await savePendingWrites(remaining);
     return sent;
   });
+  if (sentCount > 0) afterFlushListeners.forEach((listener) => listener());
+  return sentCount;
 };
 
 export const pendingCount = async (): Promise<number> => (await loadPendingWrites()).length;

@@ -23,7 +23,8 @@ import { shortName } from '@/utils/format';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Plus, Receipt, Search, SlidersHorizontal } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * Every expense of one trip, broken up by day.
@@ -374,7 +375,7 @@ export default function AllExpensesScreen() {
           accessibilityRole="button"
           accessibilityLabel="Add an expense"
         >
-          <Plus size={24} color={BrandColors.primary} />
+          <Plus size={24} color={BrandColors.onBrand} />
         </Pressable>
       )}
 
@@ -439,7 +440,7 @@ const SORTS: FilterOption[] = [
   { value: 'lowest', label: 'Lowest' },
 ];
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   moreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   moreToggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
   moreText: {
@@ -521,4 +522,4 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-});
+}));

@@ -7,6 +7,7 @@ import { countsTowardBalance } from '@/utils/balance';
 import { coverageFor } from '@/utils/coverage';
 import { formatDay, formatMoney } from '@/utils/money';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface WhyOweSheetProps {
   /** Whose debt to explain, or '' while closed. */
@@ -127,7 +128,7 @@ export default function WhyOweSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   body: { gap: Spacing.three, paddingBottom: Spacing.four },
   card: {
     gap: Spacing.two,
@@ -163,4 +164,4 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
   rowMeta: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
   rowAmount: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
-});
+}));

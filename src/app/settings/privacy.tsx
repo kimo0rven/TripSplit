@@ -11,8 +11,9 @@ import {
   LucideIcon,
 } from 'lucide-react-native';
 import { ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { themedStyles } from '@/constants/themed-styles';
 
 const STORED: { icon: LucideIcon; title: string; body: string }[] = [
   {
@@ -77,7 +78,7 @@ export default function PrivacyScreen() {
             {STORED.map(({ icon: Icon, title, body }) => (
               <View key={title} style={styles.row}>
                 <View style={styles.rowIcon}>
-                  <Icon size={18} color={BrandColors.primary} />
+                  <Icon size={18} color={BrandColors.onBrand} />
                 </View>
                 <View style={styles.rowText}>
                   <Text style={styles.rowTitle}>{title}</Text>
@@ -91,7 +92,7 @@ export default function PrivacyScreen() {
             {VISIBLE.map(({ title, body }) => (
               <View key={title} style={styles.row}>
                 <View style={styles.rowIcon}>
-                  <Eye size={18} color={BrandColors.primary} />
+                  <Eye size={18} color={BrandColors.onBrand} />
                 </View>
                 <View style={styles.rowText}>
                   <Text style={styles.rowTitle}>{title}</Text>
@@ -124,7 +125,7 @@ export default function PrivacyScreen() {
           <Block title="Keeping it safe">
             <View style={styles.row}>
               <View style={styles.rowIcon}>
-                <Lock size={18} color={BrandColors.primary} />
+                <Lock size={18} color={BrandColors.onBrand} />
               </View>
               <View style={styles.rowText}>
                 <Text style={styles.rowTitle}>Signing in</Text>
@@ -136,7 +137,7 @@ export default function PrivacyScreen() {
             </View>
             <View style={styles.row}>
               <View style={styles.rowIcon}>
-                <Lock size={18} color={BrandColors.primary} />
+                <Lock size={18} color={BrandColors.onBrand} />
               </View>
               <View style={styles.rowText}>
                 <Text style={styles.rowTitle}>Deleting your account</Text>
@@ -165,7 +166,7 @@ export default function PrivacyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1, backgroundColor: BrandColors.background },
   header: {
     flexDirection: 'row',
@@ -225,4 +226,4 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: BrandColors.primary,
   },
-});
+}));

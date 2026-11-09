@@ -8,15 +8,8 @@ import { signUp } from '@/services/Firebase/authService';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
 import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -157,7 +150,7 @@ function mapFirebaseError(code?: string): string {
   }
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -240,4 +233,4 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: Spacing.four,
   },
-});
+}));

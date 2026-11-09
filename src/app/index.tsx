@@ -2,7 +2,8 @@ import PrimaryButton from '@/components/Button/primary-button';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -122,4 +123,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'PlusJakartaSans-Bold',
   },
-});
+}));

@@ -2,7 +2,8 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { ExportData, exportTripCsv, exportTripPdf } from '@/services/export/tripExport';
 import { FileSpreadsheet, FileText } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** Two buttons that hand the trip's expenses, payments and balances to the share sheet. */
 export default function ExportButtons({ data }: { data: ExportData }) {
@@ -40,7 +41,7 @@ export default function ExportButtons({ data }: { data: ExportData }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.one },
   row: { flexDirection: 'row', gap: Spacing.two },
   button: {
@@ -57,4 +58,4 @@ const styles = StyleSheet.create({
   },
   text: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, color: BrandColors.primary },
   error: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.error },
-});
+}));

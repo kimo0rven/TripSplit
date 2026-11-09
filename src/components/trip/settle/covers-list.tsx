@@ -3,6 +3,7 @@ import { formatDay, formatMoney } from '@/utils/money';
 import type { CoveredShare } from '@/utils/coverage';
 import { Receipt } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface CoversListProps {
   title: string;
@@ -75,7 +76,7 @@ export function CoversList({ title, owner, items, currency, empty }: CoversListP
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two },
   title: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
   empty: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
@@ -110,4 +111,4 @@ const styles = StyleSheet.create({
     color: BrandColors.secondary,
     paddingVertical: Spacing.two,
   },
-});
+}));

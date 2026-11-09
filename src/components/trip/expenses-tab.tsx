@@ -5,7 +5,8 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { Expense } from '@/types/expenses';
 import { TripMember } from '@/types/trips';
 import { Receipt } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** How many expenses the trip page itself lists before "View all". */
 export const RECENT_EXPENSE_LIMIT = 3;
@@ -86,7 +87,7 @@ export default function ExpensesTab({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     gap: Spacing.three,
   },
@@ -95,4 +96,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.info,
   },
-});
+}));

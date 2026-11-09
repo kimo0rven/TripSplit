@@ -11,7 +11,8 @@ import { TripPreview } from '@/types/trips';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ticket } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function JoinTripScreen() {
   const router = useRouter();
@@ -97,7 +98,7 @@ export default function JoinTripScreen() {
 
       <View style={styles.content}>
         <View style={styles.iconWrapper}>
-          <Ticket size={32} color={BrandColors.primary} />
+          <Ticket size={32} color={BrandColors.onBrand} />
         </View>
 
         <View style={styles.textBlock}>
@@ -142,7 +143,7 @@ export default function JoinTripScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -212,4 +213,4 @@ const styles = StyleSheet.create({
     color: BrandColors.error,
     textAlign: 'center',
   },
-});
+}));

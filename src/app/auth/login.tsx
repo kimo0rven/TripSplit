@@ -7,9 +7,10 @@ import { BottomTabInset, BrandColors, MaxContentWidth, Spacing } from '@/constan
 import { signIn } from '@/services/Firebase/authService';
 import { mustVerify } from '@/services/Firebase/useAuth';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
 import { useRouter } from 'expo-router';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -105,7 +106,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -156,7 +157,7 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: Spacing.four,
   },
-});
+}));
 
 function mapFirebaseError(code?: string): string {
   switch (code) {

@@ -1,7 +1,8 @@
 import Avatar from '@/components/ui/avatar';
 import { BrandColors } from '@/constants/theme';
 import { TripMember } from '@/types/trips';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface MemberFacesProps {
   members: TripMember[];
@@ -66,7 +67,7 @@ export default function MemberFaces({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   faces: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -81,6 +82,6 @@ const styles = StyleSheet.create({
   },
   moreText: {
     fontFamily: 'PlusJakartaSans-Bold',
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
-});
+}));

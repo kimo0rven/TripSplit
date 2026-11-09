@@ -28,7 +28,8 @@ import { computeBalances, simplifyDebts } from '@/utils/balance';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Check, Clock, Search, UserPlus, Users, X } from 'lucide-react-native';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** Everything the settle-up sheet needs, gathered when Pay is tapped. */
 interface PayContext {
@@ -281,7 +282,7 @@ export default function FriendsScreen() {
             onPress={() => router.push('/friends/add' as any)}
           >
             <Text style={styles.addFriendText}>Add a friend</Text>
-            <UserPlus size={18} color={BrandColors.heading} />
+            <UserPlus size={18} color={BrandColors.onBrand} />
           </Pressable>
 
           {!!error && <Text style={styles.errorText}>{error}</Text>}
@@ -526,7 +527,7 @@ export default function FriendsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scrollContent: {
     // flexGrow lets the white panel fill the screen even when the list is
     // short, so the grey page never shows below the content.
@@ -559,7 +560,7 @@ const styles = StyleSheet.create({
   addFriendText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 15,
-    color: BrandColors.heading,
+    color: BrandColors.onBrand,
   },
   sectionTitle: {
     fontFamily: 'PlusJakartaSans-Bold',
@@ -676,4 +677,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.secondary,
   },
-});
+}));

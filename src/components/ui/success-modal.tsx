@@ -1,5 +1,6 @@
 import { BrandColors, Spacing } from '@/constants/theme';
-import { Modal, StyleSheet, Text, View } from 'react-native';
+import { Modal, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 type SuccessModalProps = {
   visible: boolean;
@@ -25,7 +26,7 @@ export default function SuccessModal({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
@@ -68,4 +69,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.one,
   },
-});
+}));

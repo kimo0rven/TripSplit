@@ -1,6 +1,7 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface ListSkeletonProps {
   rows?: number;
@@ -31,7 +32,7 @@ export default function ListSkeleton({ rows = 4, rowHeight = 64 }: ListSkeletonP
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two, width: '100%' },
   row: { backgroundColor: BrandColors.border, borderRadius: 14 },
-});
+}));

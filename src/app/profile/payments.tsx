@@ -21,8 +21,9 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { ArrowRight, Receipt } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { themedStyles } from '@/constants/themed-styles';
 
 type Filter = 'all' | 'made' | 'received';
 
@@ -464,7 +465,7 @@ function Line({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1, backgroundColor: BrandColors.background },
   header: {
     flexDirection: 'row',
@@ -560,4 +561,4 @@ const styles = StyleSheet.create({
   viewer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center' },
   viewerImage: { width: '100%', height: '85%' },
   amount: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14 },
-});
+}));

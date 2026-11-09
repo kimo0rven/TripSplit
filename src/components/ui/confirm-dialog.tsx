@@ -1,6 +1,7 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { ReactNode, useEffect } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface ConfirmDialogProps {
   visible: boolean;
@@ -101,7 +102,7 @@ export default function ConfirmDialog({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   overlay: {
     flex: 1,
     alignItems: 'center',
@@ -174,9 +175,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   plainConfirmText: {
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   destructiveText: {
     color: BrandColors.background,
   },
-});
+}));

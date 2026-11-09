@@ -3,7 +3,8 @@ import { placeInRange, type DayRange } from '@/utils/dateRange';
 import { formatDay, isValidDayKey, parseDayKey, todayKey } from '@/utils/money';
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 const MONTH_NAMES = [
   'January',
@@ -269,7 +270,7 @@ export default function DateCalendar({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     borderWidth: 1,
     borderColor: BrandColors.border,
@@ -330,7 +331,7 @@ const styles = StyleSheet.create({
   },
   yearTextOn: {
     fontFamily: 'PlusJakartaSans-Bold',
-    color: BrandColors.heading,
+    color: BrandColors.onBrand,
   },
   weekRow: {
     flexDirection: 'row',
@@ -393,7 +394,7 @@ const styles = StyleSheet.create({
   },
   dayTextSelected: {
     fontFamily: 'PlusJakartaSans-Bold',
-    color: BrandColors.heading,
+    color: BrandColors.onBrand,
   },
   dayTextDisabled: {
     color: BrandColors.disabled,
@@ -418,4 +419,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.info,
   },
-});
+}));

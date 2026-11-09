@@ -6,7 +6,8 @@ import { ROULETTE_HINT, rouletteShares, rouletteSummary } from '@/utils/funExtra
 import { formatMoney, parseAmount } from '@/utils/money';
 import { Dices } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface SplitRouletteProps {
   members: TripMember[];
@@ -108,7 +109,7 @@ export default function SplitRoulette({ members, currency, currentUserId }: Spli
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     backgroundColor: BrandColors.surfaceAlt,
     gap: Spacing.two,
@@ -151,7 +152,7 @@ const styles = StyleSheet.create({
   spinText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 13,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   list: {
     gap: Spacing.one,
@@ -184,4 +185,4 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.6,
   },
-});
+}));

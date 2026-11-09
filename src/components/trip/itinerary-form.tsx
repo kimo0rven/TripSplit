@@ -13,7 +13,8 @@ import { pickImage, takePhoto } from '@/utils/imagePicker';
 import { toMinutes } from '@/utils/itinerary';
 import { todayKey } from '@/utils/money';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface ItineraryFormProps {
   visible: boolean;
@@ -286,7 +287,7 @@ export default function ItineraryForm({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   timeRow: { flexDirection: 'row', gap: Spacing.two },
   timeHalf: { flex: 1 },
   scroll: {
@@ -302,4 +303,4 @@ const styles = StyleSheet.create({
     color: BrandColors.primary,
     marginBottom: 2,
   },
-});
+}));

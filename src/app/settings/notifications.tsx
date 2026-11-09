@@ -40,8 +40,9 @@ import {
   LucideIcon,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * The switches are grouped by what they are about, because fourteen in one
@@ -304,7 +305,7 @@ export default function NotificationSettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1, backgroundColor: BrandColors.background },
   header: {
     flexDirection: 'row',
@@ -345,4 +346,4 @@ const styles = StyleSheet.create({
   inboxTitle: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 15, color: BrandColors.primary },
   inboxHint: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 12, color: BrandColors.secondary },
   inboxLink: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.base700 },
-});
+}));

@@ -4,7 +4,8 @@ import { currencies } from '@/constants/currencies';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { ChevronDown } from 'lucide-react-native';
 import { ReactNode, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface CurrencyFieldProps {
   title?: string;
@@ -72,7 +73,7 @@ export default function CurrencyField({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two },
   // Matches the text fields: the same label gap, corners, padding and border,
   // so the two line up side by side.
@@ -107,4 +108,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: BrandColors.secondary,
   },
-});
+}));

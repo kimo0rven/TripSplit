@@ -1,5 +1,6 @@
 import { BrandColors, Spacing } from '@/constants/theme';
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, Text } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export interface Currency {
   name: string;
@@ -45,7 +46,7 @@ export default function BigButtonOptions({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scrollContainer: {
     width: '100%',
   },
@@ -69,7 +70,7 @@ const styles = StyleSheet.create({
     color: BrandColors.primary,
   },
   selectedOptionText: {
-    color: BrandColors.heading,
+    color: BrandColors.onBrand,
     fontFamily: 'PlusJakartaSans-Bold',
   },
-});
+}));

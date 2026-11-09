@@ -8,7 +8,8 @@ import { firstName, memberLookup } from '@/utils/memberLookup';
 import { formatDay, formatMoney } from '@/utils/money';
 import { Clapperboard, Sparkles } from 'lucide-react-native';
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripReviewCardProps {
   members: TripMember[];
@@ -96,7 +97,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   emptyCard: { alignItems: 'center', gap: Spacing.one, paddingVertical: Spacing.four },
   emptyTitle: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 14, color: BrandColors.primary },
   reviewCard: {
@@ -135,4 +136,4 @@ const styles = StyleSheet.create({
     maxWidth: '62%',
     textAlign: 'right',
   },
-});
+}));

@@ -5,7 +5,8 @@ import { BrandColors, Spacing } from '@/constants/theme';
 import { buildTripQr } from '@/utils/qr';
 import { Copy, Share2 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripShareSheetProps {
   visible: boolean;
@@ -92,12 +93,12 @@ export default function TripShareSheet({
 
         <View style={styles.actionRow}>
           <Pressable style={styles.actionButton} onPress={copyCode}>
-            <Copy size={16} color={BrandColors.primary} />
+            <Copy size={16} color={BrandColors.onBrand} />
             <Text style={styles.actionText}>{copied ? 'Copied' : 'Copy code'}</Text>
           </Pressable>
 
           <Pressable style={styles.actionButton} onPress={shareInvite}>
-            <Share2 size={16} color={BrandColors.primary} />
+            <Share2 size={16} color={BrandColors.onBrand} />
             <Text style={styles.actionText}>Share</Text>
           </Pressable>
         </View>
@@ -126,7 +127,7 @@ export default function TripShareSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   content: {
     gap: Spacing.three,
     paddingBottom: Spacing.four,
@@ -175,10 +176,10 @@ const styles = StyleSheet.create({
   actionText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 13,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   qrWrapper: {
     alignItems: 'center',
     paddingVertical: Spacing.two,
   },
-});
+}));

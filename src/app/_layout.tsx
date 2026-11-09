@@ -7,13 +7,29 @@ import * as SplashScreen from 'expo-splash-screen';
 import { registerPushToken, tripIdFromNotification } from '@/services/reminders/push';
 import { tidyMyData } from '@/services/Firebase/privateData';
 import { BrandColors, FontAssets, isDarkTheme } from '@/constants/theme';
+import { useThemeVersion } from '@/constants/themed-styles';
+import { followAppearance } from '@/constants/appearance';
 import { StatusBar } from 'expo-status-bar';
 import { auth } from '@/config/firebase';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 
 SplashScreen.preventAutoHideAsync();
+
+/**
+ * Wraps every screen so that switching between light and dark redraws it
+ * with the new colours. The key changes with the theme, which rebuilds the
+ * screen's content but keeps where you are in the app.
+ */
+function ThemedScreen({ children }: { children: ReactNode }) {
+  const themeVersion = useThemeVersion();
+  return <Fragment key={themeVersion}>{children}</Fragment>;
+}
+
+const themedScreen = ({ children }: { children: ReactNode }) => (
+  <ThemedScreen>{children}</ThemedScreen>
+);
 
 const MIN_LOADING_TIME = 1500;
 const FORCE_LOADING_SCREEN = false;
@@ -101,6 +117,12 @@ function RootLayoutNav({
     return () => subscription.remove();
   }, [uid, router]);
 
+  // Redraws the status bar and page colour when the theme switches.
+  useThemeVersion();
+
+  // In "Same as phone", follow the phone when it switches between light and dark.
+  useEffect(() => followAppearance(), []);
+
   if (!isReady) {
     return <LoadingScreen />;
   }
@@ -108,8 +130,9 @@ function RootLayoutNav({
   return (
     <>
       {/* Light icons over the dark theme, dark icons over the light one. */}
-      <StatusBar style={isDarkTheme ? 'light' : 'dark'} />
+      <StatusBar style={isDarkTheme() ? 'light' : 'dark'} />
       <Stack
+        screenLayout={themedScreen}
         screenOptions={{
           headerShown: false,
           animation: 'fade',

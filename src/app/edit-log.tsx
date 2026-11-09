@@ -5,7 +5,8 @@ import { BrandColors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { EditLogEntry } from '@/types/expenses';
 import { History } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * Every change ever made to one money record.
@@ -81,7 +82,7 @@ export default function EditLogScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -132,4 +133,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.secondary,
   },
-});
+}));

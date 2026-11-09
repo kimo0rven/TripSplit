@@ -1,6 +1,7 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** Grey pulsing blocks shown while the dashboard loads. */
 export default function DashboardSkeleton() {
@@ -26,7 +27,7 @@ export default function DashboardSkeleton() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.three },
   block: { backgroundColor: BrandColors.border, borderRadius: 16 },
-});
+}));

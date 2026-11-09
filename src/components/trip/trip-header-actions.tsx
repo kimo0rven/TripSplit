@@ -1,13 +1,14 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Bell, BellOff, Ellipsis, History, Settings, Star, X } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripHeaderActionsProps {
   /** Whether to show the dashboard star at all. */
@@ -97,7 +98,7 @@ export default function TripHeaderActions({
                 accessibilityRole="button"
                 accessibilityLabel="Remove this trip from the dashboard"
               >
-                <Star size={16} color={BrandColors.primary} fill={BrandColors.primary} />
+                <Star size={16} color={BrandColors.onBrand} fill={BrandColors.primary} />
               </Pressable>
             ) : (
               <Pressable
@@ -106,7 +107,7 @@ export default function TripHeaderActions({
                 accessibilityRole="button"
                 accessibilityLabel="Use this trip on the dashboard"
               >
-                <Star size={16} color={BrandColors.primary} />
+                <Star size={16} color={BrandColors.onBrand} />
               </Pressable>
             ))}
           <Pressable
@@ -118,9 +119,9 @@ export default function TripHeaderActions({
             }
           >
             {muted ? (
-              <BellOff size={16} color={BrandColors.secondary} />
+              <BellOff size={16} color={BrandColors.onBrand} />
             ) : (
-              <Bell size={16} color={BrandColors.primary} />
+              <Bell size={16} color={BrandColors.onBrand} />
             )}
           </Pressable>
           {!!onActivity && (
@@ -130,7 +131,7 @@ export default function TripHeaderActions({
               accessibilityRole="button"
               accessibilityLabel="Trip activity"
             >
-              <History size={16} color={BrandColors.primary} />
+              <History size={16} color={BrandColors.onBrand} />
             </Pressable>
           )}
           {/* Last in the row, so settings end up nearest the cross. */}
@@ -141,7 +142,7 @@ export default function TripHeaderActions({
               accessibilityRole="button"
               accessibilityLabel="Trip settings"
             >
-              <Settings size={16} color={BrandColors.primary} />
+              <Settings size={16} color={BrandColors.onBrand} />
             </Pressable>
           )}
         </View>
@@ -155,16 +156,16 @@ export default function TripHeaderActions({
         accessibilityLabel={open ? 'Hide trip actions' : 'Show trip actions'}
       >
         {open ? (
-          <X size={16} color={BrandColors.primary} />
+          <X size={16} color={BrandColors.onBrand} />
         ) : (
-          <Ellipsis size={16} color={BrandColors.primary} />
+          <Ellipsis size={16} color={BrandColors.onBrand} />
         )}
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -199,4 +200,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

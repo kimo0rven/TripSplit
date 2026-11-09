@@ -1,7 +1,8 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { LucideIcon } from 'lucide-react-native';
 import { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export interface Choice {
   value: string;
@@ -44,7 +45,7 @@ export default function ChoiceChips({
             {Icon && (
               <Icon
                 size={13}
-                color={isSelected ? BrandColors.primary : (choice.iconColor ?? BrandColors.primary)}
+                color={isSelected ? BrandColors.onBrand : (choice.iconColor ?? BrandColors.primary)}
               />
             )}
             <Text style={[styles.label, isSelected && styles.selectedLabel]}>{choice.label}</Text>
@@ -65,7 +66,7 @@ export function FieldLabel({ children, right }: { children: ReactNode; right?: R
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -100,9 +101,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.primary,
   },
-  selectedLabel: {
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
+  selectedLabel: { color: BrandColors.onBrand, fontFamily: 'PlusJakartaSans-Bold' },
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -114,4 +113,4 @@ const styles = StyleSheet.create({
     color: BrandColors.primary,
     marginBottom: 6,
   },
-});
+}));

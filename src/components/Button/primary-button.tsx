@@ -1,5 +1,6 @@
-import { BrandColors, Spacing } from '@/constants/theme';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { BrandColors, isBrandYellow, Spacing } from '@/constants/theme';
+import { Pressable, Text } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface PrimaryButtonProps {
   title: string;
@@ -32,12 +33,20 @@ export default function PrimaryButton({
       ]}
       onPress={onPress}
     >
-      <Text style={[styles.buttonText, { color: textColor }]}>{title}</Text>
+      {/* On the brand yellow the text is always dark, in light and dark mode. */}
+      <Text
+        style={[
+          styles.buttonText,
+          { color: isBrandYellow(buttonColor) ? BrandColors.onBrand : textColor },
+        ]}
+      >
+        {title}
+      </Text>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   button: {
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.four,
@@ -52,4 +61,4 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.6,
   },
-});
+}));

@@ -1,15 +1,8 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { ReactNode } from 'react';
-import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface BottomSheetProps {
   visible: boolean;
@@ -67,7 +60,7 @@ export default function BottomSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   overlayWrapper: {
     flex: 1,
   },
@@ -120,4 +113,4 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.three,
     gap: Spacing.two,
   },
-});
+}));

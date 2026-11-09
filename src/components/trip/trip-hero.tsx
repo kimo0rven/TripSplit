@@ -1,7 +1,7 @@
 import { ProgressBar } from '@/components/ui/card';
 import TripIcon from '@/components/ui/trip-icon';
 import { findTripColor } from '@/constants/trip-colors';
-import { BrandColors, Spacing, isDarkTheme } from '@/constants/theme';
+import { BrandColors, Spacing } from '@/constants/theme';
 import { Trip } from '@/types/trips';
 import { formatLongDay, formatMoney, formatMoneyShort, parseDayKey, todayKey } from '@/utils/money';
 import { shortName } from '@/utils/format';
@@ -14,7 +14,8 @@ import {
   PiggyBank,
   QrCode,
 } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripHeroProps {
   trip: Trip;
@@ -102,10 +103,15 @@ export default function TripHero({
   return (
     <View style={[styles.card, { backgroundColor: palette.background }]}>
       {/* A soft wash of the trip's own colour, so each trip feels different
-          without the text losing contrast. */}
+          without the text losing contrast, and two soft circles for depth (the
+          same banner style as the dashboard and profile). */}
+      <View style={styles.blobBig} />
+      <View style={styles.blobSmall} />
       <View style={styles.topRow}>
-        <View style={[styles.iconBox, { backgroundColor: palette.foreground }]}>
-          <TripIcon name={trip.icon} size={22} color={palette.background} />
+        <View style={styles.iconRing}>
+          <View style={[styles.iconBox, { backgroundColor: palette.foreground }]}>
+            <TripIcon name={trip.icon} size={22} color={palette.background} />
+          </View>
         </View>
         <View style={styles.titleBlock}>
           <Text style={[styles.name, { color: palette.foreground }]} numberOfLines={2}>
@@ -217,12 +223,32 @@ export default function TripHero({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
-    borderRadius: 20,
-    padding: Spacing.three,
+    borderRadius: 24,
+    padding: Spacing.four,
     gap: Spacing.three,
+    overflow: 'hidden',
   },
+  blobBig: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    right: -60,
+    top: -80,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  blobSmall: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    left: -30,
+    bottom: -45,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  iconRing: { padding: 3, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.75)' },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -252,19 +278,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     // A faint wash of the card's own ink, so the button reads as a control
     // without introducing a second colour onto the banner.
-    backgroundColor: isDarkTheme ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.45)',
+    backgroundColor: 'rgba(255,255,255,0.55)',
   },
   qrPressed: {
     opacity: 0.6,
   },
   name: {
     fontFamily: 'PlusJakartaSans-ExtraBold',
-    fontSize: 20,
+    fontSize: 22,
   },
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 3,
   },
   statusText: {
     fontFamily: 'PlusJakartaSans-Medium',
@@ -282,8 +313,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     opacity: 0.8,
   },
+  // The money sits on a lighter strip, like the numbers on the profile banner.
   moneyBlock: {
     gap: Spacing.two,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 16,
+    padding: Spacing.three,
   },
   moneyRow: {
     flexDirection: 'row',
@@ -330,4 +365,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one,
   },
-});
+}));

@@ -8,7 +8,8 @@ import { isConnected, subscribeToConnection } from '@/services/offline/offlineSt
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ticket, X } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /**
  * Once the phone is back online, offers the invite code that was saved while
@@ -40,7 +41,7 @@ export default function PendingJoinBanner() {
         }}
         accessibilityRole="button"
       >
-        <Ticket size={18} color={BrandColors.primary} />
+        <Ticket size={18} color={BrandColors.onBrand} />
         <View style={styles.text}>
           <Text style={styles.title}>You’re back online</Text>
           <Text style={styles.hint}>
@@ -65,7 +66,7 @@ export default function PendingJoinBanner() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { position: 'relative' },
   banner: {
     flexDirection: 'row',
@@ -78,8 +79,8 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.7 },
   text: { flex: 1, gap: 1 },
-  title: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, color: BrandColors.primary },
-  hint: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 11, color: BrandColors.primary },
+  title: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 13, color: BrandColors.onBrand },
+  hint: { fontFamily: 'PlusJakartaSans-Regular', fontSize: 11, color: BrandColors.onBrand },
   closeSpace: { width: 16 },
   close: {
     position: 'absolute',
@@ -88,4 +89,4 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
   },
-});
+}));

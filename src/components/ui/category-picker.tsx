@@ -1,8 +1,9 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { categoryLook } from '@/constants/expense-categories';
 import { Check } from 'lucide-react-native';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** Four per line, so the names under the pictures stay readable. */
 const COLUMNS = 4;
@@ -136,7 +137,7 @@ export default function CategoryPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -227,4 +228,4 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Bold',
     color: BrandColors.primary,
   },
-});
+}));

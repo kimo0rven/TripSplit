@@ -12,7 +12,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Camera, Check, Plus, Users } from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 const TOTAL_STEPS = 4;
 const CURRENCIES = currencies;
@@ -168,7 +169,7 @@ export default function AccountSetup() {
                 <Camera color={BrandColors.secondary} size={32} strokeWidth={1.75} />
               )}
               <View style={styles.addAvatarButton}>
-                <Plus color={BrandColors.primary} size={18} strokeWidth={2.5} />
+                <Plus color={BrandColors.onBrand} size={18} strokeWidth={2.5} />
               </View>
             </Pressable>
 
@@ -320,7 +321,7 @@ export default function AccountSetup() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   settingsLink: {
     fontFamily: 'PlusJakartaSans-Bold',
     color: BrandColors.info,
@@ -505,4 +506,4 @@ const styles = StyleSheet.create({
     fontSize: 32,
     color: BrandColors.primary,
   },
-});
+}));

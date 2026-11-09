@@ -43,7 +43,8 @@ import {
   Users,
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** The filter chips above the list, in the order they are shown. */
 const CHIPS: { value: TripFilter; label: string }[] = [
@@ -429,7 +430,7 @@ export default function TripsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scrollContent: {
     // flexGrow lets the white panel fill the screen even when the list is
     // short, so the grey page never shows below the content.
@@ -496,7 +497,7 @@ const styles = StyleSheet.create({
     color: BrandColors.secondary,
   },
   chipTextOn: {
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
     fontFamily: 'PlusJakartaSans-Bold',
   },
   sortRow: {
@@ -544,4 +545,4 @@ const styles = StyleSheet.create({
   tripList: {
     gap: Spacing.three,
   },
-});
+}));

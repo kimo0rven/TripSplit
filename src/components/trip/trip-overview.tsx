@@ -4,7 +4,8 @@ import { TripMember } from '@/types/trips';
 import { formatMoney } from '@/utils/money';
 import { ChevronRight, Crown, QrCode } from 'lucide-react-native';
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface TripOverviewProps {
   members: TripMember[];
@@ -102,7 +103,7 @@ export default function TripOverview({
           accessibilityLabel="Invite people to this trip"
         >
           <View style={styles.inviteIcon}>
-            <QrCode size={18} color={BrandColors.primary} />
+            <QrCode size={18} color={BrandColors.onBrand} />
           </View>
           <View style={styles.inviteBody}>
             <Text style={styles.inviteTitle}>Invite people</Text>
@@ -115,7 +116,7 @@ export default function TripOverview({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     gap: Spacing.two,
   },
@@ -182,4 +183,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.secondary,
   },
-});
+}));

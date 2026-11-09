@@ -3,7 +3,8 @@ import { HelperText } from '@/components/ui/card';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { shortName } from '@/utils/format';
 import { Camera, Images, Receipt } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface ReceiptSourceSheetProps {
   visible: boolean;
@@ -41,7 +42,7 @@ export default function ReceiptSourceSheet({
           accessibilityRole="button"
         >
           <View style={styles.optionIcon}>
-            <Camera size={20} color={BrandColors.primary} />
+            <Camera size={20} color={BrandColors.onBrand} />
           </View>
           <View style={styles.optionBody}>
             <Text style={styles.optionTitle}>Take a photo</Text>
@@ -55,7 +56,7 @@ export default function ReceiptSourceSheet({
           accessibilityRole="button"
         >
           <View style={styles.optionIcon}>
-            <Images size={20} color={BrandColors.primary} />
+            <Images size={20} color={BrandColors.onBrand} />
           </View>
           <View style={styles.optionBody}>
             <Text style={styles.optionTitle}>Choose from photos</Text>
@@ -75,7 +76,7 @@ export default function ReceiptSourceSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     gap: Spacing.three,
     paddingBottom: Spacing.four,
@@ -125,4 +126,4 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: BrandColors.secondary,
   },
-});
+}));

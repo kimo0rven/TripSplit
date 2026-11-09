@@ -10,7 +10,8 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Clock, History, Pencil, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** Just the fields needed to show someone in this sheet. */
 interface MemberLike {
@@ -264,7 +265,7 @@ export default function ExpenseDetailSheet({
                   accessibilityRole="button"
                   accessibilityLabel="Edit this expense"
                 >
-                  <Pencil size={15} color={BrandColors.primary} />
+                  <Pencil size={15} color={BrandColors.onBrand} />
                   <Text style={styles.editText}>Edit</Text>
                 </Pressable>
               )}
@@ -311,7 +312,7 @@ export default function ExpenseDetailSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   content: {
     gap: Spacing.three,
     paddingBottom: Spacing.four,
@@ -463,7 +464,7 @@ const styles = StyleSheet.create({
   editText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 14,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   actionRow: {
     flexDirection: 'row',
@@ -492,4 +493,4 @@ const styles = StyleSheet.create({
     color: BrandColors.secondary,
     textAlign: 'center',
   },
-});
+}));

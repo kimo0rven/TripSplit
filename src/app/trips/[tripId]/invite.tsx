@@ -36,10 +36,10 @@ import {
   Pressable,
   ScrollView,
   Share,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export default function InviteMembersScreen() {
   const router = useRouter();
@@ -247,18 +247,18 @@ export default function InviteMembersScreen() {
             {!!inviteCode && (
               <View style={styles.codeActions}>
                 <Pressable style={styles.codeAction} onPress={copyCode}>
-                  <Copy size={15} color={BrandColors.primary} />
+                  <Copy size={15} color={BrandColors.onBrand} />
                   <Text style={styles.codeActionText}>{copied ? 'Copied' : 'Copy'}</Text>
                 </Pressable>
                 <Pressable style={styles.codeAction} onPress={shareInvite}>
-                  <Share2 size={15} color={BrandColors.primary} />
+                  <Share2 size={15} color={BrandColors.onBrand} />
                   <Text style={styles.codeActionText}>Share</Text>
                 </Pressable>
                 {/* The QR used to sit below this card in full, taking a big
                     square of the page even when nobody wanted it. It now opens
                     the same slide-up sheet the trip card uses. */}
                 <Pressable style={styles.codeAction} onPress={() => setQrOpen(true)}>
-                  <QrIcon size={15} color={BrandColors.primary} />
+                  <QrIcon size={15} color={BrandColors.onBrand} />
                   <Text style={styles.codeActionText}>QR</Text>
                 </Pressable>
               </View>
@@ -387,7 +387,7 @@ export default function InviteMembersScreen() {
                         disabled={isBusy}
                       >
                         {isBusy ? (
-                          <ActivityIndicator color={BrandColors.primary} size="small" />
+                          <ActivityIndicator color={BrandColors.onBrand} size="small" />
                         ) : (
                           <Text style={styles.inviteButtonText}>Invite</Text>
                         )}
@@ -436,7 +436,7 @@ export default function InviteMembersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: {
     flex: 1,
     backgroundColor: BrandColors.background,
@@ -533,7 +533,7 @@ const styles = StyleSheet.create({
   codeActionText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   sectionTitle: {
     fontFamily: 'PlusJakartaSans-Bold',
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
   inviteButtonText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 13,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   addedBadge: {
     flexDirection: 'row',
@@ -662,4 +662,4 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.three,
     paddingBottom: Spacing.five,
   },
-});
+}));

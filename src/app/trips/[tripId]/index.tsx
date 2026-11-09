@@ -65,7 +65,8 @@ import {
   Trophy,
 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 type LocalTabKey = TabKey;
 
@@ -611,7 +612,7 @@ export default function TripDetailScreen() {
 
               {isClosed && (
                 <View style={styles.closedNotice}>
-                  <Lock size={15} color={BrandColors.primary} />
+                  <Lock size={15} color={BrandColors.onBrand} />
                   <Text style={styles.overText}>
                     {members
                       .find((member) => member.id === trip.closedBy)
@@ -625,7 +626,7 @@ export default function TripDetailScreen() {
 
               {notStarted && (tab === 'expenses' || tab === 'balances') && (
                 <View style={styles.closedNotice}>
-                  <CalendarRange size={15} color={BrandColors.primary} />
+                  <CalendarRange size={15} color={BrandColors.onBrand} />
                   <Text style={styles.overText}>{notStartedText}</Text>
                 </View>
               )}
@@ -850,11 +851,11 @@ export default function TripDetailScreen() {
             }}
           >
             {tab === 'itinerary' ? (
-              <CalendarRange size={22} color={BrandColors.primary} />
+              <CalendarRange size={22} color={BrandColors.onBrand} />
             ) : tab === 'balances' ? (
-              <Scale size={22} color={BrandColors.primary} />
+              <Scale size={22} color={BrandColors.onBrand} />
             ) : (
-              <Plus size={24} color={BrandColors.primary} />
+              <Plus size={24} color={BrandColors.onBrand} />
             )}
           </Pressable>
         )}
@@ -1170,7 +1171,7 @@ export default function TripDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scrollContent: {
     // Fills the screen when a tab is short, so no grey shows below the content.
     flexGrow: 1,
@@ -1306,7 +1307,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 11,
     lineHeight: 16,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
   fab: {
     position: 'absolute',
@@ -1341,4 +1342,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.primary,
   },
-});
+}));

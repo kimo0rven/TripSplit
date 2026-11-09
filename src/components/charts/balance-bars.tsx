@@ -2,9 +2,10 @@ import Avatar from '@/components/ui/avatar';
 import { BrandColors, Spacing } from '@/constants/theme';
 import { TripMember } from '@/types/trips';
 import { formatMoney } from '@/utils/money';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { chartStyles } from './chart-kit';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface BalanceBarsProps {
   /** Each member's net: above zero they are owed, below zero they owe. */
@@ -66,7 +67,7 @@ export default function BalanceBars({ nets, currency, currentUserId }: BalanceBa
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { gap: Spacing.two },
   heads: { flexDirection: 'row', marginLeft: 80, marginRight: 76 },
   left: { flex: 1, textAlign: 'left' },
@@ -99,4 +100,4 @@ const styles = StyleSheet.create({
   },
   green: { color: BrandColors.success },
   red: { color: BrandColors.error },
-});
+}));

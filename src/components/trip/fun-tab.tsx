@@ -3,7 +3,7 @@ import GuessCard from '@/components/trip/guess-card';
 import SoundtrackCard from '@/components/trip/soundtrack-card';
 import SpinWheel from '@/components/trip/spin-wheel';
 import SplitRoulette from '@/components/trip/split-roulette';
-import { BrandColors, Spacing } from '@/constants/theme';
+import { BrandColors, Spacing, isDarkTheme } from '@/constants/theme';
 import { Expense, Settlement } from '@/types/expenses';
 import { Trip, TripMember } from '@/types/trips';
 import { lastPayerOf, pickRandomPayer, tripAwards, tripCountdown } from '@/utils/fun';
@@ -22,7 +22,8 @@ import {
   Trophy,
   Wallet,
 } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface FunTabProps {
   trip: Trip;
@@ -41,14 +42,18 @@ interface FunTabProps {
   isOwner?: boolean;
 }
 
-/** The colour each award wears, so the row reads as a badge. */
-const AWARD_LOOKS: Record<string, { icon: typeof Trophy; bg: string; fg: string }> = {
+/** The colour each award wears, so the row reads as a badge (read when drawn, so it follows the theme). */
+const awardLooks = (): Record<string, { icon: typeof Trophy; bg: string; fg: string }> => ({
   sponsor: { icon: Wallet, bg: BrandColors.infoBg, fg: BrandColors.info },
   priciest: { icon: Flame, bg: BrandColors.warningBg, fg: BrandColors.warning },
-  streak: { icon: Medal, bg: BrandColors.base200, fg: BrandColors.base700 },
+  streak: {
+    icon: Medal,
+    bg: BrandColors.base200,
+    fg: isDarkTheme() ? BrandColors.onBrand : BrandColors.base700,
+  },
   generous: { icon: ArrowLeftRight, bg: BrandColors.successBg, fg: BrandColors.success },
   owl: { icon: Sparkles, bg: BrandColors.inputField, fg: BrandColors.secondary },
-};
+});
 
 /**
  * The playful side of a trip: a countdown, awards drawn from what really
@@ -125,7 +130,10 @@ export default function FunTab({
       <SectionTitle
         right={
           <View style={styles.titleTag}>
-            <PartyPopper size={11} color={BrandColors.base700} />
+            <PartyPopper
+              size={11}
+              color={isDarkTheme() ? BrandColors.onBrand : BrandColors.base700}
+            />
             <Text style={styles.titleTagText}>From your expenses</Text>
           </View>
         }
@@ -144,7 +152,8 @@ export default function FunTab({
       ) : (
         <View style={styles.list}>
           {awards.map((award) => {
-            const look = AWARD_LOOKS[award.key] ?? AWARD_LOOKS.owl;
+            const looks = awardLooks();
+            const look = looks[award.key] ?? looks.owl;
             const Icon = look.icon;
             return (
               <View key={award.key} style={styles.awardRow}>
@@ -263,7 +272,7 @@ function Tile({ icon, label, value }: { icon: ReactNode; label: string; value: s
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     gap: Spacing.three,
   },
@@ -287,19 +296,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1.1,
     textTransform: 'uppercase',
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
     opacity: 0.7,
   },
   countdownValue: {
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 30,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
     letterSpacing: -0.5,
   },
   countdownHint: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 12,
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
     opacity: 0.75,
   },
   countdownIcon: {
@@ -323,7 +332,7 @@ const styles = StyleSheet.create({
   titleTagText: {
     fontFamily: 'PlusJakartaSans-SemiBold',
     fontSize: 10,
-    color: BrandColors.base700,
+    color: BrandColors.onBrand,
   },
 
   list: {
@@ -418,4 +427,4 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: BrandColors.secondary,
   },
-});
+}));

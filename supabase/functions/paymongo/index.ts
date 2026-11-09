@@ -608,13 +608,6 @@ const notifyReceived = async (
   body: string,
 ) => {
   try {
-    const [prefs, delivery] = await Promise.all([
-      db(`users/${to}/notificationPrefs`),
-      db(`users/${to}/notificationSettings`),
-    ]);
-    if (prefs && prefs.paymentUpdates === false) return;
-    if (delivery?.mutedTrips?.[tripId]) return;
-
     const id = `pm${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
     await db(`notifications/${to}/${id}`, 'PUT', {
       id,
@@ -623,20 +616,13 @@ const notifyReceived = async (
       body,
       from,
       tripId,
+      about: tripId,
       createdAt: new Date().toISOString(),
       read: false,
     });
-
-    if (delivery?.push !== false) {
-      const token = await db(`users/${to}/pushToken`);
-      if (typeof token === 'string' && token) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify({ to: token, title, body, sound: 'default', data: { tripId } }),
-        }).catch(() => undefined);
-      }
-    }
+    // The same checks as every other push: their settings now live under
+    // userPrivate (turned-off kinds, muted trips, quiet hours, their token).
+    await pushNotice(from, to, id);
   } catch (error) {
     console.warn('Could not notify the receiver:', error);
   }
@@ -821,11 +807,24 @@ const pushNotice = async (from: string, to: string, noticeId: string) => {
       title: String(notice.title || ''),
       body: String(notice.body || ''),
       sound: 'default',
+      // Android: the channel the app creates, at high priority so it shows
+      // straight away even when the phone is idle.
+      channelId: 'default',
+      priority: 'high',
       data: { tripId: notice.tripId || undefined },
     }),
   });
   const result = await response.json().catch(() => ({}));
-  return response.ok && result?.data?.status !== 'error' ? 'pushed' : 'inbox';
+  // The app was uninstalled or the token replaced: forget it so later notices
+  // don't keep trying a phone that is gone.
+  if (result?.data?.details?.error === 'DeviceNotRegistered') {
+    await db(`userPrivate/${to}/pushToken`, 'PUT', null).catch(() => null);
+  }
+  if (!response.ok || result?.data?.status === 'error') {
+    console.warn('Expo refused a push:', JSON.stringify(result?.data ?? result));
+    return 'inbox';
+  }
+  return 'pushed';
 };
 
 /** Who may put a file at a path: their own folder, or a trip they are in. */

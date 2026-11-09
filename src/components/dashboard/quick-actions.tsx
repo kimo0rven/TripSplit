@@ -1,7 +1,8 @@
 import SquareButton from '@/components/Button/square-button';
-import { BrandColors, Spacing } from '@/constants/theme';
+import { BrandColors, isBrandYellow, Spacing } from '@/constants/theme';
 import { quickactions } from '@/constants/quickactions';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 /** The row of round shortcut buttons: expense, settle up, receipt, note, invite. */
 export default function QuickActions({ handlers }: { handlers: Record<string, () => void> }) {
@@ -10,7 +11,12 @@ export default function QuickActions({ handlers }: { handlers: Record<string, ()
       {quickactions.map((action) => (
         <View key={action.id} style={styles.actionItem}>
           <SquareButton
-            title={<action.Icon color={BrandColors.primary} size={22} />}
+            title={
+              <action.Icon
+                color={isBrandYellow(action.btnColor) ? BrandColors.onBrand : BrandColors.primary}
+                size={22}
+              />
+            }
             buttonColor={action.btnColor}
             textColor={BrandColors.primary}
             borderColor="transparent"
@@ -24,7 +30,7 @@ export default function QuickActions({ handlers }: { handlers: Record<string, ()
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   homescreenButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -41,4 +47,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: BrandColors.primary,
   },
-});
+}));

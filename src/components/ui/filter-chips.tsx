@@ -1,6 +1,7 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { LucideIcon } from 'lucide-react-native';
-import { ScrollView, StyleSheet, Text, Pressable, View } from 'react-native';
+import { ScrollView, Text, Pressable, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 export interface FilterOption {
   value: string;
@@ -55,7 +56,7 @@ export default function FilterChips({
         const on =
           option.value === allValue ? value === null || value === allValue : value === option.value;
         const Icon = option.icon;
-        const tint = on ? BrandColors.primary : (option.iconColor ?? BrandColors.secondary);
+        const tint = on ? BrandColors.onBrand : (option.iconColor ?? BrandColors.secondary);
 
         return (
           <Pressable
@@ -79,7 +80,7 @@ export default function FilterChips({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     gap: Spacing.one,
@@ -111,6 +112,6 @@ const styles = StyleSheet.create({
   },
   labelOn: {
     fontFamily: 'PlusJakartaSans-Bold',
-    color: BrandColors.primary,
+    color: BrandColors.onBrand,
   },
-});
+}));

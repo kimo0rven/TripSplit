@@ -12,8 +12,9 @@ import {
   Wallet,
 } from 'lucide-react-native';
 import { ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { themedStyles } from '@/constants/themed-styles';
 
 const HOW_STEPS: { icon: typeof Users; title: string; body: string }[] = [
   {
@@ -119,7 +120,7 @@ export default function AboutScreen() {
             {HOW_STEPS.map(({ icon: Icon, title, body }, index) => (
               <View key={title} style={styles.step}>
                 <View style={styles.stepIcon}>
-                  <Icon size={18} color={BrandColors.primary} />
+                  <Icon size={18} color={BrandColors.onBrand} />
                 </View>
                 <View style={styles.stepText}>
                   <Text style={styles.stepTitle}>
@@ -175,7 +176,7 @@ export default function AboutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   flex: { flex: 1, backgroundColor: BrandColors.background },
   header: {
     flexDirection: 'row',
@@ -202,7 +203,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: Spacing.two,
   },
-  logoText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 32, color: BrandColors.heading },
+  logoText: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 32, color: BrandColors.onBrand },
   heroTitle: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 24, color: BrandColors.heading },
   heroSubtitle: {
     fontFamily: 'PlusJakartaSans-Regular',
@@ -262,4 +263,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BrandColors.secondary,
   },
-});
+}));

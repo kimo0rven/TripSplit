@@ -3,6 +3,7 @@ import { formatTime } from '@/utils/money';
 import { Clock, Minus, Plus } from 'lucide-react-native';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 type Meridiem = 'AM' | 'PM';
 
@@ -192,7 +193,7 @@ export default function TimeField({ value, onChange, label = 'Time' }: TimeField
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   // Matches DayField's tile exactly.
   tile: {
     flexDirection: 'row',
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
   },
   meridiemTextOn: {
     fontFamily: 'PlusJakartaSans-Bold',
-    color: BrandColors.heading,
+    color: BrandColors.onBrand,
   },
   doneButton: {
     marginLeft: 'auto',
@@ -319,6 +320,6 @@ const styles = StyleSheet.create({
   doneText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 14,
-    color: BrandColors.heading,
+    color: BrandColors.onBrand,
   },
-});
+}));

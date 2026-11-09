@@ -28,7 +28,8 @@ import {
 import { formatMoney } from '@/utils/money';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface CurrencyStats {
   currency: string;
@@ -480,7 +481,7 @@ function Row({ label, value, color }: { label: string; value: string; color?: st
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   scrollContent: {
     flexGrow: 1,
     backgroundColor: BrandColors.background,
@@ -524,7 +525,7 @@ const styles = StyleSheet.create({
   },
   rangeChipOn: { backgroundColor: BrandColors.base400, borderColor: BrandColors.base400 },
   rangeText: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 12, color: BrandColors.secondary },
-  rangeTextOn: { color: BrandColors.primary },
+  rangeTextOn: { color: BrandColors.onBrand },
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.two },
   chartCol: { flex: 1, alignItems: 'center', gap: 4 },
   chartBarArea: { height: 72, justifyContent: 'flex-end', width: '100%', alignItems: 'center' },
@@ -590,4 +591,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: Spacing.four,
   },
-});
+}));

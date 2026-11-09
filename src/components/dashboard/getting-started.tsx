@@ -1,6 +1,7 @@
 import { BrandColors, Spacing } from '@/constants/theme';
 import { Check, Circle } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { themedStyles } from '@/constants/themed-styles';
 
 interface Step {
   label: string;
@@ -35,7 +36,7 @@ export default function GettingStarted({ steps }: { steps: Step[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   card: {
     backgroundColor: BrandColors.background,
     borderWidth: 1,
@@ -48,4 +49,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   text: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, color: BrandColors.primary },
   done: { color: BrandColors.secondary, textDecorationLine: 'line-through' },
-});
+}));
